@@ -6,17 +6,19 @@ const html = pageHtml();
 const results = [];
 const check = (name, ok, detail) => results.push([!!ok, name, detail]);
 
-async function boot(notes, query = "") {
+async function boot(notes, query = "", extra = {}, storage = null) {
   const config = {
     sections: [{ label: "A", fields: [{ fieldname: "cell_number", label: "SĐT", fieldtype: "Data", widget: "Auto", width: "Full",
       required: false, read_only: false, auto_fill: true, validation: "", min_length: 0, max_length: 0 }] }],
     allow_local_draft: false, lock_after_submit: false, save_file_type: "PDF", commitment_html: "Cam kết", documents: [],
   };
   if (notes !== undefined) config.start_notes_html = notes;
+  Object.assign(config, extra);
   const dom = new JSDOM(html, {
     runScripts: "dangerously", url: "https://erp.test/employee-self-update-info" + query,
     beforeParse(w) {
       stubBrowser(w);
+      if (storage) Object.entries(storage).forEach(([k, v]) => w.localStorage.setItem(k, v));
       w.csrf_token = "x";
       w.requestAnimationFrame = (cb) => setTimeout(cb, 0);
       w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => {} });
@@ -72,5 +74,30 @@ async function boot(notes, query = "") {
     && w.document.getElementById("picker_card").classList.contains("hidden"));
   w = await boot(undefined);
   check("server cũ (không có khoá) → không hiện", w.document.getElementById("start_notes").classList.contains("hidden"));
+
+  // ---- Start Button Delay (28/10/2026): lần đầu mở trên máy → nút khoá + đếm ngược ----
+  w = await boot(html, "", { start_button_delay: 2 });
+  let b = w.document.getElementById("start_btn");
+  check("lần đầu: nút hiện nhưng khoá, đếm ngược", !b.classList.contains("hidden") && b.disabled && /2 giây/.test(b.textContent), b.textContent);
+  w.startPicking();
+  check("đang khoá → gọi startPicking không mở ô chọn NV", w.document.getElementById("picker_card").classList.contains("hidden"));
+  await sleep(1100);
+  check("đếm ngược giảm", b.disabled && /1 giây/.test(b.textContent), b.textContent);
+  await sleep(1100);
+  check("hết giờ → mở khoá, chữ 'Bắt đầu'", !b.disabled && b.textContent === "Bắt đầu", b.textContent);
+  b.click();
+  const seen = w.localStorage.getItem("esui_start_notes_seen");
+  check("bấm Bắt đầu → lưu dấu đã đọc", !!seen && !w.document.getElementById("picker_card").classList.contains("hidden"));
+  w = await boot(html, "", { start_button_delay: 20 }, { esui_start_notes_seen: seen });
+  b = w.document.getElementById("start_btn");
+  check("lần sau (cùng ghi chú) → bấm được ngay", !b.disabled && b.textContent === "Bắt đầu", b.textContent);
+  w = await boot(html + "<p>mới</p>", "", { start_button_delay: 20 }, { esui_start_notes_seen: seen });
+  b = w.document.getElementById("start_btn");
+  check("HR sửa ghi chú → chờ lại", b.disabled && /20 giây/.test(b.textContent), b.textContent);
+  w = await boot(html, "", { start_button_delay: 0 });
+  b = w.document.getElementById("start_btn");
+  check("delay 0 → không chờ", !b.disabled && b.textContent === "Bắt đầu");
+  w = await boot(html);
+  check("server chưa gửi khoá delay → không chờ", !w.document.getElementById("start_btn").disabled);
   report(results);
 })().catch(e => { console.error(e); process.exit(1); });

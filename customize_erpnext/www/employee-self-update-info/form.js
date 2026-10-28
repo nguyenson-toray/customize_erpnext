@@ -184,7 +184,7 @@
       // Có ghi chú → nút "Bắt đầu" (bấm mới hiện ô chọn NV); không có / lỗi tải config → hiện ô chọn NV ngay.
       // Link ?emp= (HR mở thẳng 1 NV) bỏ qua bước này — ô chọn NV vẫn ẩn như cũ.
       if (!new URLSearchParams(location.search).get("emp")) {
-        if (S.config && S.config.start_notes_html) document.getElementById("start_btn").classList.remove("hidden");
+        if (S.config && S.config.start_notes_html) showStartButton();
         else document.getElementById("picker_card").classList.remove("hidden");
       }
       // Thật: chỉ trong Zalo webview. Test: thêm ?zalo=1 để xem trước overlay ở trình duyệt thường.
@@ -222,8 +222,40 @@
       box.classList.toggle("hidden", !html);
     }
 
+    // Lần đầu mở trên máy này (Setting → Start Button Delay, mặc định 20s): nút "Bắt đầu" khoá + đếm ngược để NV đọc
+    // ghi chú. Đã bấm Bắt đầu với ĐÚNG nội dung ghi chú này (localStorage lưu dấu băm) → mở ngay; HR sửa ghi chú → chờ lại
+    // 1 lần. localStorage bị chặn → lần nào cũng chờ (phía an toàn).
+    const NOTES_SEEN_KEY = "esui_start_notes_seen";
+    function notesHash() {
+      const s = (S.config && S.config.start_notes_html) || "";
+      let h = 5381;
+      for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+      return h.toString(36) + "." + s.length;
+    }
+    function notesSeen() {
+      try { return localStorage.getItem(NOTES_SEEN_KEY) === notesHash(); } catch (e) { return false; }
+    }
+    let _startTimer = null;
+    function showStartButton() {
+      const btn = document.getElementById("start_btn");
+      btn.classList.remove("hidden");
+      const delay = (S.config && S.config.start_button_delay) || 0;
+      if (!delay || notesSeen()) { btn.disabled = false; btn.textContent = "Bắt đầu"; return; }
+      const until = Date.now() + delay * 1000;   // tính theo đồng hồ: tab chạy nền (timer bị hãm) vẫn đúng
+      const tick = () => {
+        const left = Math.ceil((until - Date.now()) / 1000);
+        if (left <= 0) { clearInterval(_startTimer); _startTimer = null; btn.disabled = false; btn.textContent = "Bắt đầu"; return; }
+        btn.disabled = true;
+        btn.textContent = `Vui lòng đọc hướng dẫn trên… (${left} giây)`;
+      };
+      tick();
+      _startTimer = setInterval(tick, 250);
+    }
+
     // Bấm "Bắt đầu" = đã đọc ghi chú → ẩn ghi chú + nút, hiện ô chọn NV (user 28/10/2026).
     function startPicking() {
+      if (document.getElementById("start_btn").disabled) return;
+      try { localStorage.setItem(NOTES_SEEN_KEY, notesHash()); } catch (e) { }
       document.getElementById("start_btn").classList.add("hidden");
       document.getElementById("start_notes").classList.add("hidden");
       const card = document.getElementById("picker_card");
@@ -456,6 +488,7 @@
           });
         }
         if (f.fieldtype === "Table") tblWire(f);
+        if (f.allow_other && !f.read_only) wireOther(f, el);
         if (f.fieldname === CCCD_ISSUE_FIELD || f.fieldname === DOB_FIELD) {
           el.addEventListener("input", () => recalcCccdExpiry(true));
           el.addEventListener("change", () => recalcCccdExpiry(true));
@@ -489,7 +522,12 @@
         const box = document.getElementById("fg_" + f.fieldname);
         if (box) box.classList.toggle("hidden", !show);
         const el = document.getElementById("f_" + f.fieldname);
-        if (!show && el && el.value) { el.value = ""; markChanged(f); }
+        if (!show && el && el.value) {
+          el.value = "";
+          const o = document.getElementById("f_" + f.fieldname + "__other");
+          if (o) { o.value = ""; o.classList.add("hidden"); }
+          markChanged(f);
+        }
       }));
       layoutHalfRows();   // field ẩn/hiện → ô Half mất bạn cặp giãn cả hàng / ghép lại khi hiện
     }
@@ -565,8 +603,15 @@
       } else if (f.fieldtype === "Select") {
         // Nhãn tiếng Việt (option_labels), giá trị gửi đi giữ nguyên: <option value="Married">Đã kết hôn</option>.
         const lbl = f.option_labels || {};
-        const opts = (f.options || []).map(o => `<option value="${esc(o)}"${String(val || "") === String(o) ? " selected" : ""}>${esc(lbl[o] || o || "— Chọn —")}</option>`).join("");
+        // Select + Other (f.allow_other): giá trị ngoài danh sách = chữ NV gõ ở "Khác" → chọn sẵn "Khác" + điền ô dưới.
+        const isOther = f.allow_other && norm(val).trim() !== "" && !(f.options || []).includes(String(val));
+        const opts = (f.options || []).map(o => `<option value="${esc(o)}"${!isOther && String(val || "") === String(o) ? " selected" : ""}>${esc(lbl[o] || o || "— Chọn —")}</option>`).join("")
+          + (f.allow_other ? `<option value="${OTHER_VALUE}"${isOther ? " selected" : ""}>Khác</option>` : "");
         input = `<select id="${id}"${roAttr}>${opts}</select>`;
+        if (f.allow_other) {
+          input += `<input type="text" id="${id}__other" class="other-input${isOther ? "" : " hidden"}"` +
+            ` value="${esc(isOther ? val : "")}" placeholder="Ghi rõ…"${valAttrs(f)}${roAttr}>`;
+        }
       } else if (["Small Text", "Text", "Long Text"].includes(f.fieldtype)) {
         input = `<textarea id="${id}"${ph}${roAttr}>${esc(val || "")}</textarea>`;
       } else if (["Int", "Float", "Currency"].includes(f.fieldtype)) {
@@ -745,6 +790,7 @@
       if (f.widget === "Address Province" || f.widget === "Address Ward") {
         return el.dataset.value || "";   // chữ đang gõ để lọc KHÔNG phải giá trị
       }
+      if (f.allow_other && el.value === OTHER_VALUE) return otherText(f);
       return normalizeText(f, el.value);
     }
 
@@ -754,6 +800,34 @@
     //  · viết hoa ký tự đầu · Capitalize Each Word: hoa ký tự đầu mỗi từ, giữ nguyên phần còn lại
     //  · Sentence Case: hoa ký tự đầu mỗi câu (sau . ! ? …, đầu dòng). Không cảnh báo, không hỏi.
     const NORMALIZE_TYPES = new Set(["Data", "Small Text", "Text", "Long Text"]);
+
+    // ---------- Select + Other ----------
+    // Setting → Widget "Select + Other" (field Data của Employee, VD ăn chay): dropdown + "Khác"; chọn "Khác" → hiện ô
+    // f_<fieldname>__other, giá trị gửi đi = chữ trong ô đó (chuẩn hoá như field Data; server làm lại khi lưu).
+    const OTHER_VALUE = "__other__";
+    function otherText(f) {
+      const o = document.getElementById("f_" + f.fieldname + "__other");
+      return o ? normalizeText({ ...f, fieldtype: "Data" }, o.value) : "";
+    }
+    // Đang chọn "Khác" mà chưa gõ → coi như thiếu (kể cả field không bắt buộc).
+    function otherMissing(f) {
+      const el = f.allow_other && document.getElementById("f_" + f.fieldname);
+      return !!el && el.value === OTHER_VALUE && otherText(f).trim() === "";
+    }
+    function wireOther(f, el) {
+      const o = document.getElementById("f_" + f.fieldname + "__other");
+      if (!o) return;
+      el.addEventListener("change", () => {
+        const on = el.value === OTHER_VALUE;
+        o.classList.toggle("hidden", !on);
+        if (on) o.focus();
+      });
+      o.addEventListener("input", () => markChanged(f));
+      o.addEventListener("change", () => {
+        const nv = normalizeText({ ...f, fieldtype: "Data" }, o.value);
+        if (nv !== o.value) { o.value = nv; markChanged(f); }
+      });
+    }
     function normalizeText(f, v) {
       if (typeof v !== "string") return v;
       if (!NORMALIZE_TYPES.has(f.fieldtype) || (f.widget || "Auto") !== "Auto") return v;
@@ -1142,7 +1216,8 @@
           if (!depVisible(f)) { data[f.fieldname] = ""; continue; }   // ô đang ẩn → gửi trống
           const v = currentValue(f);
           data[f.fieldname] = v;
-          if (f.fieldname === CCCD_EXPIRE_FIELD) continue;   // tự tính, không bắt buộc / không kiểm "Future"
+          if (f.fieldname === CCCD_EXPIRE_FIELD) continue;
+          if (otherMissing(f)) { missing.push(f.label + " (Khác)"); missingFields.push(f.fieldname); continue; }   // tự tính, không bắt buộc / không kiểm "Future"
           if (f.fieldtype === "Table") {
             if (f.required && !v.length) { missing.push(f.label); missingFields.push(f.fieldname); continue; }
             const terr = tblValidate(f, v);
@@ -1160,10 +1235,11 @@
       if (invalid.length) { toast(invalid.join(" · ")); flashFields(invalidFields); return; }
       const committed = document.getElementById("f__commit").checked;
       const signature = SignPad.isEmpty() ? "" : SignPad.toDataURL();
-      if (!S.isHR) {
-        if (!committed) { toast("Vui lòng tick ô cam kết thông tin khai đúng sự thật."); flashCard("sign_card"); return; }
-        if (!signature) { toast("Vui lòng ký tên vào ô chữ ký."); flashCard("sign_card"); return; }
+      // Ký thì phải tick cam kết — kể cả HR (server kiểm lại). HR không ký (sửa hộ qua ?emp=) → không bắt buộc.
+      if ((signature || !S.isHR) && !committed) {
+        toast("Vui lòng tick ô cam kết thông tin khai đúng sự thật."); flashCard("sign_card"); return;
       }
+      if (!S.isHR && !signature) { toast("Vui lòng ký tên vào ô chữ ký."); flashCard("sign_card"); return; }
 
       const btn = document.getElementById("submit_btn");
       btn.disabled = true; btn.textContent = "Đang gửi…";

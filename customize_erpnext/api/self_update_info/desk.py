@@ -102,7 +102,7 @@ def _hr_editor(f):
 		return None
 	ft = f.get("fieldtype")
 	if ft == "Select" and f.get("options"):
-		return "select"
+		return "text" if f.get("allow_other") else "select"  # Select + Other: HR gõ tự do như field Data
 	if ft == "Date":
 		return "date"  # data_json lưu ISO yyyy-mm-dd, giống <input type=date> của trang www
 	if ft in _TEXT_EDITABLE_TYPES:
@@ -160,7 +160,8 @@ def validate_desk_edit(doc):
 			new[k] = rows
 			errors += errs
 			continue
-		nv = _normalize_text(f, "" if nv is None else str(nv).strip())
+		nv = "" if nv is None else str(nv).strip()
+		nv = _normalize_text(dict(f, fieldtype="Data") if f.get("allow_other") and nv not in f["options"] else f, nv)
 		new[k] = nv
 		if str(ov or "") == nv:
 			continue

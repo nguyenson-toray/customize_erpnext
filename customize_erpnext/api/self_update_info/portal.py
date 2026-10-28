@@ -114,6 +114,8 @@ def get_field_config():
 	config["start_notes_html"] = (
 		sanitize_html(notes, always_sanitize=True) if frappe.utils.strip_html(notes).strip() else ""
 	)
+	# Lần đầu mở trên 1 máy: nút "Bắt đầu" chờ N giây để NV đọc ghi chú (user 28/10/2026). Trống / âm → 0 = không chờ.
+	config["start_button_delay"] = max(0, frappe.utils.cint(setting.get("start_button_delay")))
 	# Hồ sơ nộp kèm: NV tick hồ sơ đã có (không chặn gửi khi thiếu — HR theo dõi ở Tình trạng hồ sơ).
 	config["documents"] = _setting_documents(setting)
 	return config
@@ -292,11 +294,12 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 	if signature:
 		if not signature.startswith(_SIGNATURE_PREFIX) or len(signature) > _SIGNATURE_MAX_LEN:
 			frappe.throw(_("Invalid signature image"))
-	if not is_hr:
-		if not committed:
-			frappe.throw("Vui lòng tick ô cam kết thông tin khai đúng sự thật.")
-		if not signature:
-			frappe.throw("Vui lòng ký tên vào ô chữ ký.")
+	# Ký thì PHẢI tick cam kết — kể cả HR (chữ ký không kèm cam kết vô nghĩa; bug 28/10/2026: HR test ký được khi
+	# chưa tick). HR không ký (sửa hộ qua ?emp=) thì không bắt buộc cả hai — giữ chữ ký cũ của NV.
+	if (signature or not is_hr) and not committed:
+		frappe.throw("Vui lòng tick ô cam kết thông tin khai đúng sự thật.")
+	if not is_hr and not signature:
+		frappe.throw("Vui lòng ký tên vào ô chữ ký.")
 
 	setting = _get_setting()
 	_ensure_eligible(setting, employee_id)
@@ -328,6 +331,9 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 				# Bảng con: list dòng đã làm sạch (cột, kiểu, max_rows, cột bắt buộc, `name` của chính NV).
 				clean[k], errs = _clean_table_value(f, clean[k], employee_id)
 				table_errors += errs
+			elif f.get("allow_other") and clean[k] not in (f.get("options") or []):
+				# "Khác" của widget Select + Other: chữ tự do → chuẩn hoá như field Data
+				clean[k] = _normalize_text(dict(f, fieldtype="Data"), clean[k])
 			else:
 				clean[k] = _normalize_text(f, clean[k])
 
@@ -360,7 +366,9 @@ def save_form_data(employee_id, data, code=None, unlock_code=None, commitment=No
 			v = clean.get(f["fieldname"])
 			# Select (kể cả Gender hiện dạng dropdown): chỉ nhận giá trị gốc trong options — nhãn tiếng Việt
 			# ("Nữ") gửi lên sẽ làm Sync lỗi Link / Select.
-			if f.get("fieldtype") == "Select" and v not in (None, "") and v not in (f.get("options") or []):
+			# Select + Other: ngoài danh sách = chữ NV gõ ở "Khác" → hợp lệ (field Employee là Data).
+			if (f.get("fieldtype") == "Select" and not f.get("allow_other")
+					and v not in (None, "") and v not in (f.get("options") or [])):
 				errors.append(_("{0}: {1} is not a valid option").format(f["label"], v))
 	errors += _portal_address_errors(config, clean, employee_id)
 	if errors:

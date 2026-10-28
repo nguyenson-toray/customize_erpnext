@@ -53,6 +53,10 @@ _LINK_AS_SELECT = {
 }
 
 
+# Widget của dòng Setting: field Data hiện dropdown (Custom Options) + "Khác" → ô nhập tự do (config._build_config).
+_SELECT_OTHER_WIDGET = "Select + Other"
+
+
 # Field chỉ hiện (và khi hiện thì BẮT BUỘC) khi field khác có giá trị trong danh sách; ẩn → xoá trắng
 # (trang www, save_form_data, validate_desk_edit). Chỉ áp khi field điều kiện cũng có trong Setting.
 # Desk Employee dùng depends_on của chính Custom Field.

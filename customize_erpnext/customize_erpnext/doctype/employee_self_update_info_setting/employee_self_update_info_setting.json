@@ -33,6 +33,7 @@
   "commitment_text",
   "column_break_lwvb",
   "start_notes",
+  "start_button_delay",
   "tab_form_setup",
   "section_hr_pdf",
   "document_checklist",
@@ -261,6 +262,15 @@
    "label": "Start Screen Notes"
   },
   {
+   "default": "20",
+   "depends_on": "start_notes",
+   "description": "First visit on a device: the Start button unlocks only after this many seconds so employees read the Start Screen Notes. Later visits on the same device skip the wait until the notes are changed. 0 = no wait.",
+   "fieldname": "start_button_delay",
+   "fieldtype": "Int",
+   "label": "Start Button Delay (seconds)",
+   "non_negative": 1
+  },
+  {
    "fieldname": "tab_form_setup",
    "fieldtype": "Tab Break",
    "label": "Form Setup"
@@ -289,7 +299,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-28 08:40:03.050244",
+ "modified": "2026-10-28 15:28:08.354971",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",

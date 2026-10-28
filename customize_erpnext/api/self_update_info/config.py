@@ -12,6 +12,7 @@ from .rules import (
 	_ALLOWED_TABLES,
 	_FIELD_DEPENDS,
 	_LINK_AS_SELECT,
+	_SELECT_OTHER_WIDGET,
 	_TABLE_COLUMN_TYPES,
 	_TABLE_MAX_ROWS,
 	_TABLE_REQUIRED_IF,
@@ -143,6 +144,17 @@ def _build_config():
 				options = [""] + [o for o in _LINK_AS_SELECT[df.options] if frappe.db.exists(df.options, o)]
 			elif df.fieldtype == "Link":
 				options = df.options  # the linked doctype name
+			# Widget "Select + Other" (field Data của Employee): trang www hiện dropdown theo Custom Options của
+			# dòng Setting + mục "Khác" mở ô nhập tự do; giá trị lưu = lựa chọn hoặc chữ NV gõ (VD ăn chay, 28/10/2026).
+			# Field không phải Data (Select lưu chữ tự do sẽ lỗi khi Sync) → coi như Auto.
+			widget = row.widget or "Auto"
+			allow_other = False
+			if widget == _SELECT_OTHER_WIDGET:
+				widget = "Auto"
+				if df.fieldtype == "Data":
+					fieldtype = "Select"
+					options = [""] + [o.strip() for o in (row.custom_options or "").split("\n") if o.strip()]
+					allow_other = True
 
 			field = {
 				"fieldname": df.fieldname,
@@ -161,7 +173,8 @@ def _build_config():
 				"option_labels": _option_labels(options, row.get("option_labels")) if fieldtype == "Select" else {},
 				"required": bool(row.required),
 				"read_only": bool(row.read_only),
-				"widget": row.widget or "Auto",
+				"widget": widget,
+				"allow_other": allow_other,
 				"width": _layout_width(row),
 				"custom": False,
 				"auto_fill": bool(row.auto_fill_data),

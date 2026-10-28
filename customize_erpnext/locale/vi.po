@@ -89161,3 +89161,19 @@ msgstr "Mã nhân viên người dùng nhập (app đã đối chiếu với h�
 #. source: tiqn
 msgid "Phone of the Zalo account, confirmed by Zalo - also the ID of this request. Call it to check who sent the request. Approve writes it to the employee's Zalo phone"
 msgstr "SĐT của tài khoản Zalo, đã được Zalo xác nhận - cũng là mã của yêu cầu này. Gọi số này để kiểm tra ai đã gửi yêu cầu. Duyệt sẽ ghi số này vào SĐT Zalo của nhân viên"
+
+#. source: tiqn
+msgid "Select + Other"
+msgstr "Danh sách + Khác"
+
+#. source: tiqn
+msgid "One option per line. Used by custom Select fields and by the Select + Other widget (Employee Data field: dropdown + \"Other\" opens a free-text box)."
+msgstr "Mỗi dòng 1 lựa chọn. Dùng cho field Select tự tạo và cho widget Danh sách + Khác (field Data của Employee: dropdown + mục \"Khác\" mở ô nhập tự do)."
+
+#. source: tiqn
+msgid "Start Button Delay (seconds)"
+msgstr "Thời gian chờ nút Bắt đầu (giây)"
+
+#. source: tiqn
+msgid "First visit on a device: the Start button unlocks only after this many seconds so employees read the Start Screen Notes. Later visits on the same device skip the wait until the notes are changed. 0 = no wait."
+msgstr "Lần đầu mở trên một máy: nút Bắt đầu chỉ bấm được sau số giây này để nhân viên đọc Ghi chú màn hình đầu. Những lần sau trên cùng máy không phải chờ, cho tới khi ghi chú được sửa. 0 = không chờ."

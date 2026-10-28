@@ -1457,8 +1457,104 @@ def test_start_notes():
 		for empty in ('<div class="ql-editor read-mode"><p><br></p></div>', "", None, "   "):
 			fake.start_notes = empty
 			check(f"editor trống {empty!r} → ''", api.get_field_config()["start_notes_html"] == "")
+		# Start Button Delay: số giây chờ lần đầu mở; trống / âm → 0
+		for v, want in ((20, 20), (None, 0), (-5, 0), ("7", 7)):
+			fake.start_button_delay = v
+			check(f"start_button_delay {v!r} → {want}", api.get_field_config()["start_button_delay"] == want)
+		check("Setting đang đặt 20 giây", real_get().get("start_button_delay") == 20, real_get().get("start_button_delay"))
 	finally:
 		_set("_get_setting", real_get)
+
+	fail = 0
+	for ok, name, detail in results:
+		if not ok:
+			fail += 1
+		print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail if not ok else ''}")
+	print(f"\n{len(results) - fail}/{len(results)} passed")
+	return {"passed": len(results) - fail, "failed": fail}
+
+
+def test_select_other_and_commit():
+	"""28/10/2026: widget "Select + Other" (field Data → dropdown + "Khác" gõ tự do) và bug cam kết: ký thì phải tick,
+	kể cả HR. Không ghi DB (save_form_data chỉ gọi ở nhánh throw).
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.test_select_other_and_commit"""
+	results = []
+
+	def check(name, ok, detail=""):
+		results.append((bool(ok), name, detail))
+
+	def throws(fn, text):
+		try:
+			fn()
+		except frappe.ValidationError as e:
+			frappe.clear_messages()
+			return text in str(e)
+		return False
+
+	real_get, real_cfg = api._get_setting, api._build_config
+	emp = frappe.get_all(DT, pluck="employee", limit=1)[0]
+	sig = api._SIGNATURE_PREFIX + "AAAA"
+	try:
+		# ---- cam kết ----
+		check("HR ký mà chưa tick → chặn", throws(lambda: api.save_form_data(emp, "{}", commitment=0, signature=sig), "cam kết"))
+		frappe.set_user("Guest")
+		try:
+			check("NV chưa tick → chặn", throws(lambda: api.save_form_data(emp, "{}", commitment=0, signature=sig), "cam kết"))
+			check("NV tick mà chưa ký → chặn", throws(lambda: api.save_form_data(emp, "{}", commitment=1, signature=""), "ký tên"))
+		finally:
+			frappe.set_user("Administrator")
+
+		# ---- config: Select + Other ----
+		fake = frappe.copy_doc(real_get())
+		_set("_get_setting", lambda: fake)
+		rows = {r.employee_fieldname: r for r in fake.selected_fields}
+		meta = frappe.get_meta("Employee")
+		data_fn = next((fn for fn in ("custom_favorite_sport", "custom_ethnicity") if fn in rows
+			and (meta.get_field(fn) or {}).get("fieldtype") == "Data"), None)
+		if data_fn:
+			rows[data_fn].update({"enable": 1, "widget": api._SELECT_OTHER_WIDGET, "custom_options": "Bóng đá\n\n Cầu lông \n"})
+			f = {x["fieldname"]: x for s in api._build_config()["sections"] for x in s["fields"]}[data_fn]
+			check("Data + Select + Other → Select, options ['', …] từ Custom Options (bỏ dòng trống, strip)",
+				f["fieldtype"] == "Select" and f["options"] == ["", "Bóng đá", "Cầu lông"] and f["allow_other"] is True, f)
+			check("widget gửi trang = Auto (chuẩn hoá / Desk editor như field thường)", f["widget"] == "Auto")
+			check("Desk editor = text (HR gõ tự do)", api._hr_editor(f) == "text")
+		sel_fn = next((fn for fn in rows if fn != "custom_vegetarian"
+			and (meta.get_field(fn) or {}).get("fieldtype") == "Select"), None)
+		if sel_fn:
+			rows[sel_fn].update({"enable": 1, "widget": api._SELECT_OTHER_WIDGET, "custom_options": "X"})
+			f = {x["fieldname"]: x for s in api._build_config()["sections"] for x in s["fields"]}[sel_fn]
+			check("field Select của Employee + Select + Other → bỏ qua widget (Sync chữ tự do vào Select sẽ lỗi)",
+				f["allow_other"] is False and "X" not in f["options"] and f["widget"] == "Auto", f)
+		veg = (meta.get_field("custom_vegetarian") or {}).get("fieldtype")
+		check("Employee.custom_vegetarian là Data", veg == "Data", veg)
+		vrow = rows.get("custom_vegetarian")
+		check("Setting: ăn chay dùng Select + Other, có Custom Options",
+			vrow and vrow.widget == api._SELECT_OTHER_WIDGET and (vrow.custom_options or "").strip(), vrow and vrow.as_dict())
+		_set("_get_setting", real_get)
+
+		# ---- Desk: HR sửa giá trị Khác ----
+		names = frappe.get_all(DT, filters={"status": ["!=", "Synced"]}, pluck="name", limit=1)
+		if names:
+			cfg = real_cfg()
+			key = "zz_select_other_test"
+			fx = {"fieldname": key, "label": "Ăn chay", "fieldtype": "Select", "widget": "Auto", "allow_other": True,
+				"options": ["", "Không"], "option_labels": {}, "required": False, "read_only": False, "validation": "",
+				"min_length": 0, "max_length": 0}
+			cfg["sections"] = cfg["sections"] + [{"label": "ZZ", "fields": [fx]}]
+			_set("_build_config", lambda: cfg)
+			d = frappe.get_doc(DT, names[0])
+			d.load_doc_before_save()
+			data = json.loads(d.data_json or "{}")
+			data[key] = "  ăn chay   thứ 6 "
+			d.data_json = json.dumps(data, ensure_ascii=False)
+			ok = not _expect_throw(lambda: api.validate_desk_edit(d))
+			check("Desk: giá trị ngoài danh sách → qua, chuẩn hoá như Data",
+				ok and json.loads(d.data_json).get(key) == "Ăn chay thứ 6", json.loads(d.data_json).get(key))
+	finally:
+		_set("_get_setting", real_get)
+		_set("_build_config", real_cfg)
+		frappe.set_user("Administrator")
+		frappe.db.rollback()
 
 	fail = 0
 	for ok, name, detail in results:

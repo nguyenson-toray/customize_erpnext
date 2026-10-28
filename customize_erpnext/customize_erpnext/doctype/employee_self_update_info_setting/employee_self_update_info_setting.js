@@ -360,7 +360,7 @@ function show_setting_help() {
         <li><b>Detail</b>: ghi chú giải thích, hiện dưới nhãn (xuống dòng được; link tự bấm được).</li>
         <li><b>Placeholder</b>: chữ gợi ý mờ trong ô trống (VD "12 chữ số"). Không áp cho ô ngày / chọn / checkbox.</li>
         <li><b>Section</b>: các field cùng Section gom thành 1 nhóm trên trang.</li>
-        <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã).</li>
+        <li><b>Widget</b>: <i>Auto</i> thông thường; <i>Address Province</i> / <i>Address Ward</i> cho địa chỉ (Tỉnh → Phường/Xã); <i>Select + Other</i> cho field <b>Data</b> của Employee: dropdown theo <b>Custom Options</b> (mỗi dòng 1 lựa chọn) + mục "Khác" mở ô nhập tự do (VD ăn chay).</li>
         <li><b>Required</b> bắt buộc · <b>Read Only</b> chỉ xem · <b>Enable</b> tắt để ẩn field mà không xoá.</li>
         <li><b>Auto Fill Data</b>: bật (mặc định) → tự điền sẵn từ Employee / lần gửi trước; tắt → ô luôn để trống, NV phải tự nhập (kể cả field <i>Tỉnh</i> sẽ không điền mặc định).</li>
         <li><b>Validation</b>: Digits / Phone / Email / CCCD (12 số) / CMND (9 số) / Past (ngày ≤ hôm nay) / Future (ngày ≥ hôm nay) / Regex; kèm Min–Max Length. Kiểm cả ở máy NV và ở server.</li>

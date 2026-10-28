@@ -120,6 +120,7 @@ Khoá đặc biệt trong `data_json`:
 | `disable_review` | bỏ bước Reviewed, Sync thẳng từ Submitted |
 | `commitment_text` | câu cam kết (giữ xuống dòng, trống → câu mặc định) |
 | `start_notes` | **Start Screen Notes** (Text Editor): ghi chú ở màn hình đầu, trên thẻ "Chọn nhân viên" (cần chuẩn bị gì, thông tin dùng vào việc gì…). `get_field_config` gửi `start_notes_html` đã qua `sanitize_html` (bỏ script / on* / javascript:), trang chèn thẳng, link mở tab mới; editor trống → ẩn; ẩn ở màn hình "Đã gửi". Có ghi chú → nút **"Bắt đầu"** ngay dưới, bấm mới hiện thẻ "Chọn nhân viên" và ẩn ghi chú (đã đọc) (thẻ này mặc định ẩn trong HTML, JS cho hiện — không nháy); trống / lỗi tải config → hiện ô chọn NV ngay; link `?emp=` bỏ qua bước này. Thay cho ghi chú mục đích viết cứng ở đầu form (đã bỏ 28/10/2026) |
+| `start_button_delay` | **Start Button Delay** (giây, mặc định 20; 0 = không chờ): lần đầu mở trên 1 máy, nút "Bắt đầu" khoá + đếm ngược "Vui lòng đọc hướng dẫn trên… (N giây)" (tính theo đồng hồ). Bấm Bắt đầu → `localStorage.esui_start_notes_seen` = dấu băm của `start_notes_html` → lần sau mở ngay; HR sửa ghi chú → chờ lại 1 lần; localStorage bị chặn → lần nào cũng chờ |
 
 **Tab Form Setup** (thường cố định)
 
@@ -137,13 +138,13 @@ Khoá đặc biệt trong `data_json`:
 | `label_vi` | nhãn hiển thị (trống → label của Employee) |
 | `section_label` | gom field vào 1 thẻ (thứ tự thẻ = thứ tự xuất hiện); tiền tố số "1. " bị bỏ khi in phiếu |
 | `detail`, `placeholder` | hướng dẫn (giữ xuống dòng, URL tự thành link) / chữ mờ trong ô |
-| `widget` | Auto / Address Province / Address Ward |
+| `widget` | Auto / Address Province / Address Ward / **Select + Other** (field Data của Employee: dropdown theo `custom_options` + "Khác" mở ô gõ tự do; field không phải Data → coi như Auto) — vd ăn chay |
 | `layout_width` | **Width on Form**: Full / Half — 2 field Half liền nhau cùng 1 hàng (xem "Bố cục") |
 | `required`, `read_only`, `enable` | |
 | `auto_fill_data` | 1: điền sẵn từ Employee / lần gửi trước; 0: luôn để trống. Phiếu PDF: field Auto Fill chưa khai → lấy Employee |
 | `info_for_sign` | field in trong **Info for Sign** và **phiếu PDF phía HR** |
 | `validation`, `min_length`, `max_length`, `regex` | Digits / Phone / Email / CCCD / CMND / Past / Future / Regex / Capitalize Each Word / Sentence Case |
-| `is_custom`, `custom_fieldtype`, `custom_options` | field không thuộc Employee (chỉ lưu trong phiếu, không Sync) — vd câu hỏi "Bạn có trả phí cho công ty Toray/ Công ty tư vấn…" (Select Có / Không) |
+| `is_custom`, `custom_fieldtype`, `custom_options` | `custom_options` cũng là danh sách của widget Select + Other. Field không thuộc Employee (chỉ lưu trong phiếu, không Sync) — vd câu hỏi "Bạn có trả phí cho công ty Toray/ Công ty tư vấn…" (Select Có / Không) |
 | `table_columns`, `max_rows` | bảng con: cột hiển thị (`fieldname \| nhãn \| bắt buộc`, trống → mặc định), số dòng tối đa (trống = 3; Học vấn / Kinh nghiệm đang = 1) |
 | `option_labels` | Select: nhãn hiện trên trang `giá trị \| nhãn` (vd size dép) — phiếu in vẫn dùng bản gọn |
 
@@ -214,7 +215,14 @@ trị server trước khi render.
 
 ### Cam kết + chữ ký
 Câu cam kết lấy từ Setting (`config.commitment_html`, server đã escape, xuống dòng = `<br>`). NV bắt buộc tick + ký
-(canvas → PNG data URL ≤ 400 KB); HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ).
+(canvas → PNG data URL ≤ 400 KB); HR mở `?emp=` thì không bắt buộc (không ký → giữ chữ ký cũ). **Đã ký thì phải tick**,
+kể cả HR (trang + `save_form_data`; bug 28/10/2026: HR ký mà chưa tick vẫn gửi được).
+
+### Select + Other
+Config gửi `fieldtype: "Select"`, `options: ["", …custom_options]`, `allow_other: true`, `widget: "Auto"`. Trang thêm
+`<option value="__other__">Khác</option>` + ô `f_<fieldname>__other` (hiện khi chọn Khác); giá trị gửi = chữ trong ô (chuẩn hoá
+như Data). Giá trị đã lưu không có trong danh sách → mở form chọn sẵn Khác + điền ô. Chọn Khác mà ô trống → báo thiếu (kể cả
+field không bắt buộc). Server: bỏ kiểm "giá trị ∈ options", chữ ngoài danh sách chuẩn hoá như Data; Desk editor = ô chữ.
 
 ### Zalo
 Webview Zalo chặn tải file. `force_open_devices_browser` bật → overlay hướng dẫn "Mở bằng trình duyệt" (`?zalo=1` để thử
