@@ -61,16 +61,13 @@ def execute(filters=None):
 		{"fieldname": "pay_date", "label": _("Pay Date"), "fieldtype": "Date", "width": 95},
 	]
 	columns += [
-		{"fieldname": f, "label": label, "fieldtype": "Currency", "options": "currency", "precision": 0, "width": 130}
+		{"fieldname": f, "label": label, "fieldtype": "Float", "precision": 0, "width": 130}
 		for f, label in main
 	]
 	columns += [
 		{"fieldname": "published_on", "label": _("Published On"), "fieldtype": "Datetime", "width": 150},
 		{"fieldname": "first_viewed_on", "label": _("First Viewed On"), "fieldtype": "Datetime", "width": 150},
 	]
-	for r in rows:
-		r.currency = "VND"
-
 	published = [r for r in rows if r.status == "Published"]
 	viewed = sum(1 for r in published if r.first_viewed_on)
 	summary = [
@@ -87,8 +84,7 @@ def execute(filters=None):
 		{
 			"label": _("Total Net Pay"),
 			"value": sum(flt(r.net_pay) for r in rows),
-			"datatype": "Currency",
-			"currency": "VND",
+			"datatype": "Int",
 			"indicator": "green",
 		},
 	]

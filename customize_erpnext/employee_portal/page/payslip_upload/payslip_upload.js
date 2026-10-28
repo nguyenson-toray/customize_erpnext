@@ -195,7 +195,7 @@ class PayslipUploadPage {
 			$w.html(`<div class="text-muted">${__('No payslips yet.')}</div>`);
 			return;
 		}
-		const fmt_money = (v) => format_currency(v, 'VND', 0);
+		const fmt_money = (v) => format_number(v, null, 0);
 		let html = `<table class="table table-bordered table-sm psu-table"><thead><tr>
 			<th>${__('Period')}</th><th>${__('Draft')}</th><th>${__('Published', null, 'Payslip')}</th><th>${__('Withdrawn', null, 'Payslip')}</th>
 			<th>${__('Final Settlement')}</th><th>${__('Net Pay Total')}</th><th>${__('Viewed', null, 'Payslip')}</th><th></th>

@@ -39,7 +39,7 @@ def execute(filters=None):
 	rows = []
 	for no, ps in enumerate(payslips, start=1):
 		row = {k: ps[k] for k in ("name", "employee", "employee_name", "designation", "section", "group", "status", "structure")}
-		row.update(no=no, currency="VND")
+		row.update(no=no)
 		for r in json.loads(ps.lines_json or "[]"):
 			lines.setdefault(r["code"], r)
 			if (r.get("unit") or "VND") == "VND":
@@ -77,8 +77,7 @@ def execute(filters=None):
 				{
 					"fieldname": _amount_field(code),
 					"label": f"{code} {r.get('label_en') or ''}".strip(),
-					"fieldtype": "Currency",
-					"options": "currency",
+					"fieldtype": "Float",
 					"precision": 0,
 					"width": 130,
 				}

@@ -251,7 +251,7 @@
   {
    "description": "From the line whose Report Column is Net (Payslip Structure) - kept for the list view, filters and the API",
    "fieldname": "net_pay",
-   "fieldtype": "Currency",
+   "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Net Pay",
    "precision": "0",
@@ -670,36 +670,32 @@
   },
   {
    "fieldname": "basic_pay",
-   "fieldtype": "Currency",
+   "fieldtype": "Float",
    "label": "Basic Salary",
-   "options": "VND",
    "precision": "0",
    "read_only": 1,
    "description": "From the line whose Report Column is Basic"
   },
   {
    "fieldname": "overtime_pay",
-   "fieldtype": "Currency",
+   "fieldtype": "Float",
    "label": "Overtime Pay",
-   "options": "VND",
    "precision": "0",
    "read_only": 1,
    "description": "From the line whose Report Column is Overtime"
   },
   {
    "fieldname": "gross_pay",
-   "fieldtype": "Currency",
+   "fieldtype": "Float",
    "label": "Gross Pay",
-   "options": "VND",
    "precision": "0",
    "read_only": 1,
    "description": "From the line whose Report Column is Gross"
   },
   {
    "fieldname": "total_deductions",
-   "fieldtype": "Currency",
+   "fieldtype": "Float",
    "label": "Total Deductions",
-   "options": "VND",
    "precision": "0",
    "read_only": 1,
    "description": "From the line whose Report Column is Deductions"
@@ -736,7 +732,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-28 14:00:00.000000",
+ "modified": "2026-10-28 16:30:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip",

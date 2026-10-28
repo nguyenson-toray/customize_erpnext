@@ -48,7 +48,7 @@ function render_lines(frm) {
 		if (editable) {
 			return `<input type="number" step="any" class="form-control input-xs text-right" data-code="${esc(l.code)}" data-key="${key}" value="${value}">`;
 		}
-		return key === 'amount' ? format_currency(value, 'VND', 0) : esc(String(value));
+		return key === 'amount' ? format_number(value, null, 0) : esc(String(value));
 	};
 	const rows = lines
 		.map((l) => {
@@ -70,7 +70,7 @@ function render_lines(frm) {
 				: __('Published: withdraw the period on the Payslip Upload page to change a number.')
 		}</div>
 		<table class="table table-bordered table-sm">
-			<thead><tr><th style="width: 60px">${__('No.')}</th><th>${__('Line')}</th><th class="text-right">${__('Unit/ĐVT')}</th><th></th><th class="text-right">${__('Amount')} (VND)</th></tr></thead>
+			<thead><tr><th style="width: 60px">${__('No.')}</th><th>${__('Line')}</th><th class="text-right">${__('Unit/ĐVT')}</th><th></th><th class="text-right">${__('Amount')}</th></tr></thead>
 			<tbody>${rows}</tbody>
 		</table>`);
 	if (!editable) return;

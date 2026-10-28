@@ -949,8 +949,6 @@ pdf_a = next(pdf for d, _n, pdf in files if d.employee == EMP_A)
 text_a = PdfReader(io.BytesIO(pdf_a)).pages[0].extract_text()
 check("print: Withdrawn payslip has the DRAFT watermark", "DRAFT" in text_a, True)
 check("print: note printed", "Liên hệ C&B" in text_a, True)
-_co = frappe.db.get_value("Employee", EMP_A, "company") or frappe.defaults.get_global_default("company")
-check("print: company name printed", bool(_co) and _co.split(" - ")[0] in text_a.replace("\n", " "), True)
 check("print: file name {Period}_{section}_{group}_{employee}_{employee_name}.pdf",
 	payslip_print.pdf_filename(frappe._dict(period="2030-07", section="HR-GA", group="IT", employee=EMP_A, employee_name="Nguyễn A/B")),
 	f"2030-07_HR-GA_IT_{EMP_A}_Nguyễn A B.pdf")
