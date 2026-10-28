@@ -9,3 +9,8 @@ __pycache__
 
 # Sổ nghỉ HR — chứa họ tên nhân viên, không đưa lên git
 customize_erpnext/overrides/leave_application/*.xlsx
+
+# bộ đo QR CCCD: ảnh sinh ra + kết quả, sinh lại được
+customize_erpnext/tests_js/self_update_info/qr_bench/cases/
+customize_erpnext/tests_js/self_update_info/qr_bench/results.json
+customize_erpnext/tests_js/self_update_info/qr_bench/*.y4m

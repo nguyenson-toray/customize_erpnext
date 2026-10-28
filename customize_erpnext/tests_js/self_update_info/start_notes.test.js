@@ -6,7 +6,7 @@ const html = pageHtml();
 const results = [];
 const check = (name, ok, detail) => results.push([!!ok, name, detail]);
 
-async function boot(notes) {
+async function boot(notes, query = "") {
   const config = {
     sections: [{ label: "A", fields: [{ fieldname: "cell_number", label: "SĐT", fieldtype: "Data", widget: "Auto", width: "Full",
       required: false, read_only: false, auto_fill: true, validation: "", min_length: 0, max_length: 0 }] }],
@@ -14,7 +14,7 @@ async function boot(notes) {
   };
   if (notes !== undefined) config.start_notes_html = notes;
   const dom = new JSDOM(html, {
-    runScripts: "dangerously", url: "https://erp.test/employee-self-update-info",
+    runScripts: "dangerously", url: "https://erp.test/employee-self-update-info" + query,
     beforeParse(w) {
       stubBrowser(w);
       w.csrf_token = "x";
@@ -47,15 +47,29 @@ async function boot(notes) {
   const a = box.querySelector("a");
   check("link mở tab mới, rel noopener", a && a.target === "_blank" && a.rel === "noopener noreferrer", box.innerHTML);
   check("không còn ghi chú mục đích viết cứng (#purpose_note)", !w.document.getElementById("purpose_note"));
+  // Nút "Bắt đầu" (28/10/2026): có ghi chú → đọc trước, bấm mới hiện ô chọn NV
+  const btn = w.document.getElementById("start_btn"), picker = w.document.getElementById("picker_card");
+  check("có ghi chú → nút Bắt đầu ngay dưới ghi chú, ô chọn NV ẩn", !btn.classList.contains("hidden") && picker.classList.contains("hidden")
+    && box.nextElementSibling === btn);
+  btn.click();
+  check("bấm Bắt đầu → hiện ô chọn NV, ẩn nút + ẩn ghi chú (đã đọc), focus ô tìm", !picker.classList.contains("hidden")
+    && btn.classList.contains("hidden") && box.classList.contains("hidden")
+    && w.document.activeElement === w.document.getElementById("emp_search"), w.document.activeElement && w.document.activeElement.id);
   w.eval(`S.config = null; loadForm("TIQN-1", "")`);
   await sleep(100);
-  check("đang khai form → ghi chú vẫn hiện", !box.classList.contains("hidden"));
+  check("đang khai form → ghi chú vẫn ẩn (đã bấm Bắt đầu)", box.classList.contains("hidden"));
   await w.eval("submitForm()");
   await sleep(50);
-  check("màn hình Đã gửi → ẩn ghi chú", box.classList.contains("hidden")
+  check("màn hình Đã gửi → ẩn ghi chú + nút Bắt đầu", box.classList.contains("hidden") && btn.classList.contains("hidden")
     && !w.document.getElementById("success_area").classList.contains("hidden"));
   w = await boot("");
   check("Setting trống → không hiện", w.document.getElementById("start_notes").classList.contains("hidden"));
+  check("Setting trống → không có nút Bắt đầu, hiện ô chọn NV ngay", w.document.getElementById("start_btn").classList.contains("hidden")
+    && !w.document.getElementById("picker_card").classList.contains("hidden"));
+  w = await boot(html, "?emp=TIQN-1");
+  await sleep(100);
+  check("link ?emp= → không nút Bắt đầu, không ô chọn NV (mở thẳng NV)", w.document.getElementById("start_btn").classList.contains("hidden")
+    && w.document.getElementById("picker_card").classList.contains("hidden"));
   w = await boot(undefined);
   check("server cũ (không có khoá) → không hiện", w.document.getElementById("start_notes").classList.contains("hidden"));
   report(results);

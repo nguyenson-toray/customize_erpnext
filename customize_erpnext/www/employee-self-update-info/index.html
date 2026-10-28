@@ -18,9 +18,11 @@
 
     <!-- Ghi chú màn hình đầu (Setting → Start Screen Notes, Text Editor): HTML server đã làm sạch. Trống → ẩn. -->
     <div class="start-notes hidden" id="start_notes"></div>
+    <!-- Có Start Screen Notes → nút "Bắt đầu": NV đọc ghi chú trước, bấm mới hiện "Chọn nhân viên" (startPicking). -->
+    <button type="button" class="btn-primary start-btn hidden" id="start_btn" onclick="startPicking()">Bắt đầu</button>
 
-    <!-- Step 1: choose employee -->
-    <div class="card" id="picker_card">
+    <!-- Step 1: choose employee — mặc định ẩn, JS cho hiện (sau nút Bắt đầu, hoặc ngay khi không có ghi chú) -->
+    <div class="card hidden" id="picker_card">
       <h2><span class="dot"></span>Chọn nhân viên</h2>
       <div class="field combo" style="margin-bottom:0">
         <label class="fl" for="emp_search">Mã nhân viên hoặc Họ tên</label>
@@ -137,8 +139,9 @@
   <div id="qr_overlay">
     <p style="color:#fff;font-size:15px;font-weight:600;margin-bottom:16px;text-align:center">
       Hướng mặt CCCD có <strong>mã QR</strong> vào khung<br>
-      <span style="font-size:12px;font-weight:400;color:#94a3b8">Đặt mã QR vào ô vàng giữa — cách 5–10 cm, đủ ánh
-        sáng</span>
+      <!-- form.js _setQrHint: có zoom → 15–20cm, không zoom → 10–15cm (camera không lấy nét được khi quá sát) -->
+      <span id="qr_hint" style="font-size:12px;font-weight:400;color:#94a3b8">Đặt mã QR vào khung giữa — cách khoảng
+        10–15 cm, đủ ánh sáng, giữ yên tay</span>
     </p>
     <div id="qr_viewport">
       <div id="qr_scan_line"></div>
@@ -150,6 +153,8 @@
     </div>
     <div id="qr_status" style="color:#94a3b8;font-size:13px;margin-top:14px;text-align:center;min-height:20px">Đang khởi
       động camera...</div>
+    <!-- ?qrdebug=1: engine / độ phân giải / zoom / lấy nét / số lần giải mã mỗi giây (chẩn đoán trên máy thật) -->
+    <div id="qr_debug" class="hidden" style="color:#fbbf24;font-size:11px;margin-top:6px;text-align:center;max-width:360px"></div>
     <button id="btn_torch" onclick="toggleTorch()">🔦 Bật đèn</button>
     <button onclick="closeQRScanner()"
       style="margin-top:10px;padding:10px 32px;background:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;color:#374151">✕

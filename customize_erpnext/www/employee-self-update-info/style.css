@@ -347,6 +347,7 @@ input.auto-calc { background:#F4F3EF; color:var(--ink); cursor:default; pointer-
 .start-notes .ql-align-center { text-align:center; }
 .start-notes .ql-align-right { text-align:right; }
 .start-notes .ql-align-justify { text-align:justify; }
+.start-btn { display:block; width:100%; margin:0 0 14px; }
 
 /* ---------- cam kết + chữ ký (cuối form) ---------- */
 .commit-row { display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:14px; line-height:1.5; }

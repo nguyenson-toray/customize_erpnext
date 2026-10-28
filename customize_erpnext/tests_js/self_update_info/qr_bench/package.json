@@ -1,0 +1,11 @@
+{
+  "name": "tiqn-cccd-qr-bench",
+  "private": true,
+  "description": "So jsQR (cách cũ) vs ZXing-WASM trên ảnh QR CCCD giả — xem README.md",
+  "devDependencies": {
+    "jsqr": "1.4.0",
+    "zxing-wasm": "3.1.3",
+    "pngjs": "7.0.0",
+    "puppeteer-core": "23.11.1"
+  }
+}

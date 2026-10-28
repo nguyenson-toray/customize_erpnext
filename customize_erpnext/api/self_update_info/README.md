@@ -119,7 +119,7 @@ Khoá đặc biệt trong `data_json`:
 | `lock_after_submit`, `bypass_code_for_unlock` | khoá sau khi gửi + mã mở khoá (không bao giờ gửi xuống trang) |
 | `disable_review` | bỏ bước Reviewed, Sync thẳng từ Submitted |
 | `commitment_text` | câu cam kết (giữ xuống dòng, trống → câu mặc định) |
-| `start_notes` | **Start Screen Notes** (Text Editor): ghi chú ở màn hình đầu, trên thẻ "Chọn nhân viên" (cần chuẩn bị gì, thông tin dùng vào việc gì…). `get_field_config` gửi `start_notes_html` đã qua `sanitize_html` (bỏ script / on* / javascript:), trang chèn thẳng, link mở tab mới; editor trống → ẩn; ẩn ở màn hình "Đã gửi". Thay cho ghi chú mục đích viết cứng ở đầu form (đã bỏ 28/10/2026) |
+| `start_notes` | **Start Screen Notes** (Text Editor): ghi chú ở màn hình đầu, trên thẻ "Chọn nhân viên" (cần chuẩn bị gì, thông tin dùng vào việc gì…). `get_field_config` gửi `start_notes_html` đã qua `sanitize_html` (bỏ script / on* / javascript:), trang chèn thẳng, link mở tab mới; editor trống → ẩn; ẩn ở màn hình "Đã gửi". Có ghi chú → nút **"Bắt đầu"** ngay dưới, bấm mới hiện thẻ "Chọn nhân viên" và ẩn ghi chú (đã đọc) (thẻ này mặc định ẩn trong HTML, JS cho hiện — không nháy); trống / lỗi tải config → hiện ô chọn NV ngay; link `?emp=` bỏ qua bước này. Thay cho ghi chú mục đích viết cứng ở đầu form (đã bỏ 28/10/2026) |
 
 **Tab Form Setup** (thường cố định)
 
@@ -183,8 +183,23 @@ có tỉnh, đổi tỉnh → xoá xã. Lưu **tên đầy đủ**. Tỉnh trố
 Server `_portal_address_errors`: chỉ kiểm cặp KHÁC giá trị Employee hiện tại (hồ sơ tên cũ không đổi vẫn gửi được).
 
 ### CCCD
-- Nút "📷 Quét mã QR trên CCCD" (jsQR) điền số CCCD, ngày cấp, CMND cũ, ngày sinh. Tuỳ chọn chụp ảnh CCCD đang tạm ẩn
-  (code decode ảnh giữ nguyên).
+- 2 cách: **📷 Quét mã QR** (trực tiếp) hoặc nhập tay. Nút **🖼️ Chụp / chọn ảnh CCCD** đang TẠM ẨN (comment trong
+  `renderField` → `scanUi`, 28/10/2026); code đọc ảnh giữ nguyên để bật lại. Điền số CCCD,
+  ngày cấp, CMND cũ, ngày sinh (`_parseVnCCCDQR` → `_fillFromCCCD`).
+- **Bộ giải mã (28/10/2026, thay jsQR từ CDN):** `BarcodeDetector` gốc nếu trình duyệt có (Chrome Android → ML Kit);
+  không có — trình duyệt trong Zalo (phần lớn NV), Safari — → ZXing-C++ WASM qua `barcode-detector` 3.2.2 +
+  `zxing_reader` 3.1.3, **tự lưu** ở `public/js/lib/zxing/` (kèm giấy phép; `prepareZXingModule.locateFile` ép đường dẫn
+  `.wasm`, mặc định thư viện tải từ jsDelivr). Chỉ tải khi mở máy quét; lần đầu ~1,1MB. Tải lỗi → báo nhập tay.
+- **Giải mã trong Web Worker** (`www/employee-self-update-info/qr_worker.js`, 28/10/2026): luồng chính chỉ cắt khung
+  ngắm bằng `createImageBitmap` rồi chuyển sang worker → hình camera không giật (đo CPU /4: 32 → 60 khung hình/s, luồng
+  chính hết bị khoá). Thiếu Worker / createImageBitmap / OffscreenCanvas hoặc worker lỗi → giải mã trên luồng chính như
+  cũ. URL worker kèm `?v=` của form.js; `index.py` tính `asset_version` cả qr_worker.js. `?qrdebug=1` hiện `wasm·worker`.
+- Camera: zoom ~2x + lấy nét liên tục **nếu có** (`_qrSetupTrack`; webview iPhone thường không có) → nhắc cầm cách
+  15–20cm (không zoom: 10–15cm). Giải mã ~10 lần / giây vùng khung ngắm (vuông 60% cạnh ngắn) ở độ phân giải gốc, cứ
+  4 lần thử cả khung.
+- Ảnh chụp (khi bật lại nút): cả ảnh rồi 11 vùng cắt, cùng bộ giải mã.
+- Chẩn đoán trên máy thật: `?qrdebug=1` (engine / độ phân giải / zoom / lấy nét / đèn / lần/s); `?qrengine=wasm` ép ZXing.
+- Số liệu đo jsQR vs ZXing: `tests_js/self_update_info/qr_bench/README.md`.
 - **Ngày hết hạn luôn tự tính** theo Luật Căn cước 2023 (mốc 14/25/40/60 tuổi; cấp ≥ 58 tuổi → không thời hạn), không cho
   nhập; server tính lại khi gửi (`_apply_cccd_expiry`) và khi lưu Employee (`api/employee/cccd_expiry`).
 
@@ -283,7 +298,7 @@ Trang www không có object `frappe`: `window.csrf_token = {{ csrf_token | tojso
 # Python (không ghi DB, rollback): 348 phép kiểm
 bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.test_self_update_sign.run_all
 
-# Trang www (jsdom, JS thật của form.js): 141 phép kiểm
+# Trang www (jsdom, JS thật của form.js): 176 phép kiểm
 cd apps/customize_erpnext/customize_erpnext/tests_js/self_update_info && npm install && node run.js
 # thử bản nháp trước khi ghi đè trang đang chạy:
 ESUI_PAGE_DIR=/đường/dẫn/bản-nháp node run.js

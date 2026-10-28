@@ -20,5 +20,5 @@ def get_context(context):
     # Cache-busting cho form.js / style.css (như /quiz; KHÔNG đặt tên index.js — Frappe sẽ đọc nó làm colocated_js mỗi request): đổi file → URL ?v= đổi theo.
     here = os.path.dirname(__file__)
     context.asset_version = int(
-        max(os.path.getmtime(os.path.join(here, f)) for f in ("form.js", "style.css"))
+        max(os.path.getmtime(os.path.join(here, f)) for f in ("form.js", "qr_worker.js", "style.css"))
     )

@@ -181,6 +181,12 @@
       // Tải config sớm: nếu bật "Force Open Device's Browser" và đang trong Zalo → chặn.
       try { if (!S.config) S.config = await api(M.config); } catch (e) { }
       renderStartNotes();
+      // Có ghi chú → nút "Bắt đầu" (bấm mới hiện ô chọn NV); không có / lỗi tải config → hiện ô chọn NV ngay.
+      // Link ?emp= (HR mở thẳng 1 NV) bỏ qua bước này — ô chọn NV vẫn ẩn như cũ.
+      if (!new URLSearchParams(location.search).get("emp")) {
+        if (S.config && S.config.start_notes_html) document.getElementById("start_btn").classList.remove("hidden");
+        else document.getElementById("picker_card").classList.remove("hidden");
+      }
       // Thật: chỉ trong Zalo webview. Test: thêm ?zalo=1 để xem trước overlay ở trình duyệt thường.
       const _testZalo = new URLSearchParams(location.search).get("zalo") === "1";
       const _inZalo = /Zalo/i.test(navigator.userAgent) || _testZalo;
@@ -214,6 +220,17 @@
       box.innerHTML = html;
       box.querySelectorAll("a[href]").forEach(a => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
       box.classList.toggle("hidden", !html);
+    }
+
+    // Bấm "Bắt đầu" = đã đọc ghi chú → ẩn ghi chú + nút, hiện ô chọn NV (user 28/10/2026).
+    function startPicking() {
+      document.getElementById("start_btn").classList.add("hidden");
+      document.getElementById("start_notes").classList.add("hidden");
+      const card = document.getElementById("picker_card");
+      card.classList.remove("hidden");
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      const inp = document.getElementById("emp_search");
+      if (!inp.disabled) inp.focus();   // danh sách NV chưa tải xong thì chưa focus được
     }
 
     function onEmpSearch() {
@@ -567,12 +584,12 @@
       } else {
         input = `<input type="text" id="${id}" value="${esc(val || "")}"${ph}${valAttrs(f)}${roAttr}>`;
       }
-      // CCCD — chỉ 2 lựa chọn: quét QR trực tiếp, hoặc nhập tay ở ô bên dưới.
-      // (Đã tạm ẩn tuỳ chọn "Chụp / chọn ảnh CCCD" — xem khối comment bên dưới
-      //  và hàm onCccdPhoto/_decodeImageForQR nếu cần bật lại.)
+      // CCCD — 2 cách: quét QR trực tiếp, hoặc nhập tay ở ô bên dưới.
+      // Nút "Chụp / chọn ảnh CCCD" TẠM ẨN (user 28/10/2026) — code đọc ảnh (onCccdPhoto, _decodeImageForQR, cùng bộ
+      // giải mã ZXing) giữ nguyên: bật lại = bỏ comment khối HTML dưới + dòng hướng dẫn "Quét khó".
       const scanUi = (f.fieldname === CCCD_FIELD && !f.read_only)
         ? `<button type="button" class="qr-scan-btn" onclick="openQRScanner()">📷 Quét mã QR trên CCCD</button>
-         <!-- TẠM ẨN — upload ảnh CCCD:
+         <!-- TẠM ẨN — chụp / chọn ảnh CCCD:
          <button type="button" class="qr-scan-btn alt" onclick="document.getElementById('cccd_photo_input').click()">🖼️ Chụp / chọn ảnh CCCD (nếu quét khó)</button>
          <input type="file" id="cccd_photo_input" accept="image/*" capture="environment" style="display:none" onchange="onCccdPhoto(event)">
          -->
@@ -581,6 +598,7 @@
 <li>Nếu cần cập nhật, thay đổi:
 <ul>
 <li>Bấm nút trên để quét mã QR trên CCCD — hệ thống tự điền số CCCD, ngày cấp, ngày hết hạn và số CMND cũ.</li>
+<!-- TẠM ẨN cùng nút chụp ảnh: <li>Quét khó ➡️ bấm "Chụp / chọn ảnh CCCD", chụp rõ mặt có mã QR (gần, đủ sáng, không lóa).</li> -->
 <li>Hoặc <span style="color: #ff0000;">nhập tay vào ô bên dưới nếu <strong>KHÔNG </strong>quét được mã QR</span>.</li>
 </ul>
 </li>
@@ -1160,6 +1178,7 @@
         document.getElementById("submitbar").classList.add("hidden");
         document.getElementById("picker_card").classList.add("hidden");
         document.getElementById("start_notes").classList.add("hidden");
+        document.getElementById("start_btn").classList.add("hidden");
         document.getElementById("success_area").classList.remove("hidden");
         applySaveFileType();
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1307,85 +1326,225 @@
       finally { btn.disabled = false; btn.textContent = old; }
     }
 
-    // ---------- CCCD QR scanner (copied from employee-self-update) ----------
-    let _qrStream = null, _qrRaf = null, _qrVideo = null, _qrCanvas = null, _qrCtx = null, _torchOn = false, _qrDetected = false;
+    // ---------- CCCD QR scanner ----------
+    // Bộ giải mã (28/10/2026, thay jsQR từ CDN): BarcodeDetector GỐC nếu trình duyệt có và hỗ trợ qr_code
+    // (Chrome Android → Google ML Kit); không có — trình duyệt trong Zalo (Android WebView / iPhone WKWebView), Safari —
+    // → ZXing-C++ WebAssembly qua thư viện barcode-detector, TỰ LƯU trong app (public/js/lib/zxing), ghim phiên bản.
+    // Đo 28/10 trên 240 ảnh giả: ảnh đủ to + nét thì jsQR và ZXing đều đọc 100%; ZXing hơn ở mã nhỏ / hơi mờ và nhanh
+    // ~10x → xét được ~10 khung / giây thay vì 1–2 → dễ bắt được khung nét khi tay rung. Chất lượng ảnh (khoảng cách,
+    // lấy nét, zoom) quyết định nhiều hơn thư viện → zoom ~2x + lấy nét liên tục nếu camera hỗ trợ.
+    // Thử: ?qrengine=wasm ép dùng ZXing; ?qrdebug=1 hiện engine / độ phân giải / zoom / số lần giải mã mỗi giây.
+    const QR_LIB = "/assets/customize_erpnext/js/lib/zxing/barcode-detector-3.2.2-ponyfill.js";
+    const QR_WASM = "/assets/customize_erpnext/js/lib/zxing/zxing_reader-3.1.3.wasm";
+    const QR_INTERVAL = 100;        // ms giữa 2 lần giải mã (~10 lần / giây)
+    const QR_ROI = 0.6;             // khung ngắm: vuông 60% cạnh ngắn ở giữa, giải mã ở độ phân giải gốc
+    const _qrParams = new URLSearchParams(location.search);
+    const QR_DEBUG = _qrParams.get("qrdebug") === "1";
+    let _qrStream = null, _qrTimer = null, _qrVideo = null, _qrCanvas = null, _qrCtx = null, _torchOn = false, _qrDetected = false;
+    let _qrEngine = null, _qrEnginePromise = null, _qrZoom = 0, _qrFocus = false, _qrTick = 0, _qrStat = null;
 
-    function _loadJsQr(cb) {
-      if (window.jsQR) return cb();
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
-      s.onload = cb;
-      s.onerror = () => { document.getElementById("qr_status").textContent = "Không thể tải thư viện quét QR."; };
-      document.head.appendChild(s);
+    // Giải mã trong Web Worker (28/10/2026): ZXing-WASM ~150–200ms / lần trên điện thoại tầm trung; chạy trên luồng
+    // chính thì hình camera giật (đo CPU hãm 4x: luồng chính bị khoá ~420ms mỗi giây, 32 khung hình/s). Luồng chính chỉ
+    // cắt khung ngắm thành ImageBitmap rồi chuyển (transfer) sang qr_worker.js. Trình duyệt thiếu Worker /
+    // createImageBitmap / OffscreenCanvas, hoặc worker lỗi → quay về giải mã trên luồng chính (_loadQrEngine).
+    // URL worker kèm ?v= của chính form.js (index.py asset_version) → sửa worker là Zalo tải bản mới.
+    const QR_ASSET_V = (() => {
+      try { return new URL(document.currentScript.src).searchParams.get("v") || ""; } catch (e) { return ""; }
+    })();
+    const QR_WORKER = "/employee-self-update-info/qr_worker.js" + (QR_ASSET_V ? "?v=" + QR_ASSET_V : "");
+    let _qrWorkerPromise = null, _qrWorkerSeq = 0;
+    const _qrWorkerWait = new Map();   // id → resolve({values, ms})
+
+    // → { worker, kind: "native·worker" | "wasm·worker" }. Lỗi 1 lần thì nhớ luôn (không chờ lại 20 giây mỗi lần mở).
+    function _loadQrWorker() {
+      if (_qrWorkerPromise) return _qrWorkerPromise;
+      _qrWorkerPromise = new Promise((resolve, reject) => {
+        if (!window.Worker || !window.createImageBitmap || !window.OffscreenCanvas) return reject(new Error("no worker"));
+        let w;
+        try { w = new Worker(QR_WORKER); } catch (e) { return reject(e); }
+        const fail = (e) => { clearTimeout(timer); try { w.terminate(); } catch (x) { } reject(e); };
+        const timer = setTimeout(() => fail(new Error("worker timeout")), 20000);
+        w.onmessage = (ev) => {
+          const m = ev.data || {};
+          if (m.type === "ready") {
+            clearTimeout(timer);
+            w.onmessage = (e2) => {
+              const r = e2.data || {};
+              const done = _qrWorkerWait.get(r.id);
+              if (done) { _qrWorkerWait.delete(r.id); done(r); }
+            };
+            resolve({ worker: w, kind: m.kind + "·worker" });
+          } else if (m.type === "error") fail(new Error(m.message));
+        };
+        w.onerror = fail;
+        w.postMessage({ type: "init", lib: QR_LIB, wasm: QR_WASM, engine: _qrParams.get("qrengine") === "wasm" ? "wasm" : "auto" });
+      });
+      _qrWorkerPromise.catch(() => { });
+      return _qrWorkerPromise;
     }
 
-    function openQRScanner() {
-      document.getElementById("qr_overlay").style.display = "flex";
-      document.getElementById("qr_status").textContent = "Đang khởi động camera...";
-      document.getElementById("qr_viewport").classList.remove("detected");
-      _torchOn = false; _qrDetected = false;
-      const torchBtn = document.getElementById("btn_torch");
-      if (torchBtn) { torchBtn.textContent = "🔦 Bật đèn"; torchBtn.classList.remove("on"); torchBtn.style.display = "none"; }
-
-      _loadJsQr(() => {
-        navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
-        }).then(stream => {
-          _qrStream = stream;
-          _qrVideo = document.createElement("video");
-          _qrVideo.srcObject = stream;
-          _qrVideo.setAttribute("playsinline", "");
-          _qrVideo.muted = true;
-          document.getElementById("qr_viewport").appendChild(_qrVideo);
-          _qrCanvas = document.createElement("canvas");
-          _qrCanvas.style.display = "none";
-          document.body.appendChild(_qrCanvas);
-          _qrCtx = _qrCanvas.getContext("2d", { willReadFrequently: true });
-          _qrVideo.play().then(() => {
-            document.getElementById("qr_status").textContent = "Sẵn sàng quét...";
-            const track = stream.getVideoTracks()[0];
-            if (track) { try { const caps = track.getCapabilities(); if (caps && caps.torch && torchBtn) { torchBtn.style.display = ""; torchBtn._track = track; } } catch (e) { } }
-            _qrScanLoop();
-          });
-        }).catch(err => {
-          document.getElementById("qr_status").textContent = "Không thể mở camera: " + (err.message || err);
-        });
+    function _qrWorkerDetect(worker, bitmap) {
+      const id = ++_qrWorkerSeq;
+      return new Promise((resolve) => {
+        _qrWorkerWait.set(id, resolve);
+        worker.postMessage({ type: "detect", id, bitmap }, [bitmap]);
       });
     }
 
-    function _qrScanLoop() {
-      if (_qrDetected || !_qrVideo || !_qrStream) return;
-      const vw = _qrVideo.videoWidth, vh = _qrVideo.videoHeight;
-      if (vw && vh) {
-        const crops = [
-          [0, 0, vw, vh],
-          [vw * 0.2, vh * 0.2, vw * 0.6, vh * 0.6],
-          [vw * 0.325, vh * 0.25, vw * 0.35, vh * 0.5],
-        ];
-        for (const [cx, cy, cw, ch] of crops) {
-          const out = 900;
-          _qrCanvas.width = out; _qrCanvas.height = Math.round(out * ch / cw);
-          _qrCtx.drawImage(_qrVideo, cx, cy, cw, ch, 0, 0, _qrCanvas.width, _qrCanvas.height);
-          const idd = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
-          _boostContrast(idd);
-          _qrCtx.putImageData(idd, 0, 0);
-          const id2 = _qrCtx.getImageData(0, 0, _qrCanvas.width, _qrCanvas.height);
-          const code = jsQR(id2.data, id2.width, id2.height, { inversionAttempts: "attemptBoth" });
-          if (code) {
-            const parsed = _parseVnCCCDQR(code.data);
-            if (parsed) { _qrDetected = true; _onQRDetected(parsed); return; }
-          }
+    // → { detector, kind: "native" | "wasm" }. Lỗi (mạng / WASM) → reject; lần sau thử tải lại.
+    function _loadQrEngine() {
+      if (_qrEnginePromise) return _qrEnginePromise;
+      _qrEnginePromise = (async () => {
+        if (_qrParams.get("qrengine") !== "wasm" && "BarcodeDetector" in window) {
+          try {
+            const formats = await window.BarcodeDetector.getSupportedFormats();
+            if (formats.includes("qr_code")) return { detector: new window.BarcodeDetector({ formats: ["qr_code"] }), kind: "native" };
+          } catch (e) { /* có API nhưng không dùng được → ZXing */ }
         }
-      }
-      _qrRaf = requestAnimationFrame(_qrScanLoop);
+        if (!window.BarcodeDetectionAPI) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = QR_LIB;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error("qr lib"));
+            document.head.appendChild(s);
+          });
+        }
+        const lib = window.BarcodeDetectionAPI;
+        // Mặc định thư viện tải .wasm từ jsDelivr → ép về file trong app. fireImmediately: tải ngay, lỗi lộ ra ở đây.
+        await lib.prepareZXingModule({
+          overrides: { locateFile: (path, prefix) => (path.endsWith(".wasm") ? QR_WASM : prefix + path) },
+          fireImmediately: true,
+        });
+        return { detector: new lib.BarcodeDetector({ formats: ["qr_code"] }), kind: "wasm" };
+      })();
+      _qrEnginePromise.catch(() => { _qrEnginePromise = null; });
+      return _qrEnginePromise;
     }
 
-    function _boostContrast(imageData) {
-      const d = imageData.data;
-      let mn = 255, mx = 0;
-      for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; if (g < mn) mn = g; if (g > mx) mx = g; }
-      const range = mx - mn || 1;
-      for (let i = 0; i < d.length; i += 4) { const g = Math.round((((d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8) - mn) * 255 / range); d[i] = d[i + 1] = d[i + 2] = g; }
+    // Giải mã 1 nguồn (canvas / video / ảnh) → dữ liệu CCCD đã tách, hoặc null.
+    async function _qrDecode(engine, source) {
+      const found = await engine.detector.detect(source);
+      for (const r of found || []) {
+        const parsed = _parseVnCCCDQR(r.rawValue || "");
+        if (parsed) return parsed;
+      }
+      return null;
+    }
+
+    function openQRScanner() {
+      const status = (t) => { document.getElementById("qr_status").textContent = t; };
+      document.getElementById("qr_overlay").style.display = "flex";
+      document.getElementById("qr_viewport").classList.remove("detected");
+      _torchOn = false; _qrDetected = false; _qrZoom = 0; _qrFocus = false; _qrTick = 0;
+      _qrStat = { n: 0, since: performance.now(), rate: 0, ms: 0 };
+      const torchBtn = document.getElementById("btn_torch");
+      if (torchBtn) { torchBtn.textContent = "🔦 Bật đèn"; torchBtn.classList.remove("on"); torchBtn.style.display = "none"; }
+      _setQrHint();
+      const dbg = document.getElementById("qr_debug");
+      if (dbg) dbg.classList.toggle("hidden", !QR_DEBUG);
+      status("Đang tải bộ quét…");
+      let stage = "engine";
+      _loadQrWorker().catch(() => _loadQrEngine()).then(engine => {
+        _qrEngine = engine;
+        stage = "camera";
+        status("Đang khởi động camera...");
+        return navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+        });
+      }).then(stream => {
+        if (document.getElementById("qr_overlay").style.display === "none") {   // đã đóng trong lúc chờ
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        _qrStream = stream;
+        _qrVideo = document.createElement("video");
+        _qrVideo.srcObject = stream;
+        _qrVideo.setAttribute("playsinline", "");
+        _qrVideo.muted = true;
+        document.getElementById("qr_viewport").appendChild(_qrVideo);
+        _qrCanvas = document.createElement("canvas");
+        _qrCtx = _qrCanvas.getContext("2d", { willReadFrequently: true });   // bộ giải mã đọc pixel ~10 lần / giây
+        return _qrVideo.play().then(() => _qrSetupTrack(stream.getVideoTracks()[0])).then(() => {
+          status("Sẵn sàng quét...");
+          _qrScanLoop();
+        });
+      }).catch(err => {
+        status(stage === "engine"
+          ? "Không tải được bộ quét. Vui lòng thử lại hoặc nhập tay ở ô bên dưới."
+          : "Không thể mở camera: " + ((err && err.message) || err));
+      });
+    }
+
+    // Đèn / lấy nét liên tục / zoom ~2x: CÓ THÌ DÙNG (trình duyệt trong Zalo, nhất là iPhone, thường không có).
+    async function _qrSetupTrack(track) {
+      if (!track || !track.getCapabilities) return;
+      let caps = {};
+      try { caps = track.getCapabilities() || {}; } catch (e) { return; }
+      const torchBtn = document.getElementById("btn_torch");
+      if (caps.torch && torchBtn) { torchBtn.style.display = ""; torchBtn._track = track; }
+      const adv = {};
+      if (Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) adv.focusMode = "continuous";
+      if (caps.zoom && caps.zoom.max >= 1.5) adv.zoom = Math.max(caps.zoom.min || 1, Math.min(2, caps.zoom.max));
+      if (!Object.keys(adv).length) return;
+      try {
+        await track.applyConstraints({ advanced: [adv] });
+        _qrFocus = !!adv.focusMode;
+        _qrZoom = adv.zoom || 0;
+      } catch (e) { /* máy từ chối → giữ mặc định */ }
+      _setQrHint();
+    }
+
+    // Có zoom → cầm xa hơn (15–20cm, camera lấy nét được, mã vẫn đủ to); không zoom → 10–15cm.
+    function _setQrHint() {
+      const el = document.getElementById("qr_hint");
+      if (el) el.textContent = `Đặt mã QR vào khung giữa — cách khoảng ${_qrZoom ? "15–20" : "10–15"} cm, đủ ánh sáng, giữ yên tay`;
+    }
+
+    // ~10 lần / giây: vùng khung ngắm ở độ phân giải gốc; cứ 4 lần thì thử cả khung (mã lệch khỏi khung ngắm).
+    // Có worker: cắt bằng createImageBitmap, giải mã trong worker; không: canvas + giải mã trên luồng chính.
+    async function _qrScanLoop() {
+      if (_qrDetected || !_qrVideo || !_qrStream) return;
+      const t0 = performance.now();
+      const vw = _qrVideo.videoWidth, vh = _qrVideo.videoHeight;
+      if (vw && vh && _qrEngine) {
+        const side = Math.round(Math.min(vw, vh) * QR_ROI);
+        const full = _qrTick++ % 4 === 3;
+        const [sx, sy, sw, sh] = full ? [0, 0, vw, vh] : [(vw - side) / 2, (vh - side) / 2, side, side];
+        try {
+          let parsed = null, ms;
+          if (_qrEngine.worker) {
+            const bitmap = await createImageBitmap(_qrVideo, sx, sy, sw, sh);
+            const r = await _qrWorkerDetect(_qrEngine.worker, bitmap);
+            ms = r.ms;
+            for (const v of r.values || []) { parsed = _parseVnCCCDQR(v); if (parsed) break; }
+          } else {
+            let source = _qrVideo;
+            if (!full) {
+              if (_qrCanvas.width !== side) { _qrCanvas.width = side; _qrCanvas.height = side; }
+              _qrCtx.drawImage(_qrVideo, sx, sy, sw, sh, 0, 0, side, side);
+              source = _qrCanvas;
+            }
+            parsed = await _qrDecode(_qrEngine, source);
+            ms = performance.now() - t0;
+          }
+          _qrShowDebug(vw, vh, ms);
+          if (parsed && !_qrDetected && _qrStream) { _qrDetected = true; _onQRDetected(parsed); return; }
+        } catch (e) { /* khung lỗi → khung sau */ }
+      }
+      if (_qrStream && !_qrDetected) _qrTimer = setTimeout(_qrScanLoop, Math.max(10, QR_INTERVAL - (performance.now() - t0)));
+    }
+
+    function _qrShowDebug(vw, vh, ms) {
+      if (!QR_DEBUG || !_qrStat) return;
+      _qrStat.n++;
+      _qrStat.ms = ms;
+      const now = performance.now();
+      if (now - _qrStat.since >= 1000) { _qrStat.rate = _qrStat.n * 1000 / (now - _qrStat.since); _qrStat.n = 0; _qrStat.since = now; }
+      const torch = !!(document.getElementById("btn_torch") || {})._track;
+      const el = document.getElementById("qr_debug");
+      if (el) el.textContent = `${_qrEngine ? _qrEngine.kind : "?"} · ${vw}×${vh} · zoom ${_qrZoom || "—"} · lấy nét ${_qrFocus ? "liên tục" : "—"}`
+        + ` · đèn ${torch ? "có" : "—"} · ${_qrStat.rate.toFixed(1)} lần/s · ${Math.round(ms)}ms`;
     }
 
     function toggleTorch() {
@@ -1399,12 +1558,11 @@
 
     function closeQRScanner() {
       _qrDetected = false;
-      if (_qrRaf) { cancelAnimationFrame(_qrRaf); _qrRaf = null; }
+      if (_qrTimer) { clearTimeout(_qrTimer); _qrTimer = null; }
       if (_torchOn && _qrStream) { const t = _qrStream.getVideoTracks()[0]; if (t) t.applyConstraints({ advanced: [{ torch: false }] }).catch(() => { }); }
       if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
       if (_qrVideo) { _qrVideo.remove(); _qrVideo = null; }
-      if (_qrCanvas) { _qrCanvas.remove(); _qrCanvas = null; }
-      _qrCtx = null; _torchOn = false;
+      _qrCanvas = null; _qrCtx = null; _torchOn = false;
       document.getElementById("qr_overlay").style.display = "none";
     }
 
@@ -1486,9 +1644,9 @@
       toast("Đã điền thông tin từ QR CCCD", true);
     }
 
-    // ---------- P5: decode QR from a captured/selected photo (high-res still) ----------
-    // TẠM KHÔNG DÙNG: nút "Chụp / chọn ảnh CCCD" đã được comment trong renderField.
-    // Giữ nguyên các hàm dưới đây để bật lại nhanh khi cần (bỏ comment khối HTML đó).
+    // ---------- Chụp / chọn ảnh CCCD (nút TẠM ẨN 28/10/2026 — xem scanUi trong renderField) ----------
+    // Ảnh từ app camera có autofocus + độ phân giải ~gấp đôi luồng video → ô QR ≥ 3–4px (vùng đọc 100% khi đo) → đường
+    // dự phòng khi quét trực tiếp không được. Cùng bộ giải mã với máy quét (_loadQrEngine).
     function _loadImage(file) {
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -1499,34 +1657,25 @@
       });
     }
 
-    // Try many crop rects × scales × (raw / contrast-boosted) on a still image.
-    function _decodeImageForQR(img) {
-      const W = img.naturalWidth, H = img.naturalHeight;
+    // Cả ảnh trước; không ra → các vùng giữa + lưới 3×3 ô 40% chồng nhau (mã có thể không ở giữa ảnh).
+    // Vùng giữ độ phân giải gốc, chỉ thu nhỏ khi cạnh dài > 2400px (ZXing đọc tốt ở cỡ gốc, không cần phóng to).
+    async function _decodeImageForQR(engine, img) {
+      const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
       if (!W || !H) return null;
+      const whole = await _qrDecode(engine, img).catch(() => null);
+      if (whole) return whole;
       const cv = document.createElement("canvas");
       const cx = cv.getContext("2d", { willReadFrequently: true });
-
-      const rects = [[0, 0, 1, 1], [0.2, 0.2, 0.6, 0.6], [0.3, 0.3, 0.4, 0.4], [0.375, 0.375, 0.25, 0.25]];
-      // 3×3 overlapping grid of 40% tiles (QR may not be centered in the photo)
+      const rects = [[0.2, 0.2, 0.6, 0.6], [0.3, 0.3, 0.4, 0.4]];
       for (let gy = 0; gy < 3; gy++) for (let gx = 0; gx < 3; gx++) rects.push([gx * 0.3, gy * 0.3, 0.4, 0.4]);
-
       for (const [fx, fy, fw, fh] of rects) {
-        const sx = Math.floor(fx * W), sy = Math.floor(fy * H);
-        const sw = Math.floor(fw * W), sh = Math.floor(fh * H);
+        const sx = Math.floor(fx * W), sy = Math.floor(fy * H), sw = Math.floor(fw * W), sh = Math.floor(fh * H);
         if (sw < 40 || sh < 40) continue;
-        // upscale the crop so its shorter side ≈ 1200px (bounded)
-        const scale = Math.min(3, Math.max(1, 1200 / Math.min(sw, sh)));
-        const cw = Math.min(1800, Math.round(sw * scale)), ch = Math.min(1800, Math.round(sh * scale));
-        cv.width = cw; cv.height = ch;
-        cx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-        let idata = cx.getImageData(0, 0, cw, ch);
-        let code = jsQR(idata.data, cw, ch, { inversionAttempts: "attemptBoth" });
-        if (!code) {
-          _boostContrast(idata); cx.putImageData(idata, 0, 0);
-          const id2 = cx.getImageData(0, 0, cw, ch);
-          code = jsQR(id2.data, cw, ch, { inversionAttempts: "attemptBoth" });
-        }
-        if (code) { const p = _parseVnCCCDQR(code.data); if (p) return p; }
+        const scale = Math.min(1, 2400 / Math.max(sw, sh));
+        cv.width = Math.round(sw * scale); cv.height = Math.round(sh * scale);
+        cx.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+        const parsed = await _qrDecode(engine, cv).catch(() => null);
+        if (parsed) return parsed;
       }
       return null;
     }
@@ -1536,14 +1685,15 @@
       ev.target.value = "";  // allow re-selecting the same file
       if (!file) return;
       toast("Đang đọc ảnh CCCD…");
-      _loadJsQr(async () => {
-        try {
-          const img = await _loadImage(file);
-          const parsed = _decodeImageForQR(img);
-          if (parsed) _fillFromCCCD(parsed);
-          else toast("Không đọc được QR từ ảnh. Chụp lại gần hơn, đủ sáng, lấy nét vào ô QR.");
-        } catch (e) {
-          toast("Không mở được ảnh. Thử lại.");
-        }
-      });
+      let engine;
+      try { engine = await _loadQrEngine(); }
+      catch (e) { toast("Không tải được bộ quét. Vui lòng thử lại hoặc nhập tay."); return; }
+      try {
+        const img = await _loadImage(file);
+        const parsed = await _decodeImageForQR(engine, img);
+        if (parsed) _fillFromCCCD(parsed);
+        else toast("Không đọc được QR từ ảnh. Chụp lại gần hơn, đủ sáng, lấy nét vào ô QR.");
+      } catch (e) {
+        toast("Không mở được ảnh. Thử lại.");
+      }
     }
