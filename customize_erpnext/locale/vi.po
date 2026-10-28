@@ -89179,6 +89179,50 @@ msgid "First visit on a device: the Start button unlocks only after this many se
 msgstr "Lần đầu mở trên một máy: nút Bắt đầu chỉ bấm được sau số giây này để nhân viên đọc Ghi chú màn hình đầu. Những lần sau trên cùng máy không phải chờ, cho tới khi ghi chú được sửa. 0 = không chờ."
 
 #. source: tiqn
+msgid "Sync to MongoDB"
+msgstr "Đồng bộ lên MongoDB"
+
+#. source: tiqn
+msgid "Please save the document before syncing."
+msgstr "Vui lòng lưu phiếu trước khi đồng bộ."
+
+#. source: tiqn
+msgid "Push {0} to MongoDB? Rows already synced for this registration will be replaced."
+msgstr "Đẩy {0} lên MongoDB? Các dòng đã đồng bộ trước đó của phiếu này sẽ bị thay thế."
+
+#. source: tiqn
+msgid "Syncing to MongoDB..."
+msgstr "Đang đồng bộ lên MongoDB..."
+
+#. source: tiqn
+msgid "Synced {0} row(s) to MongoDB"
+msgstr "Đã đồng bộ {0} dòng lên MongoDB"
+
+#. source: tiqn
+msgid "Cancelled registrations cannot be synced to MongoDB."
+msgstr "Phiếu đã hủy không thể đồng bộ lên MongoDB."
+
+#. source: tiqn
+msgid "This registration was imported from MongoDB and cannot be synced back."
+msgstr "Phiếu này được nhập từ MongoDB nên không thể đồng bộ ngược lên."
+
+#. source: tiqn
+msgid "No complete rows (employee, date, begin and end time) to sync."
+msgstr "Không có dòng nào đủ thông tin (nhân viên, ngày, giờ bắt đầu và kết thúc) để đồng bộ."
+
+#. source: tiqn
+msgid "Synced {0} row(s) to MongoDB ({1} old row(s) replaced)"
+msgstr "Đã đồng bộ {0} dòng lên MongoDB (thay thế {1} dòng cũ)"
+
+#. source: tiqn
+msgid "Cannot reach MongoDB to remove this registration's OT, so it was not cancelled/deleted. Please try again later. ({0})"
+msgstr "Không kết nối được MongoDB để xoá giờ OT của phiếu này nên phiếu chưa được hủy/xoá. Vui lòng thử lại sau. ({0})"
+
+#. source: tiqn
+msgid "Removed {0} row(s) from MongoDB"
+msgstr "Đã xoá {0} dòng trên MongoDB"
+
+#. source: tiqn
 msgid "Starting state of the \"hide 0 lines\" toggle when an employee opens a payslip (get_config.payslip.show_zero_lines, Mini App 1.9.0 and later; older builds always start with every line). Totals are always shown. The employee can still toggle it in the app"
 msgstr "Trạng thái ban đầu của nút \"Ẩn khoản 0đ\" khi nhân viên mở phiếu lương (get_config.payslip.show_zero_lines, Mini App 1.9.0 trở lên; bản cũ luôn mở với mọi dòng). Các dòng tổng luôn hiện. Nhân viên vẫn bật/tắt được trong app"
 

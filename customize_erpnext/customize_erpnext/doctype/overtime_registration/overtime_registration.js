@@ -35,6 +35,7 @@ frappe.ui.form.on("Overtime Registration", {
         // phones); auto-runs once per browser on the first new registration
         render_ot_help_banner(frm);
         render_ot_inline_pivot_button(frm);
+        add_sync_to_mongodb_button(frm);
         if (frm.is_new() && !ot_tour_seen()) {
             frappe.utils.sleep(600).then(() => start_ot_form_tour(frm));
         }
@@ -1727,6 +1728,34 @@ function apply_ot_tour_element_selectors(frm) {
         changed = true;
     });
     if (changed) frm.tour.update_driver_steps();
+}
+
+// Push this registration to the legacy MongoDB OtRegister (admin / HR only;
+// the server checks the roles again). Re-sync replaces the previous push.
+function add_sync_to_mongodb_button(frm) {
+    if (frm.is_new() || frm.doc.docstatus === 2) return;
+    if (!frappe.user.has_role(['System Manager', 'HR Manager', 'HR User'])) return;
+    frm.add_custom_button(__('Sync to MongoDB'), () => {
+        if (frm.is_dirty()) {
+            frappe.msgprint(__('Please save the document before syncing.'));
+            return;
+        }
+        frappe.confirm(__('Push {0} to MongoDB? Rows already synced for this registration will be replaced.', [frm.doc.name]), () => {
+            frappe.call({
+                method: 'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_mongodb.sync_to_mongodb',
+                args: { name: frm.doc.name },
+                freeze: true,
+                freeze_message: __('Syncing to MongoDB...'),
+            }).then(r => {
+                if (!r.message) return;
+                frappe.show_alert({
+                    message: __('Synced {0} row(s) to MongoDB', [r.message.inserted]),
+                    indicator: 'green',
+                });
+                frm.reload_doc();
+            });
+        });
+    });
 }
 
 // Pivot view of the OT list (employees × dates): button next to "Add Employees"

@@ -457,12 +457,15 @@ doc_events = {
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ],
         "on_cancel": [
+            # MongoDB first: it raises when MongoDB is down → nothing else runs
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_mongodb.remove_from_mongodb",
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_change"
         ],
         "on_update": [
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_draft_change"
         ],
         "on_trash": [
+            "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_mongodb.remove_from_mongodb",
             "customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration_hooks.update_attendance_on_overtime_draft_change"
         ]
     },

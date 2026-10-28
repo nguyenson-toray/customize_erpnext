@@ -164,7 +164,13 @@ def _employee_has_ot(emp_id, ot_date, begin_time, end_time):
         filters={"employee": emp_id, "date": ot_date},
         fields=["begin_time", "end_time"],
     )
-    return any(str(row.begin_time) == begin_time and str(row.end_time) == end_time for row in existing)
+    # DB times come back as timedelta: str() is "7:00:00", not "07:00:00"
+    def hms(value):
+        parts = [int(float(p)) for p in str(value).split(":")] + [0, 0]
+        return "%02d:%02d:%02d" % tuple(parts[:3])
+
+    begin_time, end_time = hms(begin_time), hms(end_time)
+    return any(hms(row.begin_time) == begin_time and hms(row.end_time) == end_time for row in existing)
 
 
 def _run_ot_sync_job(from_date, cache_key, to_date=None):
@@ -191,7 +197,9 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
                 continue
             seen.add(key)
             request_no = rec.get("requestNo")
-            if request_no:
+            # "OTR-..." = pushed from ERPNext by the form's "Sync to MongoDB"
+            # (overtime_registration_mongodb.py) — never pull it back
+            if request_no and not str(request_no).startswith("OTR-"):
                 grouped.setdefault(str(request_no), []).append(rec)
 
         total = len(grouped)
