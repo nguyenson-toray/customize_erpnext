@@ -3,6 +3,9 @@
 > **Mục đích:** Custom job portal for TIQN, overriding the default HRMS job listing and application experience.
 > **Phạm vi:** Trang portal
 > **Trạng thái:** Đang chạy · **Cập nhật:** 2026-02-13
+>
+> 28/10/2026: chuyển từ `www/jobs/jobs.md` về đây — file không phải `.py` trong `www/` bị Frappe dựng thành trang
+> công khai (`/jobs/jobs` hiện cả tài liệu này, không cần đăng nhập). Đừng để tài liệu trong `www/`.
 
 Custom job portal for TIQN, overriding the default HRMS job listing and application experience.
 

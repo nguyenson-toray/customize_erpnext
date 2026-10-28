@@ -61,7 +61,7 @@ trong app này.
 - `customize_erpnext/doctype/employee_maternity/employee_maternity.md` — Employee Maternity
 - `customize_erpnext/doctype/labor_contract/labor_contract.md` — Labor Contract
 - `customize_erpnext/doctype/resignation_application/resignation_application.md` — Đơn nghỉ việc — Resignation Application
-- `www/employee-photos/employee-photos.md` — Employee Photos — Tài liệu kỹ thuật
+- `employee_photos/README.md` — Employee Photos — Tài liệu kỹ thuật
 - `public/js/custom_scripts/employee_photos.md` — Tính năng Chụp & Upload Ảnh Nhân viên
 - `www/employee-self-update/employee-self-update.md` — Employee Self Update — Tài liệu kỹ thuật
 - `api/self_update_info/README.md` — Employee Self Update Info — Tài liệu kỹ thuật
@@ -83,7 +83,7 @@ trong app này.
 - `health_check_up/health_check_up.md` — Health Check Up — Review Module (2026-07-11) + Fix toàn bộ (2026-07-12)
 - `health_check_up/page/health_check_up_management/health_check_up_management.md` — Health Check Up Management — Tài liệu kỹ thuật
 - `health_check_up/page/health_check_up_management/document_for_user.md` — Hướng Dẫn Sử Dụng Phầm Mềm Quản Lý Khám Sức Khỏe
-- `www/jobs/jobs.md` — Job Portal Customizations
+- `hr/job_portal.md` — Job Portal Customizations
 - `frontend/src/pages/shoe_rack_layout_manager.md` — Shoe Rack Layout Manager — Review & Tài liệu logic
 - `network/doctype/cctv_tracking/cctv_tracking.md` — CCTV Tracking — Tài liệu kỹ thuật
 

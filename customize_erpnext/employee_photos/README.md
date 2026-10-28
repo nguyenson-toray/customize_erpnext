@@ -3,6 +3,9 @@
 > **Mục đích:** Trang cho HR chụp, cắt và gắn ảnh nhân viên hàng loạt, kèm chế độ làm ảnh thẻ.
 > **Phạm vi:** Trang portal
 > **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+>
+> 28/10/2026: chuyển từ `www/employee-photos/employee-photos.md` về đây — file không phải `.py` trong `www/` bị Frappe
+> dựng thành trang công khai (`/employee-photos/employee-photos` hiện cả tài liệu này, không cần đăng nhập).
 
 ## File liên quan
 
@@ -10,8 +13,9 @@
 www/employee-photos/
 ├── index.py           # Access control (Python/Frappe)
 ├── index.html         # Trang thư viện ảnh chính
-├── photo_editor.html  # Trình sửa ảnh (chạy trong iframe)
-└── employee-photos.md
+└── photo_editor.html  # Trình sửa ảnh (chạy trong iframe)
+
+employee_photos/README.md  # tài liệu này (KHÔNG để trong www/ — công khai)
 
 api/employee/
 └── employee_utils.py  # Backend API (process_employee_photo)
