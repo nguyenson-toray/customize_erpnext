@@ -89177,3 +89177,585 @@ msgstr "Thời gian chờ nút Bắt đầu (giây)"
 #. source: tiqn
 msgid "First visit on a device: the Start button unlocks only after this many seconds so employees read the Start Screen Notes. Later visits on the same device skip the wait until the notes are changed. 0 = no wait."
 msgstr "Lần đầu mở trên một máy: nút Bắt đầu chỉ bấm được sau số giây này để nhân viên đọc Ghi chú màn hình đầu. Những lần sau trên cùng máy không phải chờ, cho tới khi ghi chú được sửa. 0 = không chờ."
+
+#. source: tiqn
+msgid "Starting state of the \"hide 0 lines\" toggle when an employee opens a payslip (get_config.payslip.show_zero_lines, Mini App 1.9.0 and later; older builds always start with every line). Totals are always shown. The employee can still toggle it in the app"
+msgstr "Trạng thái ban đầu của nút \"Ẩn khoản 0đ\" khi nhân viên mở phiếu lương (get_config.payslip.show_zero_lines, Mini App 1.9.0 trở lên; bản cũ luôn mở với mọi dòng). Các dòng tổng luôn hiện. Nhân viên vẫn bật/tắt được trong app"
+
+#. source: tiqn
+msgid "Zalo App Review"
+msgstr "Zalo duyệt ứng dụng"
+
+#. source: tiqn
+msgid "Zalo's app reviewers sign in with their own Zalo account and see SAMPLE data only - never a real employee's data. Phones of real employees always sign in as the employee."
+msgstr "Người duyệt ứng dụng của Zalo đăng nhập bằng tài khoản Zalo của họ và chỉ thấy dữ liệu MẪU - không bao giờ thấy dữ liệu của nhân viên thật. SĐT của nhân viên thật luôn đăng nhập như nhân viên."
+
+#. source: tiqn
+msgid "Enable Review Mode"
+msgstr "Bật chế độ duyệt (Review Mode)"
+
+#. source: tiqn
+msgid "Reviewer Phones"
+msgstr "SĐT người duyệt"
+
+#. source: tiqn
+msgid "One phone per line, as given by Zalo (e.g. 0831111111). Turning Review Mode off or removing a phone ends that reviewer's session at once."
+msgstr "Mỗi dòng một SĐT, theo Zalo cung cấp (ví dụ 0831111111). Tắt Review Mode hoặc xoá một SĐT thì phiên của người duyệt đó kết thúc ngay."
+
+#. source: tiqn
+msgid "The lines are filled in from the Payslip Structure of the period when the payslip is saved."
+msgstr "Các dòng được điền theo Cấu trúc phiếu lương của kỳ khi lưu phiếu."
+
+#. source: tiqn
+msgid "Numbers as HR computed them - nothing is recalculated. Save to keep a change."
+msgstr "Số liệu đúng như HR đã tính - hệ thống không tính lại. Lưu để giữ thay đổi."
+
+#. source: tiqn
+msgid "Published: withdraw the period on the Payslip Upload page to change a number."
+msgstr "Đã phát hành: muốn sửa số phải thu hồi kỳ lương ở trang Tải phiếu lương."
+
+#. source: tiqn
+msgid "Unit/ĐVT"
+msgstr "ĐVT"
+
+#. source: tiqn
+msgid "Free text for the whole payslip, shown on the Mini App and the printout. Imported from the Note column of the Excel file (empty = no note)"
+msgstr "Ghi chú chung cho cả phiếu, hiện trên Mini App và bản in. Nhập từ cột Note của file Excel (trống = không có ghi chú)"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Net (Payslip Structure) - kept for the list view, filters and the API"
+msgstr "Lấy từ dòng có Cột báo cáo = Net (Cấu trúc phiếu lương) - dùng cho danh sách, bộ lọc và API"
+
+#. source: tiqn
+msgid "Standard Working Days"
+msgstr "Số ngày công chuẩn"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Standard Days (Payslip Structure)"
+msgstr "Lấy từ dòng có Cột báo cáo = Standard Days (Cấu trúc phiếu lương)"
+
+#. source: tiqn
+msgid "Actual Working Days"
+msgstr "Số ngày công thực tế"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Actual Days"
+msgstr "Lấy từ dòng có Cột báo cáo = Actual Days"
+
+#. source: tiqn
+msgid "Sum of the lines whose Report Column is OT Hours"
+msgstr "Tổng các dòng có Cột báo cáo = OT Hours"
+
+#. source: tiqn
+msgid "Basic Salary"
+msgstr "Lương cơ bản"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Basic"
+msgstr "Lấy từ dòng có Cột báo cáo = Basic"
+
+#. source: tiqn
+msgid "Overtime Pay"
+msgstr "Tiền tăng ca"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Overtime"
+msgstr "Lấy từ dòng có Cột báo cáo = Overtime"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Gross"
+msgstr "Lấy từ dòng có Cột báo cáo = Gross"
+
+#. source: tiqn
+msgid "Total Deductions"
+msgstr "Tổng khấu trừ"
+
+#. source: tiqn
+msgid "From the line whose Report Column is Deductions"
+msgstr "Lấy từ dòng có Cột báo cáo = Deductions"
+
+#. source: tiqn
+msgid "Payslip Structure"
+msgstr "Cấu trúc phiếu lương"
+
+#. source: tiqn
+msgid "Structure of the period when the payslip was imported. The payslip keeps its own copy of the lines"
+msgstr "Cấu trúc của kỳ lúc nhập phiếu. Phiếu giữ bản sao các dòng của riêng nó"
+
+#. source: tiqn
+msgid "Content Version"
+msgstr "Phiên bản nội dung"
+
+#. source: tiqn
+msgid "Changes whenever the payslip content changes (Mini App cache key, contract 1.9.0)"
+msgstr "Đổi mỗi khi nội dung phiếu thay đổi (khoá cache của Mini App, contract 1.9.0)"
+
+#. source: tiqn
+msgid "Payslip Lines"
+msgstr "Các dòng phiếu lương"
+
+#. source: tiqn
+msgid "Lines (JSON)"
+msgstr "Các dòng (JSON)"
+
+#. source: tiqn
+msgid "The payslip's own copy of the lines and numbers (employee_portal/payslip_structure.py)"
+msgstr "Bản sao các dòng và số liệu của riêng phiếu này (employee_portal/payslip_structure.py)"
+
+#. source: tiqn
+msgid "No Payslip Structure covers period {0}."
+msgstr "Chưa có Cấu trúc phiếu lương nào áp dụng cho kỳ {0}."
+
+#. source: tiqn
+msgid "These lines belong to {0}, period {1} uses {2}. Upload the payslip again."
+msgstr "Các dòng này thuộc {0}, kỳ {1} dùng {2}. Hãy tải phiếu lên lại."
+
+#. source: tiqn
+msgid "Impossible numbers"
+msgstr "Số liệu vô lý"
+
+#. source: tiqn
+msgctxt "Payslip"
+msgid "Draft"
+msgstr "Nháp"
+
+#. source: tiqn
+msgid "Draft / Withdrawn payslips print with a DRAFT watermark."
+msgstr "Phiếu nháp / đã thu hồi in ra có chữ chìm DRAFT."
+
+#. source: tiqn
+msgid "ZIP - one PDF per payslip"
+msgstr "ZIP - mỗi phiếu một file PDF"
+
+#. source: tiqn
+msgid "One combined PDF"
+msgstr "Gộp một file PDF"
+
+#. source: tiqn
+msgid "One combined PDF prints the whole selection in one go."
+msgstr "Gộp một file PDF để in cả danh sách một lần."
+
+#. source: tiqn
+msgid "Pick a pay period or employees."
+msgstr "Chọn kỳ lương hoặc nhân viên."
+
+#. source: tiqn
+msgid "Preparing PDF"
+msgstr "Đang tạo PDF"
+
+#. source: tiqn
+msgid "Queued..."
+msgstr "Đang chờ..."
+
+#. source: tiqn
+msgid "Could not build the PDF - see Error Log."
+msgstr "Không tạo được PDF - xem Error Log."
+
+#. source: tiqn
+msgid "{0} / {1} payslips"
+msgstr "{0} / {1} phiếu"
+
+#. source: tiqn
+msgid "Payslips"
+msgstr "Phiếu lương"
+
+#. source: tiqn
+msgid "Ticked payslips ({0})"
+msgstr "Các phiếu đã tick ({0})"
+
+#. source: tiqn
+msgid "By pay period / employee"
+msgstr "Theo kỳ lương / nhân viên"
+
+#. source: tiqn
+msgid "Empty = every period of the employees below."
+msgstr "Trống = mọi kỳ của các nhân viên bên dưới."
+
+#. source: tiqn
+msgid "Employees, Sections or Group: pick one of the three (empty = everyone)."
+msgstr "Nhân viên, Bộ phận hoặc Nhóm: chọn một trong ba (trống = mọi người)."
+
+#. source: tiqn
+msgid "Sections"
+msgstr "Bộ phận"
+
+#. source: tiqn
+msgid "Apply Labels to Payslips"
+msgstr "Áp nhãn vào phiếu lương"
+
+#. source: tiqn
+msgid "Save the structure first."
+msgstr "Hãy lưu cấu trúc trước."
+
+#. source: tiqn
+msgid "The {0} payslip(s) of this structure already have these labels."
+msgstr "{0} phiếu của cấu trúc này đã có các nhãn này."
+
+#. source: tiqn
+msgid "Copy these labels into the payslips of this structure, Published ones included? Amounts, Published On and notifications do not change. Phones that already opened a payslip may keep the old text until their app cache is cleared."
+msgstr "Chép các nhãn này vào các phiếu của cấu trúc này, kể cả phiếu đã phát hành? Số tiền, ngày phát hành và thông báo không đổi. Điện thoại đã mở phiếu có thể vẫn thấy chữ cũ cho tới khi cache của app được xoá."
+
+#. source: tiqn
+msgid "Applying labels to {0} payslips in the background."
+msgstr "Đang áp nhãn cho {0} phiếu (chạy nền)."
+
+#. source: tiqn
+msgid "Labels applied to {0} payslip(s)."
+msgstr "Đã áp nhãn cho {0} phiếu."
+
+#. source: tiqn
+msgid "TIQN Payslip Structure"
+msgstr "Cấu trúc phiếu lương TIQN"
+
+#. source: tiqn
+msgid "Lines of the payslip from a pay period on: the Excel template, the Mini App and the printout follow it. A payslip keeps its own copy of the lines, so changing a structure never changes a payslip already imported"
+msgstr "Các dòng của phiếu lương từ một kỳ lương trở đi: mẫu Excel, Mini App và bản in theo cấu trúc này. Mỗi phiếu giữ bản sao các dòng của riêng nó, nên sửa cấu trúc không làm đổi phiếu đã nhập"
+
+#. source: tiqn
+msgid "Valid From Period"
+msgstr "Áp dụng từ kỳ"
+
+#. source: tiqn
+msgid "First pay period (YYYY-MM) that uses these lines, until the next structure"
+msgstr "Kỳ lương đầu tiên (YYYY-MM) dùng các dòng này, cho tới cấu trúc kế tiếp"
+
+#. source: tiqn
+msgid "What changed from the previous structure"
+msgstr "Thay đổi so với cấu trúc trước"
+
+#. source: tiqn
+msgid "Lines"
+msgstr "Các dòng"
+
+#. source: tiqn
+msgid "Once payslips use this structure only the labels and the formula text can change (then Apply Labels to Payslips). To add, remove or renumber lines, Duplicate it with a new Valid From Period"
+msgstr "Khi đã có phiếu dùng cấu trúc này thì chỉ sửa được nhãn và chữ công thức (sau đó bấm Áp nhãn vào phiếu lương). Muốn thêm, xoá hoặc đánh số lại dòng thì Duplicate với Áp dụng từ kỳ mới"
+
+#. source: tiqn
+msgid "Labels applied to {0} payslip(s) by {1}."
+msgstr "Đã áp nhãn cho {0} phiếu, người thực hiện: {1}."
+
+#. source: tiqn
+msgid "Valid From Period must look like YYYY-MM."
+msgstr "Áp dụng từ kỳ phải có dạng YYYY-MM."
+
+#. source: tiqn
+msgid "Payslips already use this structure: only the labels and the formula text can change. To add, remove or renumber lines, Duplicate it with a new Valid From Period (or delete the Draft payslips of its periods first)."
+msgstr "Đã có phiếu dùng cấu trúc này: chỉ sửa được nhãn và chữ công thức. Muốn thêm, xoá hoặc đánh số lại dòng thì Duplicate với Áp dụng từ kỳ mới (hoặc xoá các phiếu nháp của các kỳ đó trước)."
+
+#. source: tiqn
+msgid "Periods {0} already have payslips of another structure. Choose a later Valid From Period."
+msgstr "Các kỳ {0} đã có phiếu của cấu trúc khác. Hãy chọn Áp dụng từ kỳ muộn hơn."
+
+#. source: tiqn
+msgid "TIQN Payslip Structure Line"
+msgstr "Dòng cấu trúc phiếu lương TIQN"
+
+#. source: tiqn
+msgid "One line of the paper payslip in a Payslip Structure"
+msgstr "Một dòng của phiếu lương giấy trong Cấu trúc phiếu lương"
+
+#. source: tiqn
+msgid "Line number on the paper payslip: 1, 1.2, 7.4. Sets the order of the lines and matches the Excel column (the header starts with it)"
+msgstr "Số thứ tự dòng trên phiếu giấy: 1, 1.2, 7.4. Quyết định thứ tự các dòng và khớp với cột Excel (tiêu đề cột bắt đầu bằng số này)"
+
+#. source: tiqn
+msgid "English Label"
+msgstr "Nhãn tiếng Anh"
+
+#. source: tiqn
+msgid "English text of the paper payslip, e.g. Basic Salary"
+msgstr "Chữ tiếng Anh trên phiếu giấy, ví dụ Basic Salary"
+
+#. source: tiqn
+msgid "Vietnamese Label"
+msgstr "Nhãn tiếng Việt"
+
+#. source: tiqn
+msgid "Vietnamese text: shown on the Mini App and next to the English text on the printout, e.g. Lương cơ bản"
+msgstr "Chữ tiếng Việt: hiện trên Mini App và cạnh chữ tiếng Anh trên bản in, ví dụ Lương cơ bản"
+
+#. source: tiqn
+msgid "Printed in brackets after the label, as typed, e.g. c=a+b or 8%. Display only: ERP never checks or computes it. Empty = nothing printed"
+msgstr "In trong ngoặc sau nhãn, đúng như gõ, ví dụ c=a+b hoặc 8%. Chỉ để hiển thị: ERP không kiểm tra hay tính toán. Trống = không in"
+
+#. source: tiqn
+msgid "VND = an amount. Day / Hour = the line only has a number of days / hours (e.g. standard working days)"
+msgstr "VND = số tiền. Day / Hour = dòng chỉ có số ngày / số giờ (ví dụ số ngày công chuẩn)"
+
+#. source: tiqn
+msgid "Unit/ĐVT Column"
+msgstr "Cột ĐVT"
+
+#. source: tiqn
+msgid "An amount line that also has a number in the Unit/ĐVT column (e.g. 1.2 = 24 days + the amount). The Excel template then has a \"<No.> Days\" / \"<No.> Hours\" column"
+msgstr "Dòng tiền có thêm một số ở cột ĐVT (ví dụ 1.2 = 24 ngày + số tiền). Mẫu Excel khi đó có thêm cột \"<STT> Days\" / \"<STT> Hours\""
+
+#. source: tiqn
+msgid "Under Line"
+msgstr "Thuộc dòng"
+
+#. source: tiqn
+msgid "No. of the group line this one sits under (indented), e.g. 2 for 2.1. Empty = a main line"
+msgstr "STT của dòng nhóm mà dòng này nằm dưới (thụt vào), ví dụ 2 cho 2.1. Trống = dòng chính"
+
+#. source: tiqn
+msgid "Row Type"
+msgstr "Loại dòng"
+
+#. source: tiqn
+msgid "Subtotal / Section Total are printed in bold and shown even when 0"
+msgstr "Tổng phụ / Tổng nhóm in đậm và luôn hiện kể cả khi bằng 0"
+
+#. source: tiqn
+msgid "Block"
+msgstr "Khối"
+
+#. source: tiqn
+msgid "Block of the older Mini App screen (payslip `sections`). Attendance = days / overtime hours"
+msgstr "Khối của màn hình Mini App cũ (payslip `sections`). Attendance = số ngày / giờ tăng ca"
+
+#. source: tiqn
+msgid "Copied to a payslip column for the list, filters and reports. Net = the net salary (exactly one line). OT Hours adds up every line that has it"
+msgstr "Chép sang một cột của phiếu để dùng cho danh sách, bộ lọc và báo cáo. Net = thực lĩnh (đúng một dòng). OT Hours cộng dồn mọi dòng có cột này"
+
+#. source: tiqn
+msgid "Gross"
+msgstr "Tổng lương"
+
+#. source: tiqn
+msgid "Net"
+msgstr "Thực lĩnh"
+
+#. source: tiqn
+msgid "Standard Days"
+msgstr "Ngày công chuẩn"
+
+#. source: tiqn
+msgid "Actual Days"
+msgstr "Ngày công thực tế"
+
+#. source: tiqn
+msgid "OT Hours"
+msgstr "Giờ tăng ca"
+
+#. source: tiqn
+msgid "Sent from the Zalo Mini App by someone whose Zalo phone matches no employee - one record per Zalo account, named after its Zalo phone, overwritten by each new request (at most 2 per day). HR checks it is really that employee, then approves (the Zalo phone is written to the employee's Zalo phone) or rejects."
+msgstr "Gửi từ Zalo Mini App bởi người có SĐT Zalo không khớp nhân viên nào - mỗi tài khoản Zalo một bản ghi, đặt tên theo SĐT Zalo, bị ghi đè bởi mỗi yêu cầu mới (tối đa 2 lần/ngày). HR kiểm tra đúng là nhân viên đó rồi duyệt (SĐT Zalo được ghi vào SĐT Zalo của nhân viên) hoặc từ chối."
+
+#. source: tiqn
+msgid "Zalo Avatar"
+msgstr "Ảnh đại diện Zalo"
+
+#. source: tiqn
+msgid "Profile picture on Zalo, from Zalo (not sent by the user). Empty when the user has not shared their profile"
+msgstr "Ảnh đại diện trên Zalo, do Zalo cung cấp (người dùng không tự gửi). Trống khi người dùng chưa chia sẻ hồ sơ"
+
+#. source: tiqn
+msgid "Delete Payslips"
+msgstr "Xoá phiếu lương"
+
+#. source: tiqn
+msgid "Delete all {0} Draft / Withdrawn payslips of {1} ({2} Draft, {3} Withdrawn)? Published payslips are not touched."
+msgstr "Xoá toàn bộ {0} phiếu nháp / đã thu hồi của kỳ {1} ({2} nháp, {3} đã thu hồi)? Phiếu đã phát hành không bị ảnh hưởng."
+
+#. source: tiqn
+msgid "{0} Withdrawn payslips were published before; {1} of them were opened by the employee. Deleting removes that record too."
+msgstr "{0} phiếu đã thu hồi từng được phát hành; {1} phiếu trong số đó đã được nhân viên mở xem. Xoá là mất luôn thông tin này."
+
+#. source: tiqn
+msgid "Deleting {0} payslips in the background"
+msgstr "Đang xoá {0} phiếu (chạy nền)"
+
+#. source: tiqn
+msgid "One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, Note (optional free text for the whole payslip), then one column per line of the Payslip Structure of the period, matched by the code at the start of the header (e.g. \"3.2 ...\"). Download the template of the period to get the right columns. No. and Designation are not imported. Numbers are imported as they are; only impossible ones (negative days / hours, more working days or overtime hours than the period has, mistyped amounts) are refused. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day."
+msgstr "Mỗi dòng một nhân viên: No., Period (YYYY-MM hoặc MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, Note (ghi chú chung cho cả phiếu, không bắt buộc), sau đó mỗi dòng của Cấu trúc phiếu lương của kỳ là một cột, khớp theo mã ở đầu tiêu đề (ví dụ \"3.2 ...\"). Hãy tải mẫu của kỳ để có đúng các cột. No. và Designation không được nhập. Số liệu được nhập nguyên trạng; chỉ số vô lý (ngày / giờ âm, số ngày công hoặc giờ tăng ca nhiều hơn số ngày của kỳ, số tiền gõ nhầm) bị từ chối. Period From / To có thể nằm trong kỳ (vào làm hoặc nghỉ giữa kỳ); Pay Date trống = ngày trả lương hằng tháng."
+
+#. source: tiqn
+msgid "Employees whose relieving date is in the selected period (range below), paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in. Those leaving on the day after the period ends worked the whole period and are on the monthly template."
+msgstr "Nhân viên có ngày nghỉ việc trong kỳ đã chọn (khoảng ngày bên dưới), được trả lương riêng trong 14 ngày kể từ khi nghỉ. Period To = ngày trước ngày nghỉ việc; Pay Date được điền sẵn. Người nghỉ vào ngày sau khi kỳ kết thúc đã làm đủ kỳ và nằm trong mẫu hằng tháng."
+
+#. source: tiqn
+msgid "Monthly: employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting."
+msgstr "Hằng tháng: nhân viên còn trong bảng lương tới hết kỳ này. Không gồm: người nghỉ trước hoặc trong kỳ (dùng Chỉ nhân viên nghỉ việc), người nghỉ thai sản cả kỳ, và Exclude Employees của Attendance Calculation Setting."
+
+#. source: tiqn
+msgid "Must be inside the selected period."
+msgstr "Phải nằm trong kỳ đã chọn."
+
+#. source: tiqn
+msgid "The relieving date range must be inside the selected period ({0} - {1}), From on or before To."
+msgstr "Khoảng ngày nghỉ việc phải nằm trong kỳ đã chọn ({0} - {1}), Từ ngày không sau Đến ngày."
+
+#. source: tiqn
+msgid "Deleted {0} payslips of {1}"
+msgstr "Đã xoá {0} phiếu của kỳ {1}"
+
+#. source: tiqn
+msgid "The relieving date range must be inside period {0} ({1} - {2}), From <= To."
+msgstr "Khoảng ngày nghỉ việc phải nằm trong kỳ {0} ({1} - {2}), Từ ngày <= Đến ngày."
+
+#. source: tiqn
+msgid "Create a Payslip Structure first."
+msgstr "Hãy tạo Cấu trúc phiếu lương trước."
+
+#. source: tiqn
+msgid "Column \"{0}\" does not match any line of Payslip Structure {1}."
+msgstr "Cột \"{0}\" không khớp dòng nào của Cấu trúc phiếu lương {1}."
+
+#. source: tiqn
+msgid "Column \"{0}\": line {1} has no Unit/ĐVT column."
+msgstr "Cột \"{0}\": dòng {1} không có cột ĐVT."
+
+#. source: tiqn
+msgid "No Payslip Structure covers period(s) {0}. Create one first."
+msgstr "Chưa có Cấu trúc phiếu lương nào áp dụng cho kỳ {0}. Hãy tạo trước."
+
+#. source: tiqn
+msgid "The file mixes periods of different Payslip Structures ({0}). Upload one file per structure."
+msgstr "File có các kỳ thuộc những Cấu trúc phiếu lương khác nhau ({0}). Mỗi cấu trúc tải một file riêng."
+
+#. source: tiqn
+msgid "Cannot read any period in the Period column (MM-YYYY, e.g. 10-2026)."
+msgstr "Không đọc được kỳ nào trong cột Period (MM-YYYY, ví dụ 10-2026)."
+
+#. source: tiqn
+msgid "Note is longer than {0} characters."
+msgstr "Ghi chú dài quá {0} ký tự."
+
+#. source: tiqn
+msgid "The {0} payslip uses Payslip Structure {1}, this file {2}. Delete or withdraw it first."
+msgstr "Phiếu kỳ {0} đang dùng Cấu trúc phiếu lương {1}, file này dùng {2}. Hãy xoá hoặc thu hồi phiếu đó trước."
+
+#. source: tiqn
+msgid "Overwrites the existing {0} payslip of {1} (batch {2}, saved {3})."
+msgstr "Ghi đè phiếu kỳ {0} hiện có của {1} (lô {2}, lưu lúc {3})."
+
+#. source: tiqn
+msgid "{0}: {1} now, {2} in the file."
+msgstr "{0}: hiện là {1}, trong file là {2}."
+
+#. source: tiqn
+msgid "Note: \"{0}\" now, \"{1}\" in the file."
+msgstr "Ghi chú: hiện là \"{0}\", trong file là \"{1}\"."
+
+#. source: tiqn
+msgid "Employee left on {0} (last working day {1}), but Period To in the file is {2}."
+msgstr "Nhân viên nghỉ việc từ {0} (ngày làm cuối {1}), nhưng Period To trong file là {2}."
+
+#. source: tiqn
+msgid "No Payslip Structure covers period {0} yet. Create one before downloading the template."
+msgstr "Chưa có Cấu trúc phiếu lương nào áp dụng cho kỳ {0}. Hãy tạo trước khi tải mẫu."
+
+#. source: tiqn
+msgid "{0} payslip(s) of {1} do not use its Payslip Structure {2} (e.g. {3}). Upload them again."
+msgstr "{0} phiếu của kỳ {1} không dùng Cấu trúc phiếu lương {2} của kỳ (ví dụ {3}). Hãy tải lên lại."
+
+#. source: tiqn
+msgid "Select at least one payslip."
+msgstr "Chọn ít nhất một phiếu."
+
+#. source: tiqn
+msgid "Download at most {0} payslips at a time - filter the list first."
+msgstr "Mỗi lần tải tối đa {0} phiếu - hãy lọc danh sách trước."
+
+#. source: tiqn
+msgid "Printed PDF"
+msgstr "Đã in PDF"
+
+#. source: tiqn
+msgid "This download has expired - start it again."
+msgstr "Lượt tải này đã hết hạn - hãy bắt đầu lại."
+
+#. source: tiqn
+msgid "Unknown output: {0}"
+msgstr "Kiểu xuất không hợp lệ: {0}"
+
+#. source: tiqn
+msgid "Your previous PDF download is still being prepared - wait for it to finish."
+msgstr "Lượt tải PDF trước của bạn vẫn đang được tạo - hãy chờ xong."
+
+#. source: tiqn
+msgid "Filter by Employees, Sections or Group - one of them only."
+msgstr "Lọc theo Nhân viên, Bộ phận hoặc Nhóm - chỉ một trong ba."
+
+#. source: tiqn
+msgid "Tick the payslips, or pick a pay period or employees."
+msgstr "Tick các phiếu, hoặc chọn kỳ lương hoặc nhân viên."
+
+#. source: tiqn
+msgid "No payslips match these filters."
+msgstr "Không có phiếu nào khớp bộ lọc."
+
+#. source: tiqn
+msgid "A Payslip Structure needs at least one line."
+msgstr "Cấu trúc phiếu lương cần ít nhất một dòng."
+
+#. source: tiqn
+msgid "{0}: No. \"{1}\" must be numbers separated by dots, e.g. 1, 1.2, 7.4."
+msgstr "{0}: STT \"{1}\" phải là các số cách nhau bằng dấu chấm, ví dụ 1, 1.2, 7.4."
+
+#. source: tiqn
+msgid "No. {0} is used twice."
+msgstr "STT {0} bị dùng hai lần."
+
+#. source: tiqn
+msgid "Line {0}: English Label and Vietnamese Label are required."
+msgstr "Dòng {0}: bắt buộc có Nhãn tiếng Anh và Nhãn tiếng Việt."
+
+#. source: tiqn
+msgid "Line {0}: a {1} line has no Unit/ĐVT Column - its number already is the days / hours."
+msgstr "Dòng {0}: dòng {1} không có Cột ĐVT - số của dòng đã là số ngày / giờ."
+
+#. source: tiqn
+msgid "Line {0}: Under Line {1} does not exist."
+msgstr "Dòng {0}: Thuộc dòng {1} không tồn tại."
+
+#. source: tiqn
+msgid "Line {0}: Under Line goes round in a loop."
+msgstr "Dòng {0}: Thuộc dòng bị vòng lặp."
+
+#. source: tiqn
+msgid "Report Column {0} is set on lines {1} and {2}."
+msgstr "Cột báo cáo {0} được đặt ở cả dòng {1} và {2}."
+
+#. source: tiqn
+msgid "Line {0}: Report Column {1} needs a VND line."
+msgstr "Dòng {0}: Cột báo cáo {1} cần dòng VND."
+
+#. source: tiqn
+msgid "Line {0}: Report Column {1} needs days / hours."
+msgstr "Dòng {0}: Cột báo cáo {1} cần số ngày / giờ."
+
+#. source: tiqn
+msgid "Set Report Column = Net on the net salary line."
+msgstr "Hãy đặt Cột báo cáo = Net cho dòng thực lĩnh."
+
+#. source: tiqn
+msgid "Block {0} has two Section Total lines: {1} and {2}."
+msgstr "Khối {0} có hai dòng Tổng nhóm: {1} và {2}."
+
+#. source: tiqn
+msgid "{0}: {1} {2} cannot be negative."
+msgstr "{0}: {1} {2} không được âm."
+
+#. source: tiqn
+msgid "{0}: {1} days is more than the {2} days of the period."
+msgstr "{0}: {1} ngày nhiều hơn {2} ngày của kỳ."
+
+#. source: tiqn
+msgid "{0}: {1} hours is more than 24 hours x {2} days of the period."
+msgstr "{0}: {1} giờ nhiều hơn 24 giờ x {2} ngày của kỳ."
+
+#. source: tiqn
+msgid "{0}: {1:,.0f} VND looks mistyped."
+msgstr "{0}: {1:,.0f} VND có vẻ gõ nhầm."
+
+#. source: tiqn
+msgid "No Payslip Structure covers period {0}. Create one (Valid From Period on or before it) first."
+msgstr "Chưa có Cấu trúc phiếu lương nào áp dụng cho kỳ {0}. Hãy tạo một cấu trúc (Áp dụng từ kỳ trước hoặc bằng kỳ đó) trước."
+
+#. source: tiqn
+msgid "Payslip Detail"
+msgstr "Chi tiết phiếu lương"
+
