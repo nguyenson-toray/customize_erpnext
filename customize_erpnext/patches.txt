@@ -133,3 +133,7 @@ customize_erpnext.patches.add_employee_checkin_device_time_index
 # post_model_sync: Attendance Machine Setting — Peak Times 07:30,07:45,17:00,18:00 / 15' for the
 # automatic log pull (skipped inside peaks). Only when never set. Idempotent.
 customize_erpnext.patches.set_attendance_machine_peak_defaults
+# post_model_sync: Payslip Structure - PSS-<first period> built from the sc_* fields + Settings >
+# Payslip Lines, every payslip gets its own copy of the lines (lines_json) from its sc_* values.
+# sc_* stay (hidden) until phase 2. Idempotent.
+customize_erpnext.patches.employee_portal_payslip_structure

@@ -138,38 +138,43 @@
    "fieldtype": "Check",
    "label": "Show Zero Lines by Default",
    "default": "0",
-   "description": "When unticked, payslip lines with a zero amount are hidden in the Mini App. Totals are always shown. The employee can still toggle it in the app",
+   "description": "Starting state of the \"hide 0 lines\" toggle when an employee opens a payslip (get_config.payslip.show_zero_lines, Mini App 1.9.0 and later; older builds always start with every line). Totals are always shown. The employee can still toggle it in the app",
    "depends_on": "eval:doc.feature_payslip"
   },
   {
    "fieldname": "payslip_import_section",
    "fieldtype": "Section Break",
    "label": "Payslip Import",
-   "depends_on": "eval:doc.feature_payslip"
+   "depends_on": "eval:doc.feature_payslip",
+   "hidden": 1
   },
   {
    "fieldname": "validate_payslip_formulas",
    "fieldtype": "Check",
    "label": "Check Formulas on Import",
    "default": "1",
-   "description": "Ticked: Payslip Upload warns when totals do not add up (3 = 1 + 2, 9 = 5 - 6 + 7 + 8, group = sum of its lines) and HR must confirm. Unticked: the numbers in HR's file are imported as they are"
+   "description": "Not used since the Payslip Structure (28/10/2026): numbers are imported as HR computed them, only impossible ones are refused",
+   "hidden": 1
   },
   {
    "fieldname": "column_break_payslip_import",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "hidden": 1
   },
   {
    "collapsible": 1,
-   "description": "Text of each line on the Mini App payslip, shown word for word (line number and letters included, e.g. 9 Thực lĩnh (j=f-g+h+i)). Rows follow the TIQN Payslip fields (added / removed by IT); edit only the Mini App Label. Employees who already opened a payslip see a new text once the app cache expires",
+   "description": "Not used since the Payslip Structure (28/10/2026): labels are on TIQN Payslip Structure",
    "fieldname": "payslip_lines_section",
    "fieldtype": "Section Break",
-   "label": "Payslip Lines on the Mini App"
+   "label": "Payslip Lines on the Mini App",
+   "hidden": 1
   },
   {
    "fieldname": "payslip_lines",
    "fieldtype": "Table",
    "label": "Payslip Lines",
-   "options": "TIQN Portal Payslip Line"
+   "options": "TIQN Portal Payslip Line",
+   "hidden": 1
   },
   {
    "fieldname": "attendance_section",
@@ -421,7 +426,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-27 16:00:00.000000",
+ "modified": "2026-10-28 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",

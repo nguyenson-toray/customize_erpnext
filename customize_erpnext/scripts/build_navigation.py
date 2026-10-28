@@ -34,6 +34,11 @@ STAMP = "2026-10-17 12:00:00.000000"
 # re-import them - frappe skips a file whose `modified` is not newer than the DB row.
 STAMP_ICONS = "2026-10-24 18:00:00.000000"
 IMG = "/assets/customize_erpnext/images/"
+# A sidebar whose items changed after it was first imported needs a newer `modified` too.
+SIDEBAR_STAMPS = {
+	"New Joiners": "2026-10-21 10:00:00.000000",
+	"Employee Portal": "2026-10-28 14:00:00.000000",  # + Payslip Detail / Payslip Structure
+}
 
 
 def scrub(name):
@@ -128,6 +133,8 @@ SIDEBARS = [
 		link("Payslip Upload", "Page", "payslip-upload", icon="upload", default=1),
 		link("Payslip", "DocType", "TIQN Payslip", icon="file-text", default=1),
 		link("Payslip Period Summary", "Report", "Payslip Period Summary", icon="table", default=1),
+		link("Payslip Detail", "Report", "Payslip Detail", icon="sheet", default=1),
+		link("Payslip Structure", "DocType", "TIQN Payslip Structure", icon="list-tree", default=1),
 		section("Mini App", "smartphone"),
 		child("Notification", "DocType", "TIQN Portal Notification", default=1),
 		child("Link Request", "DocType", "TIQN Portal Link Request", default=1),
@@ -191,7 +198,7 @@ def build_sidebars():
 			item["idx"] = idx
 		write(os.path.join(module_path(module), "sidebar", scrub(title), f"{scrub(title)}.json"), {
 			"app": APP_NAME, "creation": STAMP, "docstatus": 0, "doctype": "Sidebar",
-			"header_icon": header_icon, "idx": 0, "items": items, "modified": STAMP,
+			"header_icon": header_icon, "idx": 0, "items": items, "modified": SIDEBAR_STAMPS.get(title, STAMP),
 			"modified_by": "Administrator", "module": module, "name": title, "owner": "Administrator",
 			"standard": 1, "title": title,
 		})

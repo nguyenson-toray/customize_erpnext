@@ -24,7 +24,7 @@ class PayslipUploadPage {
 				<div class="psu-card">
 					<div class="psu-card-title">${__('1. Upload the salary Excel file')}</div>
 					<div class="text-muted small psu-help">
-						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, Note (optional free text for the whole payslip), then one column per payslip line (the TIQN Payslip fields), matched by the code at the start of the header (e.g. "3.2 ..."). No. and Designation are not imported. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
+						${__('One row per employee: No., Period (YYYY-MM or MM-YYYY), Period From, Period To, Pay Date, Employee, Employee Name, Designation, Department, Section, Group, Note (optional free text for the whole payslip), then one column per line of the Payslip Structure of the period, matched by the code at the start of the header (e.g. "3.2 ..."). Download the template of the period to get the right columns. No. and Designation are not imported. Numbers are imported as they are; only impossible ones (negative days / hours, more working days or overtime hours than the period has, mistyped amounts) are refused. Period From / To may be inside the period (joined or left during it); empty Pay Date = the monthly pay day.')}
 					</div>
 					<div class="psu-actions">
 						<button class="btn btn-default btn-sm psu-template">${__('Download Template')}</button>
@@ -47,6 +47,10 @@ class PayslipUploadPage {
 		this.$body.find('.psu-upload').on('click', () => this.upload());
 		page.set_secondary_action(__('Refresh'), () => this.load_periods());
 
+		frappe.realtime.on('payslip_delete_done', (data) => {
+			frappe.show_alert({ message: __('Deleted {0} payslips of {1}', [data.deleted, data.period]), indicator: 'green' });
+			this.load_periods();
+		});
 		frappe.realtime.on('payslip_import_done', (data) => {
 			frappe.show_alert({
 				message: __('Imported {0} payslips as Draft (batch {1})', [data.rows, data.batch]),
@@ -91,7 +95,7 @@ class PayslipUploadPage {
 			<span class="indicator-pill ${data.error_count ? 'red' : 'green'}">${__('{0} errors', [data.error_count])}</span>
 			<span class="indicator-pill ${data.warning_count ? 'orange' : 'green'}">${__('{0} warnings', [data.warning_count])}</span>
 			<span class="text-muted">${__('Periods')}: ${(data.periods || []).map(esc).join(', ') || '-'}</span>
-			${data.check_formulas ? '' : `<span class="indicator-pill gray">${__('Formula check off (Settings)')}</span>`}
+			${data.structure ? `<span class="text-muted">${__('Payslip Structure')}: <a href="/app/tiqn-payslip-structure/${encodeURIComponent(data.structure)}" target="_blank">${esc(data.structure)}</a></span>` : ''}
 		</div>`;
 
 		if (data.header_errors.length) {
@@ -207,16 +211,18 @@ class PayslipUploadPage {
 				<td class="psu-row-actions">
 					${p.Draft + p.Withdrawn ? `<button class="btn btn-primary btn-xs psu-publish">${__('Publish', null, 'Payslip')}</button>` : ''}
 					${p.Published ? `<button class="btn btn-default btn-xs psu-withdraw">${__('Withdraw', null, 'Payslip')}</button>` : ''}
-					${p.Draft ? `<button class="btn btn-default btn-xs psu-delete">${__('Delete Drafts')}</button>` : ''}
+					${p.Draft + p.Withdrawn ? `<button class="btn btn-default btn-xs psu-delete">${__('Delete Payslips')}</button>` : ''}
 				</td></tr>`;
 		}
 		html += '</tbody></table>';
 		$w.html(html);
+		const by_period = {};
+		for (const p of periods) by_period[p.period] = p;
 
 		const act = (cls, method, question, done) => {
 			$w.find(cls).on('click', (e) => {
 				const period = $(e.target).closest('tr').data('period');
-				frappe.confirm(question(period), () => {
+				frappe.confirm(question(period, by_period[period]), () => {
 					frappe
 						.call({ method: `${PSU_API}.${method}`, args: { period }, freeze: true })
 						.then((r) => {
@@ -240,9 +246,23 @@ class PayslipUploadPage {
 		);
 		act(
 			'.psu-delete',
-			'delete_draft_period',
-			(p) => __('Delete the never-published Draft payslips of {0}?', [p]),
-			(m) => __('Deleted {0} payslips', [m.deleted])
+			'delete_period',
+			(p, row) => {
+				let q = __('Delete all {0} Draft / Withdrawn payslips of {1} ({2} Draft, {3} Withdrawn)? Published payslips are not touched.', [
+					row.Draft + row.Withdrawn,
+					p,
+					row.Draft,
+					row.Withdrawn,
+				]);
+				if (row.Withdrawn) {
+					q += `<br><br><b class="psu-warn-text">${__('{0} Withdrawn payslips were published before; {1} of them were opened by the employee. Deleting removes that record too.', [
+						row.Withdrawn,
+						row.withdrawn_viewed || 0,
+					])}</b>`;
+				}
+				return q;
+			},
+			(m) => (m.queued ? __('Deleting {0} payslips in the background', [m.deleted]) : __('Deleted {0} payslips', [m.deleted]))
 		);
 	}
 

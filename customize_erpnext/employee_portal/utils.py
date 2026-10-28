@@ -259,6 +259,10 @@ def designation_label(designation):
 #
 # Adding a line = IT adds the field(s) to TIQN Payslip + migrate; the Settings row
 # appears by itself (CnB then types the Mini App label).
+#
+# ⚠ Since the Payslip Structure (28/10/2026, payslip_structure.py) the `sc_*` fields are
+# hidden and nothing reads them except the migration patch: lines live on TIQN Payslip
+# Structure per period, each payslip keeps its own copy. Removed in phase 2.
 # ---------------------------------------------------------------------------
 PAYSLIP_DT = "TIQN Payslip"
 COMPONENT_FIELD_PREFIX = "sc_"

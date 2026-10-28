@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "creation": "2026-10-28 14:00:00",
+ "description": "One line of the paper payslip in a Payslip Structure",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "label_en",
+  "label_vi",
+  "formula_display",
+  "unit",
+  "quantity_unit",
+  "column_break_layout",
+  "parent_code",
+  "row_type",
+  "section",
+  "report_key"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "description": "Line number on the paper payslip: 1, 1.2, 7.4. Sets the order of the lines and matches the Excel column (the header starts with it)",
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No.",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "English text of the paper payslip, e.g. Basic Salary",
+   "fieldname": "label_en",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "English Label",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "description": "Vietnamese text: shown on the Mini App and next to the English text on the printout, e.g. Lương cơ bản",
+   "fieldname": "label_vi",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vietnamese Label",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "description": "Printed in brackets after the label, as typed, e.g. c=a+b or 8%. Display only: ERP never checks or computes it. Empty = nothing printed",
+   "fieldname": "formula_display",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Formula"
+  },
+  {
+   "columns": 1,
+   "default": "VND",
+   "description": "VND = an amount. Day / Hour = the line only has a number of days / hours (e.g. standard working days)",
+   "fieldname": "unit",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Unit",
+   "options": "VND\nDay\nHour",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "description": "An amount line that also has a number in the Unit/ĐVT column (e.g. 1.2 = 24 days + the amount). The Excel template then has a \"<No.> Days\" / \"<No.> Hours\" column",
+   "fieldname": "quantity_unit",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Unit/ĐVT Column",
+   "options": "\nDay\nHour"
+  },
+  {
+   "fieldname": "column_break_layout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "No. of the group line this one sits under (indented), e.g. 2 for 2.1. Empty = a main line",
+   "fieldname": "parent_code",
+   "fieldtype": "Data",
+   "label": "Under Line"
+  },
+  {
+   "default": "Line",
+   "description": "Subtotal / Section Total are printed in bold and shown even when 0",
+   "fieldname": "row_type",
+   "fieldtype": "Select",
+   "label": "Row Type",
+   "options": "Line\nSubtotal\nSection Total",
+   "reqd": 1
+  },
+  {
+   "default": "Earnings",
+   "description": "Block of the older Mini App screen (payslip `sections`). Attendance = days / overtime hours",
+   "fieldname": "section",
+   "fieldtype": "Select",
+   "label": "Block",
+   "options": "Earnings\nDeductions\nOthers\nAdjustment\nAttendance\nNet Pay",
+   "reqd": 1
+  },
+  {
+   "description": "Copied to a payslip column for the list, filters and reports. Net = the net salary (exactly one line). OT Hours adds up every line that has it",
+   "fieldname": "report_key",
+   "fieldtype": "Select",
+   "label": "Report Column",
+   "options": "\nBasic\nOvertime\nGross\nDeductions\nNet\nStandard Days\nActual Days\nOT Hours"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-28 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Payslip Structure Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

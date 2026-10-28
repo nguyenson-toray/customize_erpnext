@@ -155,6 +155,9 @@ def get_config():
 		"read_only_days": setting_int("read_only_days", 30),
 		"dev_login": dev_login_enabled(),
 		"features": features(),
+		# 1.9.0: starting state of the "Ẩn khoản 0đ" toggle (false = hide 0 lines when a
+		# payslip opens). get_payslip still sends every line with include_zero=1.
+		"payslip": {"show_zero_lines": bool(cint(s.show_zero_lines))},
 	}
 
 

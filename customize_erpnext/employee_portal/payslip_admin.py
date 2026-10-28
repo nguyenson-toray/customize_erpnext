@@ -23,17 +23,17 @@ Two templates (download_template):
 - resigned: everyone whose relieving_date falls in a date range HR picks, each in the
   period of their last working day, Period To and Pay Date filled in.
 
-Component columns are matched by the leading code of the header
-("3.2 Technical allowance/ Phụ cấp kỹ thuật" -> abbr "3.2"), so HR may keep the
-long bilingual names, reorder columns or fix a typo in the text part. A header equal to the
-`sc_<code>_qty` label ("1.2 Days"; older files: "... - Days" / "- Hours" / "Unit/ĐVT") is the days / hours value of that line -
-e.g. the 27 days of 1.2 - stored in `sc_<code>_qty`; the template puts it just before the
-amount. Which lines have one: those with a `sc_<code>_qty` field on TIQN Payslip.
-Column headers of the template = the TIQN Payslip field labels.
+Line columns follow the TIQN Payslip Structure of the period (28/10/2026, see
+payslip_structure.py) and are matched by the leading code of the header
+("3.2 Technical allowance/ Phụ cấp kỹ thuật" -> line "3.2"), so HR may keep the long
+bilingual names, reorder columns or fix a typo in the text part. "<code> Days" /
+"<code> Hours" (older files: "... - Days" / "Unit/ĐVT") is the Unit/ĐVT number of that line
+- e.g. the 27 days of 1.2; the template puts it just before the amount. All periods of one
+file must use the same structure. A line missing from the file is 0 (listed for HR).
 
-Numbers are taken exactly as HR computed them. The formula checks below only WARN (and
-only when Settings > Check Formulas on Import is ticked) - HR confirms and imports anyway;
-nothing is ever corrected automatically.
+Numbers are taken exactly as HR computed them - no formula is checked (user, 28/10/2026).
+Only impossible numbers are refused (payslip_structure.absurd_errors); a negative net
+salary is a warning HR confirms.
 """
 
 import io
@@ -47,14 +47,11 @@ from frappe.utils import add_days, cint, flt, format_datetime, formatdate, getda
 from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import (
 	get_excluded_employee_ids,
 )
+from customize_erpnext.employee_portal import payslip_structure as pss
 from customize_erpnext.employee_portal.doctype.tiqn_payslip.tiqn_payslip import FINAL_SETTLEMENT_PAY_DAYS
 from customize_erpnext.employee_portal.notify import notify_all
 from customize_erpnext.employee_portal.utils import (
-	get_settings,
 	parse_period_cell,
-	payslip_component_fields,
-	payslip_field_mismatches,
-	payslip_value_fieldnames,
 	period_bounds,
 	period_label,
 	period_of_date,
@@ -64,18 +61,7 @@ from customize_erpnext.employee_portal.utils import (
 )
 
 ROLES = ("CnB", "System Manager")
-TOLERANCE = 1  # VND
 QUEUE_THRESHOLD = 150
-
-# Mirrors the letters of the TIQN payroll sheet: c=a+b, f=c+d+e, j=f-g+h+i.
-FORMULAS = [
-	("3", [("+", "1"), ("+", "2")]),
-	("5", [("+", "3"), ("+", "3.1"), ("+", "4")]),
-	("9", [("+", "5"), ("-", "6"), ("+", "7"), ("+", "8")]),
-]
-# Group total = sum of its VND detail lines (parent from utils.payslip_component_fields):
-# 1 = 1.2 (1.1 is days only), 2 = 2.1 + 2.2 + 2.3.
-GROUP_TOTALS = ["1", "2", "3.1", "4", "6", "7"]
 
 IDENT_COLUMNS = {
 	"period": ("ky luong", "ky", "period", "thang"),
@@ -103,8 +89,14 @@ QTY_LABELS = {"Day": "Days", "Hour": "Hours"}
 QTY_RE = re.compile(r"^\d+(?:\.\d+)*\s+(?:days?|hours?)$|-\s*(?:days?|hours?)\s*$|unit\s*/\s*dvt|\bdvt\b")
 
 
-def qty_header(component):
-	return component.qty_label or f"{component.name} - {QTY_LABELS.get(component.qty_unit, 'Days')}"
+def amount_header(line):
+	"""Template header of a line: "<code> <English label>"."""
+	return f"{line.code} {line.label_en}".strip()
+
+
+def qty_header(line):
+	"""Template header of the Unit/ĐVT number of a line: "1.2 Days" / "2.1 Hours"."""
+	return f"{line.code} {QTY_LABELS.get(line.quantity_unit, 'Days')}"
 
 
 def _check_role():
@@ -115,11 +107,6 @@ def _norm(text):
 	text = unicodedata.normalize("NFD", str(text or "")).replace("đ", "d").replace("Đ", "D")
 	text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
 	return re.sub(r"\s+", " ", text).strip().lower()
-
-
-def _components():
-	"""Payslip components that have a field on TIQN Payslip (`sc_<code>`), sorted."""
-	return payslip_component_fields()
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +131,19 @@ def get_template_periods():
 			}
 		)
 	return {"default": shift_period(current, -1), "periods": out}
+
+
+@frappe.whitelist(methods=["GET"])
+def get_report_periods():
+	"""Pay Period filter of the payslip reports: the periods that have payslips, newest
+	first. Default = the newest one."""
+	_check_role()
+	periods = sorted(frappe.get_all("TIQN Payslip", pluck="period", distinct=True), reverse=True)
+	out = []
+	for p in periods:
+		start, end = period_bounds(p)
+		out.append({"value": p, "label": f"{period_label(p)} ({formatdate(start)} - {formatdate(end)})"})
+	return {"default": periods[0] if periods else None, "periods": out}
 
 
 def template_employees(period):
@@ -250,14 +250,22 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 				)
 			)
 
+	if period or resigned:
+		_structure, lines = pss.period_structure_lines(period)
+	else:
+		latest = frappe.db.get_value(pss.STRUCTURE_DT, {}, "name", order_by="valid_from desc")
+		if not latest:
+			frappe.throw(_("Create a Payslip Structure first."))
+		lines = pss.structure_lines(latest)
+
 	wb = Workbook()
 	ws = wb.active
 	ws.title = "Payslip"
 	headers = list(TEMPLATE_IDENT)
-	for c in _components():
-		if c.qty_fieldname:
-			headers.append(qty_header(c))
-		headers.append(c.name)
+	for line in lines:
+		if line.quantity_unit:
+			headers.append(qty_header(line))
+		headers.append(amount_header(line))
 	ws.append(headers)
 	blanks = [None] * (len(headers) - len(TEMPLATE_IDENT))
 	if period or resigned:
@@ -327,9 +335,9 @@ def _find_header(rows):
 	frappe.throw(_("Could not find the header row. It must contain an MSNV column."))
 
 
-def _map_columns(header, components):
-	"""mapping["components"] = {column index: (component, fieldname, is_qty)}."""
-	by_abbr = {str(c.abbr).strip(): c for c in components}
+def _map_columns(header, lines, structure):
+	"""mapping["components"] = {column index: (line, "amount" | "quantity", is_qty)}."""
+	by_code = {line.code: line for line in lines}
 	mapping = {"ident": {}, "components": {}}
 	errors, seen = [], {}
 	for idx, raw in enumerate(header):
@@ -343,38 +351,56 @@ def _map_columns(header, components):
 		if norm in IGNORED_COLUMNS:
 			continue
 		m = CODE_RE.match(str(raw))
-		comp = by_abbr.get(m.group(1)) if m else None
-		if not comp:
-			errors.append(_("Column \"{0}\" does not match any TIQN Payslip field.").format(raw))
+		line = by_code.get(m.group(1)) if m else None
+		if not line:
+			errors.append(_("Column \"{0}\" does not match any line of Payslip Structure {1}.").format(raw, structure or "-"))
 			continue
-		# The template header is the field label: "1.2 Days" (days / hours field) or
-		# "1.1 Standard Working Days" (an amount / days-only line, despite the "Days").
-		# Older files: "<bilingual label> - Days" or "Unit/ĐVT" (QTY_RE).
-		if comp.qty_label and norm == _norm(comp.qty_label):
+		# "1.2 Days" (Unit/ĐVT number) vs "1.1 Standard Working Days" (a days-only line,
+		# despite the "Days"). Older files: "<bilingual label> - Days" or "Unit/ĐVT" (QTY_RE).
+		if line.quantity_unit and norm == _norm(qty_header(line)):
 			is_qty = True
-		elif norm == _norm(comp.name):
+		elif norm == _norm(amount_header(line)):
 			is_qty = False
 		else:
 			is_qty = bool(QTY_RE.search(norm))
-		if is_qty and not comp.qty_fieldname:
-			errors.append(
-				_("Column \"{0}\": line {1} has no days / hours field on TIQN Payslip.").format(
-					raw, comp.abbr
-				)
-			)
+		if is_qty and not line.quantity_unit:
+			errors.append(_("Column \"{0}\": line {1} has no Unit/ĐVT column.").format(raw, line.code))
 			continue
-		key = (comp.abbr, is_qty)
+		key = (line.code, is_qty)
 		if key in seen:
-			errors.append(_("Columns \"{0}\" and \"{1}\" are both line {2}.").format(seen[key], raw, comp.abbr))
+			errors.append(_("Columns \"{0}\" and \"{1}\" are both line {2}.").format(seen[key], raw, line.code))
 			continue
 		seen[key] = raw
-		mapping["components"][idx] = (comp, comp.qty_fieldname if is_qty else comp.fieldname, is_qty)
+		target = "quantity" if is_qty or line.unit != "VND" else "amount"
+		mapping["components"][idx] = (line, target, is_qty)
 	for required in ("period", "employee"):
 		if required not in mapping["ident"]:
 			errors.append(_("Missing column {0}.").format({"period": "Kỳ lương", "employee": "MSNV"}[required]))
-	missing = [c.name for c in components if (c.abbr, False) not in seen]
-	missing += [qty_header(c) for c in components if c.qty_fieldname and (c.abbr, True) not in seen]
+	missing = [amount_header(line) for line in lines if (line.code, False) not in seen]
+	missing += [qty_header(line) for line in lines if line.quantity_unit and (line.code, True) not in seen]
 	return mapping, errors, missing
+
+
+def _file_structure(rows, h):
+	"""(structure, lines, error) of the periods in the file: they must share one structure."""
+	header = rows[h]
+	col = next((i for i, raw in enumerate(header) if raw not in (None, "") and _norm(raw) in IDENT_COLUMNS["period"]), None)
+	if col is None:
+		return None, [], _("Missing column {0}.").format("Kỳ lương")
+	periods = sorted({p for p in (parse_period_cell(r[col]) if col is not None and col < len(r) else None for r in rows[h + 1 :]) if p})
+	if not periods:
+		return None, [], None  # the rows report the unreadable periods
+	found = {}
+	for p in periods:
+		found.setdefault(pss.structure_for_period(p), []).append(p)
+	if None in found:
+		return None, [], _("No Payslip Structure covers period(s) {0}. Create one first.").format(", ".join(found[None]))
+	if len(found) > 1:
+		return None, [], _("The file mixes periods of different Payslip Structures ({0}). Upload one file per structure.").format(
+			"; ".join(f"{s}: {', '.join(ps)}" for s, ps in found.items())
+		)
+	structure = next(iter(found))
+	return structure, pss.structure_lines(structure), None
 
 
 def _resolve_employee(value, cache):
@@ -415,52 +441,22 @@ def _number(value):
 		return None, False
 
 
-def _formula_warnings(amounts, components):
-	warnings = []
-	by_abbr = {str(c.abbr): c for c in components}
-
-	def val(abbr):
-		return amounts.get(abbr, 0.0)
-
-	for target, terms in FORMULAS:
-		if target not in amounts or not all(a in amounts for _s, a in terms):
-			continue
-		expected = sum(val(a) if s == "+" else -val(a) for s, a in terms)
-		if abs(expected - val(target)) > TOLERANCE:
-			formula = " ".join(f"{s} {a}" for s, a in terms).lstrip("+ ")
-			warnings.append(
-				_("{0} = {1:,.0f} but {2} = {3:,.0f}").format(target, val(target), formula, expected)
-			)
-	for total in GROUP_TOTALS:
-		parent = by_abbr.get(total)
-		if not parent or total not in amounts:
-			continue
-		children = [
-			str(c.abbr)
-			for c in components
-			if c.parent == parent.name and str(c.abbr) in amounts and (c.unit or "VND") == "VND"
-		]
-		if not children:
-			continue
-		expected = sum(val(a) for a in children)
-		if abs(expected - val(total)) > TOLERANCE:
-			warnings.append(
-				_("{0} = {1:,.0f} but the sum of {2} = {3:,.0f}").format(
-					total, val(total), ", ".join(children), expected
-				)
-			)
-	return warnings
-
-
 def parse_upload(file_url):
-	components = _components()
 	rows = _read_rows(file_url)
 	if not rows:
 		frappe.throw(_("The file is empty."))
 	h = _find_header(rows)
-	mapping, header_errors, missing_components = _map_columns(rows[h], components)
+	structure, lines, structure_error = _file_structure(rows, h)
+	if not structure and not structure_error:
+		structure_error = _("Cannot read any period in the Period column (MM-YYYY, e.g. 10-2026).")
+	if structure_error:
+		# Without the structure every line column would also be "unknown" - report the cause only.
+		return {"structure": None, "header_errors": [structure_error], "missing_components": [], "rows": [],
+			"periods": [], "error_count": 1, "warning_count": 0}
+	mapping, header_errors, missing_components = _map_columns(rows[h], lines, structure)
 
 	result = {
+		"structure": structure,
 		"header_errors": header_errors,
 		"missing_components": missing_components,
 		"rows": [],
@@ -473,7 +469,6 @@ def parse_upload(file_url):
 		return result
 
 	ident = mapping["ident"]
-	check_formulas = cint(get_settings().validate_payslip_formulas)
 	emp_cache, seen = {}, {}
 	employees = {}
 	existing = {}
@@ -513,17 +508,21 @@ def parse_upload(file_url):
 					_("Period From / To must be inside period {0} ({1} - {2}).").format(period, formatdate(start), formatdate(end))
 				)
 
-		amounts, values = {}, {}
-		for idx, (comp, fieldname, is_qty) in mapping["components"].items():
+		values = {}
+		for idx, (line, target, is_qty) in mapping["components"].items():
 			raw = row[idx] if idx < len(row) else None
 			value, ok = _number(raw)
 			if not ok:
-				label = f"{comp.abbr} {QTY_LABELS.get(comp.qty_unit, 'Days')}" if is_qty else comp.abbr
+				label = qty_header(line) if is_qty else line.code
 				errors.append(_("{0}: \"{1}\" is not a number.").format(label, raw))
 				continue
-			if not is_qty:
-				amounts[str(comp.abbr)] = value
-			values[fieldname] = value
+			values.setdefault(line.code, {})[target] = value
+		snapshot = pss.make_snapshot(lines, values)
+		net_pay = pss.key_values(snapshot)["net_pay"]
+		if period:
+			errors += pss.absurd_errors(snapshot, period)
+		if net_pay < 0:
+			warnings.append(_("Net salary is negative."))
 
 		if employee and period:
 			key = (employee, period)
@@ -534,10 +533,16 @@ def parse_upload(file_url):
 				existing[key] = frappe.db.get_value(
 					"TIQN Payslip",
 					{"employee": employee, "period": period},
-					["status", "import_batch", "modified", "period_from", "period_to", "pay_date", "note"],
+					["status", "import_batch", "modified", "period_from", "period_to", "pay_date", "note", "structure"],
 					as_dict=True,
 				) or frappe._dict()
 			old = existing[key]
+			if old.structure and structure and old.structure != structure:
+				errors.append(
+					_("The {0} payslip uses Payslip Structure {1}, this file {2}. Delete or withdraw it first.").format(
+						period_label(period), old.structure, structure
+					)
+				)
 			if old.status == "Published":
 				errors.append(_("The {0} payslip is already published. Withdraw it first.").format(period_label(period)))
 			elif old.status:
@@ -578,11 +583,6 @@ def parse_upload(file_url):
 					)
 				)
 
-		if check_formulas:
-			warnings += _formula_warnings(amounts, components)
-			if amounts.get("9", 0) < 0:
-				warnings.append(_("Net salary is negative."))
-
 		result["rows"].append(
 			{
 				"row": offset,
@@ -595,7 +595,7 @@ def parse_upload(file_url):
 				"note": note,
 				"period": period,
 				**dates,
-				"net_pay": amounts.get("9"),
+				"net_pay": net_pay,
 				"values": values,
 				"errors": errors,
 				"warnings": warnings,
@@ -605,7 +605,6 @@ def parse_upload(file_url):
 		result["error_count"] += len(errors)
 		result["warning_count"] += len(warnings)
 
-	result["check_formulas"] = check_formulas
 	result["periods"] = sorted({r["period"] for r in result["rows"] if r["period"]})
 	if not result["rows"]:
 		result["header_errors"].append(_("No employee rows found under the header."))
@@ -645,24 +644,24 @@ def import_upload(file_url, confirm_warnings=0):
 			batch=batch,
 			file_url=file_url,
 			user=frappe.session.user,
+			structure=data["structure"],
 		)
 		return {"queued": True, "batch": batch, "rows": len(data["rows"])}
-	count = _import_rows(data["rows"], batch, file_url, frappe.session.user)
+	count = _import_rows(data["rows"], batch, file_url, frappe.session.user, data["structure"])
 	return {"queued": False, "batch": batch, "rows": count}
 
 
-def _import_rows(rows, batch, file_url, user):
+def _import_rows(rows, batch, file_url, user, structure):
 	count = 0
-	fieldnames = payslip_value_fieldnames()
+	lines = pss.structure_lines(structure)
 	for r in rows:
 		name = frappe.db.get_value("TIQN Payslip", {"employee": r["employee"], "period": r["period"]})
 		doc = frappe.get_doc("TIQN Payslip", name) if name else frappe.new_doc("TIQN Payslip")
 		if doc.status == "Published":
 			# Re-checked here: it may have been published between preview and import.
 			frappe.throw(_("{0} {1} is already published.").format(r["employee"], r["period"]))
-		# A Withdrawn payslip was published once: employees may have opened it, and its view
-		# log + notification link to it. Keep it Withdrawn (Publish takes Withdrawn too) so
-		# "Delete Drafts" never tries to delete it.
+		# A Withdrawn payslip was published once: employees may have opened it. Keep it
+		# Withdrawn (Publish takes Withdrawn too) - the page shows it was published before.
 		was_published = doc.status == "Withdrawn"
 		doc.update(
 			{
@@ -681,9 +680,10 @@ def _import_rows(rows, batch, file_url, user):
 				"import_batch": batch,
 			}
 		)
-		# A component missing from the file is 0, not left over from an earlier upload.
-		doc.update({c: 0 for c in fieldnames})
-		doc.update(r["values"])
+		# The structure's lines + the file's numbers; a line missing from the file is 0,
+		# never left over from an earlier upload.
+		doc.structure = structure
+		doc.lines_json = pss.dump_snapshot(pss.make_snapshot(lines, r["values"]))
 		doc.save(ignore_permissions=True) if name else doc.insert(ignore_permissions=True)
 		count += 1
 	_delete_upload_file(file_url)
@@ -729,13 +729,16 @@ def get_period_summary():
 		p = periods.setdefault(
 			r.period,
 			{"period": r.period, "Draft": 0, "Published": 0, "Withdrawn": 0, "net_total": 0, "published_on": None, "viewed": 0,
-			 "final_settlement": 0},
+			 "withdrawn_viewed": 0, "final_settlement": 0},
 		)
 		p[r.status] = r.n
 		p["final_settlement"] += cint(r.final_settlement)
 		if r.status == "Published":
 			# Employees who opened their (currently published) payslip at least once.
 			p["viewed"] = cint(r.viewed)
+		elif r.status == "Withdrawn":
+			# Shown before "Delete Payslips": withdrawn payslips some employees already read.
+			p["withdrawn_viewed"] = cint(r.viewed)
 		p["net_total"] += flt(r.net_total)
 		if r.published_on and (not p["published_on"] or r.published_on > p["published_on"]):
 			p["published_on"] = r.published_on
@@ -748,14 +751,13 @@ def get_period_summary():
 
 @frappe.whitelist(methods=["GET"])
 def get_config_errors():
-	"""`sc_*` fields of TIQN Payslip the payslip cannot use (a days / hours field
-	without its amount field, a name that is not a code) - never imported nor shown in
-	the Mini App until IT fixes the field."""
+	"""Shown on the Payslip Upload page: the period HR is about to compute (the last one
+	that ended) has no Payslip Structure - the template and the upload would refuse it."""
 	_check_role()
-	return [
-		_("TIQN Payslip field {0} is not a payslip line (expected sc_CODE, or sc_CODE_qty next to sc_CODE). Ask IT to fix it.").format(f)
-		for f in payslip_field_mismatches()
-	]
+	period = shift_period(period_of_date(today()), -1)
+	if pss.structure_for_period(period):
+		return []
+	return [_("No Payslip Structure covers period {0} yet. Create one before downloading the template.").format(period)]
 
 
 @frappe.whitelist(methods=["POST"])
@@ -771,6 +773,18 @@ def publish_period(period):
 		fields=["name", "final_settlement"],
 	)
 	names = [r.name for r in rows]
+	expected = pss.structure_for_period(period)
+	stale = frappe.get_all(
+		"TIQN Payslip",
+		filters={"name": ("in", names or [""]), "structure": ("!=", expected or "")},
+		pluck="employee",
+	)
+	if stale:
+		frappe.throw(
+			_("{0} payslip(s) of {1} do not use its Payslip Structure {2} (e.g. {3}). Upload them again.").format(
+				len(stale), period, expected or "-", ", ".join(stale[:5])
+			)
+		)
 	monthly = sum(1 for r in rows if not r.final_settlement)
 	now = now_datetime()
 	label = period_label(period)
@@ -806,14 +820,35 @@ def withdraw_period(period):
 
 
 @frappe.whitelist(methods=["POST"])
-def delete_draft_period(period):
-	"""Delete never-published Draft payslips of a period (a wrong upload).
-
-	Withdrawn ones stay: they were published once and employees may have viewed them."""
+def delete_period(period):
+	"""Delete every Draft AND Withdrawn payslip of a period (user, 28/10/2026: a wrong upload,
+	or a withdrawn period to redo from scratch). Published ones are never touched - withdraw
+	them first. Frappe keeps each deleted payslip in Deleted Document (System Manager can
+	restore it). Their notifications went with Withdraw. Over QUEUE_THRESHOLD in the background."""
 	_check_role()
-	names = frappe.get_all(
-		"TIQN Payslip", filters={"period": period, "status": "Draft", "published_on": ["is", "not set"]}, pluck="name"
+	period = validate_period(period)
+	rows = frappe.get_all(
+		"TIQN Payslip",
+		filters={"period": period, "status": ["in", ["Draft", "Withdrawn"]]},
+		fields=["name", "status", "first_viewed_on"],
 	)
+	names = [r.name for r in rows]
+	result = {
+		"deleted": len(names),
+		"withdrawn": sum(1 for r in rows if r.status == "Withdrawn"),
+		"viewed": sum(1 for r in rows if r.first_viewed_on),
+	}
+	if len(names) > QUEUE_THRESHOLD and not frappe.flags.in_test:
+		frappe.enqueue(_delete_payslips, queue="long", timeout=1800, names=names, period=period, user=frappe.session.user)
+		return {**result, "queued": True}
+	_delete_payslips(names, period, frappe.session.user)
+	return {**result, "queued": False}
+
+
+def _delete_payslips(names, period, user):
 	for name in names:
 		frappe.delete_doc("TIQN Payslip", name, ignore_permissions=True)
-	return {"deleted": len(names)}
+	if frappe.flags.in_test:
+		return
+	frappe.db.commit()
+	frappe.publish_realtime("payslip_delete_done", {"period": period, "deleted": len(names)}, user=user, after_commit=True)

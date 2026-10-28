@@ -17,6 +17,8 @@ báo IT. Menu bên trái:
 | **Tải phiếu lương** (Payslip Upload) | Tải file mẫu, nhập file lương, phát hành / thu hồi theo kỳ — **dùng hằng tháng** |
 | **Phiếu lương** (Payslip) | Danh sách từng phiếu, mở xem chi tiết |
 | **Tổng hợp phiếu lương theo kỳ** | Kỳ lương: bao nhiêu phiếu đã phát hành, bao nhiêu người đã xem |
+| **Chi tiết phiếu lương** (Payslip Detail) | Mọi khoản của mọi phiếu trong kỳ, mỗi khoản một cột — xem/xuất Excel |
+| **Cấu trúc phiếu lương** (Payslip Structure) | Các khoản lương của phiếu (tên, mã, công thức in) theo từng kỳ — xem mục 2a |
 | Mini App ▸ **Thông báo** | Gửi thông báo cho cả công ty hoặc một số nhân viên |
 | Mini App ▸ **Yêu cầu liên kết** | Duyệt nhân viên chưa vào được app (SĐT Zalo không khớp hồ sơ) |
 | Mini App ▸ **Tài khoản Zalo** | Gán SĐT, khoá / mở tài khoản Mini App |
@@ -28,6 +30,9 @@ Ngày trả lương mặc định: ngày **5 tháng sau** (05/10/2026).
 ---
 
 ## 2. Quy trình hằng tháng
+
+### Bước 0 — Tháng này có đổi khoản lương không?
+Không đổi gì → bỏ qua. Có thêm / bớt / đổi tên khoản hay đổi công thức in → làm **mục 2a** trước khi tải file mẫu.
 
 ### Bước 1 — Tải file mẫu
 **Tải phiếu lương** → **Tải xuống mẫu** (Download Template) → để trống ô *Chỉ nhân viên nghỉ việc* → chọn **Kỳ lương**
@@ -42,8 +47,9 @@ File có sẵn mỗi nhân viên một dòng (STT, kỳ, từ ngày – đến n
 Nhân viên vào làm giữa kỳ: cột *Từ ngày* là ngày vào làm.
 
 ### Bước 2 — Điền số
-- Mỗi khoản lương là **một cột**. Tiêu đề bắt đầu bằng **mã khoản** (`1.2 …`, `3.2 …`), giống phiếu giấy.
-- Cột có đuôi **"- Days"** / **"- Hours"** là **số ngày / số giờ** (công thực tế, giờ tăng ca…). Cột liền sau là **số tiền**.
+- Mỗi khoản lương là **một cột**, đúng các khoản trong **Cấu trúc phiếu lương** của kỳ. Tiêu đề bắt đầu bằng **mã
+  khoản** (`1.2 …`, `3.2 …`), giống phiếu giấy. Luôn tải file mẫu **của đúng kỳ** để có đúng cột.
+- Cột **"1.2 Days"**, **"2.1 Hours"**… là **số ngày / số giờ** (công thực tế, giờ tăng ca…). Cột liền sau là **số tiền**.
 - Ô trống = 0. Số tiền ghi số nguyên, không ghi "đ".
 - **Không** đổi mã đầu tiêu đề. Phần chữ phía sau, thứ tự cột hay độ rộng cột thì sửa thoải mái.
 - Cột **Pay Date** để trống = ngày 5 tháng sau.
@@ -54,23 +60,30 @@ Nhân viên vào làm giữa kỳ: cột *Từ ngày* là ngày vào làm.
 
 ### Bước 3 — Tải file lên và kiểm tra
 **Tải lên Excel** (Upload Excel) → chọn file. ERP kiểm tra rồi hiện kết quả:
-- **Lỗi** (đỏ): phải sửa trong Excel rồi tải lên lại. Ví dụ: mã NV không có, một người xuất hiện 2 dòng, ô không phải số, ngày ngoài kỳ, kỳ đã phát hành.
-- **Cảnh báo** (cam): vẫn nhập được sau khi tick *Tôi đã kiểm tra các cảnh báo ở trên*. Ví dụ: tên trong file khác ERP,
-  tổng không khớp công thức (`3 = 1 + 2`, `5 = 3 + 3.1 + 4`, `9 = 5 − 6 + 7 + 8`, dòng nhóm ≠ tổng dòng con), thực lĩnh âm,
+- **Lỗi** (đỏ): phải sửa trong Excel rồi tải lên lại. Ví dụ:
+  - mã NV không có, một người xuất hiện 2 dòng, ô không phải số, ngày ngoài kỳ, kỳ đã phát hành;
+  - thiếu cột *Kỳ lương*, kỳ chưa có **Cấu trúc phiếu lương**, cột có mã khoản không thuộc cấu trúc của kỳ (thường là
+    nhầm file tháng khác), một file gồm nhiều kỳ thuộc các cấu trúc khác nhau;
+  - **số vô lý**: số ngày / số giờ **âm** (mọi khoản); ở các khoản **công và tăng ca** (khối *Attendance*: 1.1, 1.2,
+    2.1–2.3…) số ngày lớn hơn số ngày của kỳ hoặc số giờ lớn hơn 24 giờ × số ngày của kỳ; số tiền từ **100 tỷ** trở lên
+    (gõ thừa chữ số). Số ngày của khoản khác (ví dụ 7.4 thanh toán phép năm khi nghỉ việc) được phép lớn hơn số ngày của kỳ.
+- **Cảnh báo** (cam): vẫn nhập được sau khi tick *Tôi đã kiểm tra các cảnh báo ở trên*. Ví dụ: tên trong file khác ERP, thực lĩnh âm,
   nhân viên **đã nghỉ trước kỳ**, nhân viên **nghỉ giữa kỳ mà *Đến ngày* trong file trùng hoặc sau ngày nghỉ việc** (xem mục 3),
   và **"Sẽ ghi đè phiếu … đang có"**: nhân viên + kỳ đó đã có phiếu nháp / đã thu hồi (kèm lô và giờ nhập cũ; nếu Từ ngày /
   Đến ngày / Ngày trả lương khác thì hiện cả ngày cũ và ngày trong file). Đọc kỹ để không nhập nhầm file đè lên file khác.
 - ⚠ Kiểm tra **số dòng** (ô "… rows") đúng bằng số nhân viên. Lỡ chọn **file mẫu chưa điền số** thì vẫn nhập được
   nhưng mọi phiếu sẽ = 0.
 
-ERP **không bao giờ tự sửa số** của C&B, chỉ báo để C&B tự xem lại.
+ERP **không kiểm công thức** và **không bao giờ tự sửa số** của C&B: số liệu do C&B quyết, ERP chỉ chặn những số
+không thể đúng ở trên.
 
 ### Bước 4 — Nhập dạng Nháp
 **Nhập dạng Nháp** (Import as Draft). Phiếu nháp **chưa** hiện cho nhân viên. File Excel tải lên được ERP xoá ngay sau
 khi nhập, vì file chứa lương cả kỳ.
 
 Kiểm tra lại trước khi phát hành:
-- **Phiếu lương** → mở vài phiếu. Tab *General*: thực lĩnh, công, giờ tăng ca. Tab *Detail*: toàn bộ khoản.
+- **Phiếu lương** → mở vài phiếu. Tab *General*: thực lĩnh, công chuẩn, công thực tế, giờ tăng ca, lương cơ bản, tổng,
+  khấu trừ. Tab *Detail*: bảng toàn bộ khoản, giống phiếu giấy (phiếu nháp sửa số ngay trong bảng được, xem mục 4).
 - **Tổng hợp phiếu lương theo kỳ** → chọn kỳ, lọc *Trạng thái = Bản nháp*.
 
 ### Bước 5 — Phát hành
@@ -79,8 +92,53 @@ Kiểm tra lại trước khi phát hành:
 - ERP tạo **1 thông báo** "Phiếu lương MM/YYYY đã được phát hành" cho các nhân viên có phiếu kỳ đó.
 
 ### Bước 6 — Theo dõi
-**Tổng hợp phiếu lương theo kỳ** → chọn kỳ: số **đã phát hành / đã xem / chưa xem / % đã xem** và tổng thực lĩnh.
-Bộ lọc *Đã xem* (Viewed) chọn *Chưa xem* (Not Viewed) để biết ai chưa mở phiếu. Bảng hiện các khoản chính (1, 2, 5, 6, 9) và lúc xem lần đầu.
+**Tổng hợp phiếu lương theo kỳ** → ô **Kỳ lương** là danh sách chọn, chỉ có các kỳ **đã có phiếu**, mở report là tự chọn
+kỳ mới nhất. Report hiện số **đã phát hành / đã xem / chưa xem / % đã xem** và tổng thực lĩnh. Bộ lọc *Đã xem* (Viewed)
+chọn *Chưa xem* (Not Viewed) để biết ai chưa mở phiếu. Bảng hiện các khoản chính (lương cơ bản, tăng ca, tổng, khấu
+trừ, thực lĩnh) và lúc xem lần đầu.
+
+Cần **toàn bộ khoản** → report **Chi tiết phiếu lương** (Payslip Detail): chọn kỳ (cũng là danh sách chọn), lọc thêm
+Trạng thái / Section / Group nếu cần → menu **⋯ → Export** → Excel. Mỗi khoản một cột theo cấu trúc của kỳ, dòng cuối là
+tổng. File này **chỉ để kiểm tra**, không tải lên lại trang *Tải phiếu lương* được (thiếu cột Kỳ lương, có thêm cột
+Payslip / Status).
+
+---
+
+## 2a. Tháng có thay đổi khoản lương — Cấu trúc phiếu lương
+
+Các khoản trên phiếu (mã, tên tiếng Anh, tên tiếng Việt, chữ công thức in trong ngoặc) nằm ở **Cấu trúc phiếu lương**
+(Payslip Structure). Mỗi bản áp dụng **từ kỳ** ghi ở *Valid From Period* cho tới bản kế tiếp. File mẫu, Mini App và
+phiếu in đều theo bản của kỳ.
+
+**Đổi từ kỳ 11/2026** (ví dụ):
+1. Mở bản đang dùng (ví dụ `PSS-2026-09`) → menu **…** → **Duplicate**.
+2. *Valid From Period* = **2026-11** (ô này để trống khi Duplicate, phải điền). ERP không cho chọn kỳ đã có phiếu của
+   cấu trúc khác.
+3. Sửa bảng *Lines*:
+   - **Thêm khoản**: thêm dòng, điền *No.* (mã, ví dụ `3.11`), tên tiếng Anh, tên tiếng Việt; *Under Line* = dòng nhóm
+     (ví dụ `3.1`, gõ mã là ERP tự gợi ý); khoản có số ngày/giờ thì chọn *Unit/ĐVT Column*.
+   - **Bỏ khoản**: xoá dòng.
+   - **Đổi tên**: sửa *English Label* / *Vietnamese Label*.
+   - **Đổi công thức in**: sửa *Formula* (ví dụ `j=f-g+h+i+k`). Chữ này **chỉ để in**, ERP không tính hay kiểm.
+4. **Lưu** → tải file mẫu kỳ 11 sẽ có đúng các cột mới.
+
+- Phiếu các kỳ trước **giữ nguyên** khoản và tên cũ, cả trên app lẫn khi in lại.
+- Một bản **đã có phiếu** (nháp, đã phát hành hay đã thu hồi) thì chỉ sửa được tên, chữ công thức và mô tả. Thêm / xoá
+  dòng, đổi mã, đơn vị, *Under Line*, *Row Type*, *Block*, *Report Column*, *Valid From Period* → bấm Lưu sẽ bị báo lỗi.
+  Cách làm:
+  - đổi **từ kỳ sau**: Duplicate thành bản mới như trên;
+  - đổi **ngay ở kỳ đã có phiếu**: **Thu hồi** kỳ → **Xoá phiếu** (Delete Payslips) của **mọi kỳ** đang dùng bản này →
+    sửa bản → Lưu → tải file mẫu mới, nhập lại → Phát hành.
+- **Chỉ đổi tên khoản** thì file Excel đã điền **vẫn nhập được**, không cần tải lại file mẫu: ERP nhận cột theo **mã**
+  đầu tiêu đề, còn tên trên phiếu lấy từ cấu trúc. Chỉ khi **thêm / bớt khoản hoặc đổi mã** mới phải tải file mẫu mới.
+- *Report Column*: dòng nào là lương cơ bản, tăng ca, tổng, khấu trừ, **thực lĩnh** (bắt buộc đúng 1 dòng), công chuẩn,
+  công thực tế, giờ tăng ca — dùng cho danh sách phiếu và report. Duplicate thì đã có sẵn, chỉ cần giữ khi đổi mã.
+
+**Sửa lỗi chính tả tên khoản của phiếu đã phát hành** (không đổi số):
+1. Mở cấu trúc của kỳ đó → sửa tên → **Lưu**.
+2. Bấm **Apply Labels to Payslips** → xem danh sách thay đổi → **Yes**.
+- Số tiền, ngày phát hành **không đổi**, **không** gửi thông báo. Phiếu in lại sẽ có tên mới.
+- Điện thoại nào đã mở phiếu trước đó có thể vẫn hiện tên cũ cho tới khi app được cập nhật.
 
 ---
 
@@ -112,11 +170,15 @@ sửa *Đến ngày* thành ngày trước ngày nghỉ việc, hoặc để tr�
 | Tình huống | Làm gì |
 |---|---|
 | Phiếu **nháp** sai | Sửa Excel → tải lên lại: phiếu nháp cùng nhân viên + kỳ được **ghi đè** (ERP cảnh báo từng dòng, tick xác nhận rồi mới nhập) |
-| Nhập nhầm cả kỳ (chưa phát hành) | **Xoá bản nháp** (Delete Drafts) ở dòng kỳ đó, rồi nhập lại |
-| Phiếu **đã phát hành** sai | **Thu hồi** (Withdraw) kỳ → nhân viên không thấy nữa → sửa Excel, tải lên lại → **Phát hành** lại |
+| Nhập nhầm cả kỳ, hoặc muốn làm lại cả kỳ đã thu hồi | **Xoá phiếu** (Delete Payslips) ở dòng kỳ đó: xoá **mọi** phiếu nháp và phiếu đã thu hồi của kỳ, rồi nhập lại. Phiếu đang phát hành không bị xoá — thu hồi trước. ERP báo trước số phiếu đã thu hồi và số nhân viên đã từng xem |
+| Phiếu **đã phát hành** sai | **Thu hồi** (Withdraw) kỳ → nhân viên không thấy nữa → sửa Excel, tải lên lại (ghi đè) → **Phát hành** lại. Muốn làm lại sạch từ đầu: Thu hồi → **Xoá phiếu** → nhập lại |
 
+- Phiếu **nháp** sai vài số: mở phiếu → tab *Detail* → sửa số trong bảng → Lưu (ERP vẫn chặn số vô lý).
 - Phiếu đã phát hành **không sửa trực tiếp** được: phải thu hồi trước, để tránh nhân viên đã xem một số rồi số bị đổi.
+  Chỉ **tên khoản** sai chính tả thì dùng *Apply Labels to Payslips* (mục 2a), không cần thu hồi.
 - Thu hồi sẽ xoá luôn thông báo của kỳ. Phát hành lại sẽ tạo thông báo mới.
+- Kỳ nhiều phiếu (trên 150) thì **Xoá phiếu** chạy nền, xong ERP báo và tự làm mới bảng. Phiếu đã xoá vẫn được ERP giữ
+  bản sao (*Deleted Document*) — lỡ xoá nhầm thì báo IT khôi phục.
 
 ---
 
@@ -199,23 +261,15 @@ Thường **không cần sửa**. Các mục C&B hay dùng:
 | Tab | Mục | Ý nghĩa |
 |---|---|---|
 | Tính năng Mini App | **Ngày trả lương trong tháng** | Mặc định 5 |
-| | **Mặc định hiện dòng 0đ** | Phiếu trên app hiện cả khoản 0đ, như phiếu giấy |
-| | **Kiểm tra công thức khi nhập** | Tắt = nhập nguyên số trong file, không cảnh báo công thức |
+| | **Mặc định hiện dòng 0đ** | Tick = khi mở phiếu, app hiện cả khoản 0đ như phiếu giấy; bỏ tick = ẩn khoản 0đ. Nhân viên vẫn bấm "Ẩn khoản 0đ" để đổi. Có hiệu lực từ bản Mini App cập nhật sau (bản hiện tại luôn hiện đủ) |
 | Zalo OA & Chat | **ID chat C&B (ID by OA)** + tên | Nút "Chat với C&B" trên app mở chat Zalo với người này. Lấy ID ở *Tài khoản Zalo* của người đó (sau khi họ mở app) |
 | Access | Hạn chỉ xem sau nghỉ việc | Mặc định 30 ngày |
-| | **Zalo App Review** | Khi Zalo duyệt app: tick **Enable Review Mode**, điền SĐT reviewer Zalo đưa (mỗi dòng 1 số). Reviewer chỉ thấy **dữ liệu mẫu** (NV "Nguyễn Văn Mẫu", phiếu lương giả), không bao giờ thấy dữ liệu thật. Duyệt xong có thể bỏ tick |
+| | **Zalo App Review** | Tick **Enable Review Mode**, điền SĐT reviewer Zalo đưa (mỗi dòng 1 số). Reviewer chỉ thấy **dữ liệu mẫu**: NV "Nguyễn Văn Mẫu", **3 phiếu lương mẫu** của 3 kỳ gần nhất (tự cập nhật theo tháng), thông báo mẫu — không bao giờ thấy dữ liệu thật. 🔴 Zalo **kiểm tra lại mỗi lần phát hành bản app mới**, nên **giữ bật** (không ảnh hưởng nhân viên). SĐT của nhân viên thật luôn vào bằng hồ sơ thật dù có trong danh sách |
 
-### Tên từng khoản trên app — C&B tự sửa
-Tab *Tính năng Mini App* ▸ mục **Các dòng phiếu lương trên Mini App** (Payslip Lines): mỗi khoản một dòng, chỉ sửa cột
-**Tên trên Mini App** → Lưu. App hiện **đúng nguyên văn** chữ này, nên phải gõ cả **số thứ tự ở đầu** và ký hiệu như phiếu
-giấy, ví dụ **1 Lương cơ bản (a)**, **3 Lương tháng (c=a+b)**, **9 Thực lĩnh (j=f-g+h+i)**. Thiếu số thứ tự ở đầu thì ERP
-không cho lưu. Để trống = dùng tên tiếng Anh trên ERP.
-- Không thêm/xoá dòng được: các dòng đi theo các cột của Phiếu lương. Muốn thêm/bớt khoản, hay đổi khoản nào có số
-  ngày/giờ, thì báo IT.
-- Nhân viên đang mở app có thể thấy tên cũ thêm một lúc (app nhớ tạm), sau đó tự cập nhật.
-- Tên cột trong file Excel là tên tiếng Anh ngắn có mã ("3.2 Technical Allowance", "1.2 Days"), không phụ thuộc bảng này.
+### Tên từng khoản trên app
+Từ 28/10/2026 tên khoản (tiếng Việt trên app, tiếng Anh trên phiếu in) sửa ở **Cấu trúc phiếu lương** (mục 2a), không
+còn ở Cài đặt.
 
- 
 ---
 
 ## 9. Câu hỏi thường gặp
@@ -229,10 +283,17 @@ không cho lưu. Để trống = dùng tên tiếng Anh trên ERP.
 
 **Lỡ phát hành nhầm?** **Thu hồi** ngay (mục 4). Nhân viên đã xem thì vẫn còn ghi *Xem lần đầu lúc*.
 
-**Cảnh báo đỏ ở trang Tải phiếu lương?** Một cột của Phiếu lương bị khai báo sai → báo IT.
+**Cảnh báo đỏ "No Payslip Structure covers period…" ở trang Tải phiếu lương?** Kỳ sắp tính chưa có cấu trúc phiếu
+lương áp dụng → tạo theo mục 2a.
 
-**Có cần dùng Data Import của ERP không?** Không. Luôn nhập qua **Tải phiếu lương** (hoặc nút *Nhập từ Excel* ở danh
-sách Phiếu lương), vì ở đó ERP kiểm tra lỗi và công thức.
+**Có cần dùng Data Import của ERP không?** Không (đã tắt). Luôn nhập qua **Tải phiếu lương**, vì ở đó ERP kiểm tra lỗi
+và gắn đúng cấu trúc của kỳ.
+
+**Muốn kiểm tra lại số đã nhập?** Report **Chi tiết phiếu lương** → chọn kỳ → Export Excel (mục 2, bước 6). Sửa số thì
+sửa trên file gốc rồi tải lên lại (phiếu nháp / đã thu hồi được ghi đè), hoặc sửa từng phiếu nháp ở tab *Detail*.
+
+**Đổi tên khoản trong Cấu trúc phiếu lương có phải tải lại file Excel?** Không — ERP nhận cột theo mã (mục 2a). Phiếu
+đã nhập trước đó vẫn giữ tên cũ cho tới khi bấm **Apply Labels to Payslips**.
 
 ---
 

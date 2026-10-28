@@ -6,15 +6,13 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, flt, getdate
 
+from customize_erpnext.employee_portal import payslip_structure as pss
 from customize_erpnext.employee_portal.utils import (
-	component_fieldname,
 	expected_pay_date,
-	payslip_value_fieldnames,
 	period_bounds,
 	validate_period,
 )
 
-NET_PAY_FIELD = component_fieldname("9")
 FINAL_SETTLEMENT_PAY_DAYS = 14  # paid within 14 days of leaving, not on the monthly pay day
 
 
@@ -23,12 +21,13 @@ class TIQNPayslip(Document):
 
 	Deliberately NOT HRMS Salary Slip: that one recalculates from Salary Structure and
 	attendance and would overwrite HR's figures. Nothing here is computed except the
-	period dates and `net_pay`, which is copied from component 9.
+	period dates and the report columns (`net_pay`, `gross_pay`...), copied from the lines
+	that carry a Report Column.
 
-	One field per paper payslip line (`sc_<code>`, plus `sc_<code>_qty` for the days /
-	hours column, see utils.payslip_component_fields) - no child table, so the standard Data
-	Import / Export works on it (v2, 23/10/2026). The fields alone describe the payslip
-	(code, label, groups); HRMS Salary Component is not used (v4, 26/10/2026).
+	Lines (28/10/2026): the payslip keeps its own copy of the lines of its period's
+	TIQN Payslip Structure + HR's numbers in `lines_json` (employee_portal/
+	payslip_structure.py), written by Payslip Upload. A later structure never changes it.
+	The old `sc_*` fields are hidden and no longer read.
 
 	Status is changed only through `employee_portal.payslip_admin` (Publish /
 	Withdraw), never by editing the field or by Data Import - publishing also creates
@@ -38,8 +37,7 @@ class TIQNPayslip(Document):
 	def validate(self):
 		self.period = validate_period(self.period)
 		self.set_dates()
-
-		self.net_pay = flt(self.get(NET_PAY_FIELD))
+		self.set_lines()
 		self.block_status_change()
 		self.block_published_edits()
 
@@ -66,6 +64,31 @@ class TIQNPayslip(Document):
 				add_days(relieving, FINAL_SETTLEMENT_PAY_DAYS) if self.final_settlement else expected_pay_date(self.period)
 			)
 
+	def set_lines(self):
+		"""Snapshot of the period's structure: kept as imported, layout re-derived (level,
+		header) and numbers checked for the impossible only. A payslip made by hand starts
+		with the structure's lines at 0."""
+		expected = pss.structure_for_period(self.period)
+		if self.is_new() or self.has_value_changed("period") or not self.structure:
+			if not expected:
+				frappe.throw(_("No Payslip Structure covers period {0}.").format(self.period))
+			if self.structure and self.structure != expected and self.lines_json:
+				frappe.throw(
+					_("These lines belong to {0}, period {1} uses {2}. Upload the payslip again.").format(
+						self.structure, self.period, expected
+					)
+				)
+			self.structure = expected
+		snapshot = pss.snapshot_of(self)
+		lines = snapshot or pss.structure_lines(self.structure)
+		snapshot = pss.make_snapshot(lines, pss.snapshot_values(snapshot))
+		errors = pss.absurd_errors(snapshot, self.period)
+		if errors:
+			frappe.throw("<br>".join(errors), title=_("Impossible numbers"))
+		self.lines_json = pss.dump_snapshot(snapshot)
+		self.content_version = pss.content_version(snapshot)
+		self.update(pss.key_values(snapshot))
+
 	def block_status_change(self):
 		"""Publishing notifies the employee and stamps published_on/by: only
 		payslip_admin (which sets `flags.portal_status_change`) may do it. A Data Import
@@ -86,13 +109,11 @@ class TIQNPayslip(Document):
 		if not before or before.status != "Published" or self.status != "Published":
 			return
 
-		fields = payslip_value_fieldnames()
-
-		def snapshot(doc):
-			return [flt(doc.get(f), 2) for f in fields]
+		def numbers(doc):
+			return [(r.code, flt(r.amount, 2), flt(r.quantity, 2)) for r in pss.snapshot_of(doc)]
 
 		if (
-			snapshot(before) != snapshot(self)
+			numbers(before) != numbers(self)
 			or before.employee != self.employee
 			or before.period != self.period
 			or (before.get("note") or "") != (self.get("note") or "")

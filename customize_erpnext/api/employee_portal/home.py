@@ -63,7 +63,7 @@ def get_home():
 		latest = frappe.get_all(
 			"TIQN Payslip",
 			filters={"employee": c.employee, "status": "Published"},
-			fields=["period", "published_on"],
+			fields=["period", "published_on", "content_version"],
 			order_by="period desc",
 			limit=1,
 		)
@@ -74,6 +74,8 @@ def get_home():
 				"published_on": fmt_date(latest[0].published_on),
 				# Cache key of the payslip (1.5.0): same value as get_payslip_periods.items[].published_on.
 				"published_at": fmt_datetime(latest[0].published_on),
+				# 1.9.0: + content_version in the cache key (labels may change after publishing).
+				"content_version": latest[0].content_version,
 			}
 
 	if feature_enabled("notifications"):

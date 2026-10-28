@@ -1,6 +1,6 @@
 # Employee Portal — Hợp đồng giao diện với Zalo Mini App "Cổng nhân viên"
 
-> **Phiên bản contract: 1.8.0 (27/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
+> **Phiên bản contract: 1.9.0 (28/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
 > **Đã chạy thật:** xác thực + phiếu lương + thông báo (M1). **M2** (các màn chỉ xem) code xong, chờ restart.
 > Chưa code: tạo/hủy đơn nghỉ, giấy tờ, giải trình (M3) và tin OA (M4). Xem §13. Tài liệu này được viết trước để đội Mini App dựng 21 màn bằng mock
 > (dữ liệu mẫu ở mỗi endpoint), góp ý, rồi backend mới code theo đúng bản đã chốt.
@@ -392,9 +392,15 @@ Gọi khi mở app, trước mọi màn (01, 03, 04, 05, 09 cần các số liê
     "payslip": true, "attendance": true, "overtime": true,
     "leave_view": true, "leave_create": true,
     "explanation_create": true, "notifications": true, "oa_invite": true
-  }
+  },
+  "payslip": { "show_zero_lines": false }
 }}
 ```
+
+`payslip.show_zero_lines` *(từ 1.9.0)*: trạng thái **ban đầu** của nút "Ẩn khoản 0đ" khi mở một phiếu — `false` = mở
+ra đã ẩn khoản 0đ, `true` = hiện đủ như phiếu giấy. Phòng Nhân sự cấu hình trên ERP. Nhân viên vẫn bấm nút để đổi;
+`get_payslip` vẫn luôn trả đủ dòng (`include_zero=1`), app lọc tại máy như §10. Bản app cũ bỏ qua field này vẫn đúng
+(luôn mở ra hiện đủ).
 
 `legal.*_url` là trang công khai (nội dung do phòng Nhân sự soạn trên ERP) — mở bằng `openWebview`.
 Đây cũng là URL khai báo khi nộp Mini App cho Zalo duyệt (§12).
@@ -629,7 +635,7 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
   },
   "overtime": { "period": "2026-09", "hours": 12.5, "source": "ERP" },
   "latest_payslip": { "period": "2026-08", "label": "Phiếu lương 08/2026", "published_on": "2026-09-05",
-                      "published_at": "2026-09-05 08:00:00" },
+                      "published_at": "2026-09-05 08:00:00", "content_version": "3f9a1c0b7d2e" },
   "notifications": {
     "unread": 2,
     "latest": { "id": "PN-2026-00031", "type": "PAYSLIP_PUBLISHED",
@@ -650,7 +656,7 @@ Server không kiểm chứng được với Zalo là đã quan tâm thật — c
 | `annual_leave` | cùng công thức với màn 11 và với báo cáo số dư phép trên ERP |
 | `attendance` | cộng từ **bảng công** của kỳ 26 → 25 (cùng số với `get_attendance_summary`). `source` luôn `ERP` (từ 1.1.4 không còn `PAYSLIP`); `provisional` như `get_attendance_summary` |
 | `overtime.hours` | tổng giờ tăng ca **thực tính** trong bảng công của kỳ; `source` luôn `ERP` |
-| `latest_payslip` | phiếu đã phát hành gần nhất; `null` nếu chưa có. `published_at` (từ 1.5.0) = khoá cache của phiếu, bằng `published_on` trong `get_payslip_periods` |
+| `latest_payslip` | phiếu đã phát hành gần nhất; `null` nếu chưa có. `published_at` (từ 1.5.0) + `content_version` (từ 1.9.0) = khoá cache của phiếu, bằng `published_on` + `content_version` trong `get_payslip_periods` (§10 "Cache") |
 | `chat` | đích nút "Chat với C&B" — như `me.chat` (§10 Chat với C&B) |
 | khối bị tắt | `today`/`attendance` (tắt `attendance`), `overtime` (tắt `overtime`), `annual_leave` (tắt `leave_view`), `latest_payslip` (tắt `payslip`), `notifications` (tắt `notifications`) → giá trị `null`, key vẫn có |
 
@@ -1263,10 +1269,12 @@ app cho tới khi phát hành lại. **Không có tải PDF** (bỏ nút "Tải 
   "items": [
     { "period": "2026-08", "label": "Tháng 08/2026", "status": "PUBLISHED",
       "period_from": "2026-07-26", "period_to": "2026-08-25",
-      "pay_date": "2026-09-05", "published_on": "2026-09-05 08:00:00", "is_new": true },
+      "pay_date": "2026-09-05", "published_on": "2026-09-05 08:00:00", "content_version": "3f9a1c0b7d2e",
+      "is_new": true },
     { "period": "2026-07", "label": "Tháng 07/2026", "status": "PUBLISHED",
       "period_from": "2026-06-26", "period_to": "2026-07-25",
-      "pay_date": "2026-08-05", "published_on": "2026-08-05 08:00:00", "is_new": false }
+      "pay_date": "2026-08-05", "published_on": "2026-08-05 08:00:00", "content_version": "a07c55e19b40",
+      "is_new": false }
   ]
 }}
 ```
@@ -1286,6 +1294,11 @@ app cho tới khi phát hành lại. **Không có tải PDF** (bỏ nút "Tải 
   `get_home.latest_payslip.published_at` và `get_payslip.published_on`. ⚠ `get_home.latest_payslip.published_on` chỉ
   là **ngày** (để hiển thị) — đừng dùng làm khoá. Thiếu khoá (mở từ chỗ khác) → gọi `get_payslip` rồi lưu theo
   `published_on` trong kết quả.
+- **`content_version`** *(từ 1.9.0)*: chuỗi ngắn, đổi mỗi khi **nội dung** phiếu đổi mà không phát hành lại — hiện
+  có một trường hợp: phòng Nhân sự sửa lỗi chính tả **tên khoản** của phiếu đã phát hành (số tiền và `published_on`
+  không đổi). Mini App bản cập nhật **thêm field này vào khoá cache**: `(period, published_on, content_version)`, có ở
+  cả 3 chỗ như `published_on` (`get_payslip_periods.items[]`, `get_home.latest_payslip`, `get_payslip`). Bản app cũ
+  bỏ qua vẫn chạy, chỉ thấy tên khoản mới khi cache bị xoá.
 - Nhân viên chế độ chỉ xem vẫn thấy mọi phiếu của mình (gồm phiếu tháng cuối phát hành sau ngày nghỉ).
 
 ### `get_payslip` — **POST** (màn 20, và nút "con mắt" màn 19)
@@ -1295,7 +1308,7 @@ POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). C�
 | Tham số | Bắt buộc | |
 |---|---|---|
 | `period` | ✅ | `YYYY-MM` |
-| `include_zero` | | `0`/`1`; bỏ trống = theo mặc định phòng Nhân sự cấu hình (hiện tại `1`). Từ 1.5.0 **luôn gửi `1`** (hoặc bỏ trống) và để nút "Ẩn khoản 0đ" lọc tại máy: bỏ dòng `is_header = false` có `amount` và `quantity` đều 0/`null` — **không** gọi lại server |
+| `include_zero` | | `0`/`1`; bỏ trống = theo mặc định phòng Nhân sự cấu hình. Từ 1.5.0 **luôn gửi `1`** và để nút "Ẩn khoản 0đ" lọc tại máy: bỏ dòng `is_header = false` có `amount` và `quantity` đều 0/`null` — **không** gọi lại server. Trạng thái ban đầu của nút: `get_config.payslip.show_zero_lines` (từ 1.9.0) |
 
 ```json
 { "ok": true, "data": {
@@ -1304,6 +1317,7 @@ POST vì lần mở đầu tiên được ghi lại (ngày xem đầu tiên). C�
   "period_from": "2026-07-26", "period_to": "2026-08-25",
   "pay_date": "2026-09-05",
   "published_on": "2026-09-05 08:00:00",
+  "content_version": "3f9a1c0b7d2e",
   "currency": "VND",
   "net_pay": 9150000,
   "note": "Điều chỉnh tháng 7: +150.000 tiền cơm",
@@ -1371,12 +1385,16 @@ dòng; `null` thì không hiện khung. Không phụ thuộc nút "Ẩn khoản 
 Màn 20 hiển thị **giống phiếu lương giấy**: một bảng liền từ 1 tới 9, cột STT, đúng thứ tự trả về
 (1, 1.1, 1.2, 2, 2.1, … 3.10, 4, … 9). Ví dụ trên rút gọn; bản thật có đủ mọi khoản.
 
+⚠ *(từ 1.9.0)* **Danh sách dòng có thể khác nhau giữa các kỳ**: phòng Nhân sự thêm / bớt / đổi tên khoản, đổi chữ
+công thức theo tháng (Payslip Structure trên ERP). Mỗi phiếu giữ đúng các dòng lúc phát hành. App **không được** giả
+định mã, số dòng hay nhãn cố định — chỉ hiển thị `rows` theo thứ tự server trả (vốn là quy tắc từ 1.3.0).
+
 | Field | |
 |---|---|
-| `display_label` | *(từ 1.7.0)* **Chữ hiển thị nguyên văn** của dòng, đã gồm số thứ tự và ký hiệu, vd. "1 Lương cơ bản (a)", "9 Thực lĩnh (j=f-g+h+i)" — phòng Nhân sự soạn trên ERP. **Dùng field này**, không ghép thêm `no` / `formula` |
+| `display_label` | *(từ 1.7.0)* **Chữ hiển thị nguyên văn** của dòng, đã gồm số thứ tự và ký hiệu, vd. "1 Lương cơ bản (a)", "9 Thực lĩnh (j=f-g+h+i)" — phòng Nhân sự soạn trên ERP (từ 1.9.0: số thứ tự + tên tiếng Việt + chữ công thức trong ngoặc của Payslip Structure; chữ công thức có thể là bất kỳ, vd. "(8%)"). **Dùng field này**, không ghép thêm `no` / `formula` |
 | `no` | Số thứ tự in ở cột STT. Từ 1.7.0 đã có sẵn trong `display_label` — chỉ dùng để tra cứu / làm khoá |
 | `label` | *(giữ cho bản app trước 1.7.0)* `display_label` bỏ số thứ tự và ký hiệu. Bản cũ hiển thị `no` + `label` + ` (formula)` → ra cùng chữ với `display_label`. Nhãn có thể dài → cho xuống dòng, đừng cắt |
-| `formula` | Ký hiệu của dòng (lấy từ `display_label`), `null` nếu không có. Từ 1.7.0 chỉ để tra cứu |
+| `formula` | Ký hiệu của dòng, bỏ khoảng trắng, `null` nếu không có. Từ 1.7.0 chỉ để tra cứu; từ 1.9.0 có thể không phải chữ a–j |
 | `quantity`, `quantity_unit` | Giá trị cột **ĐVT** của phiếu giấy: `DAY` → "24 ngày", `HOUR` → "8,5 giờ". `null` = dòng không có ĐVT. `0` → "–" |
 | `amount` | Số tiền VND, **luôn dương như bản in** (khấu trừ không có dấu "−"). `null` = dòng không có số tiền (vd. 1.1 chỉ có số ngày). `0` → "–" |
 | `level` | `0` dòng chính, `1` dòng con (thụt vào) |
@@ -1606,6 +1624,7 @@ Khai báo URL chính sách dữ liệu và điều khoản (`get_config().legal`
 | 12/10/2026 | 1.0-draft | Chốt công hết ngày 25, điều chỉnh tới mùng 4: `get_attendance_summary` thêm `adjust_until`, `cutoff_date` luôn có. Giữ tên máy chấm công. `login` luôn có key `expired_on`. |
 | 14/10/2026 | 1.1.1 | Trả lời `QUESTIONS_FOR_BACKEND.md` (Update 02): `designation` giờ là chức danh **tiếng Việt** (mục 17); `approver` của đơn nghỉ **có thể `null`** — đơn HR nhập tay (mục 16); `get_leave_form` thuộc **M3, chưa có** — Mini App chỉ hiện nút "Tạo đơn nghỉ" khi `get_config().features.leave_create = true` (§3.5), hiện đang `false` (mục 15). |
 | 14/10/2026 | 1.1.2 | Trả lời Update 02 (mục 18, 19): `employee.avatar_url` giờ là **URL ảnh nhân viên** (§ Employee), `null` khi không có ảnh công khai. Mục 19: simulator không có `access_token` → `login` luôn trả `ZALO_TOKEN_INVALID` "Thiếu mã truy cập Zalo" (không phải `NO_PHONE`); trên simulator dùng `dev_login`. `READ_ONLY` mặc định **30 ngày** (trước 60). Tài khoản mới không khớp nhân viên được dùng bị tự khoá phía ERP — không đổi kết quả trả về. Sửa: request song song sau khi phiên bị thu hồi giờ trả cùng `reason`/`result` (trước đó có thể ra `REVOKED`); `get_payslip_periods.upcoming` không hiện kỳ trước ngày vào làm. |
+| 28/10/2026 | 1.9.0 | **Chỉ thêm field, bản app hiện tại không phải sửa.** (1) `get_config.payslip.show_zero_lines` — trạng thái ban đầu của nút "Ẩn khoản 0đ" (§6); server vẫn trả đủ dòng. (2) `content_version` ở `get_payslip`, `get_payslip_periods.items[]`, `get_home.latest_payslip` — thêm vào khoá cache phiếu (§10 "Cache"): đổi khi phòng Nhân sự sửa tên khoản của phiếu đã phát hành. (3) Danh sách dòng `rows` / `sections` **có thể khác giữa các kỳ** (thêm / bớt / đổi tên khoản, đổi chữ công thức — Payslip Structure); mỗi phiếu giữ đúng dòng lúc phát hành; không giả định mã / số dòng cố định. Mini App cập nhật (1) và (2) ở bản sau. |
 | 27/10/2026 | 1.8.0 | `get_payslip` thêm **`note`** (string \| `null`) — ghi chú phòng Nhân sự ghi cho cả phiếu. Có thì hiện khung "Ghi chú" cuối phiếu, giữ xuống dòng. Chỉ thêm field, bản app cũ vẫn đúng. Đã chạy trên server từ 27/10. |
 | 26/10/2026 | 1.7.0 | `get_payslip.rows[]` thêm **`display_label`** — chữ hiển thị nguyên văn, đã gồm số thứ tự và ký hiệu ("9 Thực lĩnh (j=f-g+h+i)"), phòng Nhân sự soạn trên ERP. Mini App hiển thị field này, **không ghép** `no` / `formula` nữa. `label`, `no`, `formula` vẫn trả như cũ (bản app cũ vẫn đúng). |
 | 26/10/2026 | 1.6.1 | Không đổi payload. `rows[].label` giờ do phòng Nhân sự sửa trên ERP (Settings ▸ Payslip Lines) — có thể đổi bất cứ lúc nào, Mini App chỉ cần hiển thị đúng chữ server trả, không viết cứng. Text khác (thông báo, lỗi) cũng có thể được ERP đổi mà không cần phát hành bản app mới. |

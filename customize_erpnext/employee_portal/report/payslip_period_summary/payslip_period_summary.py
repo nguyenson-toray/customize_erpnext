@@ -8,10 +8,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-from customize_erpnext.employee_portal.utils import component_fieldname, payslip_component_fields, validate_period
+from customize_erpnext.employee_portal.utils import validate_period
 
-# Main lines of the paper payslip: basic salary, overtime, total income, deductions, net.
-MAIN_CODES = ("1", "2", "5", "6", "9")
+# Main figures of the payslip: TIQN Payslip columns filled from the lines that carry a
+# Report Column in the Payslip Structure (28/10/2026) - the same whatever the lines are.
+MAIN_FIELDS = ("basic_pay", "overtime_pay", "gross_pay", "total_deductions", "net_pay")
 
 
 def execute(filters=None):
@@ -21,8 +22,8 @@ def execute(filters=None):
 	except frappe.ValidationError:
 		frappe.throw(_("Period must look like YYYY-MM."))
 
-	names = {str(c.abbr): c.name for c in payslip_component_fields()}
-	main = [(code, component_fieldname(code), names[code]) for code in MAIN_CODES if code in names]
+	meta = frappe.get_meta("TIQN Payslip")
+	main = [(f, _(meta.get_label(f))) for f in MAIN_FIELDS]
 
 	conditions = {"period": period}
 	if filters.status:
@@ -38,7 +39,7 @@ def execute(filters=None):
 			"name", "employee", "employee_name", "designation", "department", "section", "group", "status",
 			"final_settlement", "period_from", "period_to", "pay_date", "published_on", "first_viewed_on",
 		]
-		+ [f for _c, f, _l in main],
+		+ [f for f, _l in main],
 		order_by="employee",
 	)
 	for no, r in enumerate(rows, start=1):
@@ -61,7 +62,7 @@ def execute(filters=None):
 	]
 	columns += [
 		{"fieldname": f, "label": label, "fieldtype": "Currency", "options": "currency", "precision": 0, "width": 130}
-		for _c, f, label in main
+		for f, label in main
 	]
 	columns += [
 		{"fieldname": "published_on", "label": _("Published On"), "fieldtype": "Datetime", "width": 150},
@@ -72,7 +73,6 @@ def execute(filters=None):
 
 	published = [r for r in rows if r.status == "Published"]
 	viewed = sum(1 for r in published if r.first_viewed_on)
-	net_field = component_fieldname("9")
 	summary = [
 		{"label": _("Published"), "value": len(published), "indicator": "green"},
 		{"label": _("Viewed"), "value": viewed, "indicator": "blue"},
@@ -86,7 +86,7 @@ def execute(filters=None):
 		{"label": _("Final Settlement"), "value": sum(1 for r in rows if r.final_settlement), "indicator": "gray"},
 		{
 			"label": _("Total Net Pay"),
-			"value": sum(flt(r.get(net_field)) for r in rows),
+			"value": sum(flt(r.net_pay) for r in rows),
 			"datatype": "Currency",
 			"currency": "VND",
 			"indicator": "green",

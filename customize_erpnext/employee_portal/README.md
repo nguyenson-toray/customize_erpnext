@@ -1,10 +1,10 @@
 # Employee Portal — backend cho Zalo Mini App "Cổng nhân viên"
 
 > Hợp đồng với đội Mini App: [`API_CONTRACT.md`](./API_CONTRACT.md) — **nguồn chính** cho mọi request/response
-> (bản 1.6.0, nhật ký thay đổi ở §13).
+> (bản 1.9.0, nhật ký thay đổi ở §13).
 > Plan + quyết định đã chốt với user: `~/frappe-bench/.claude/plans/` — `zalo_payslip_portal.md` (gốc),
 > `employee_portal_payslip_paper_layout.md`, `employee_portal_link_request.md`, `employee_portal_simplify_v3.md`,
-> `employee_portal_payslip_layout_link_request_v4.md`.
+> `employee_portal_payslip_layout_link_request_v4.md`, `payslip_structure_by_period.md` (cấu trúc phiếu theo kỳ).
 > File này ghi cách cài, cách vận hành và **các bẫy đã vấp** khi code.
 > Hướng dẫn cho người dùng (C&B): [`HUONG_DAN_CNB.md`](./HUONG_DAN_CNB.md).
 
@@ -19,6 +19,7 @@
 | 1.3 | Phiếu lương như bản in giấy (`rows`, STT, ngày/giờ + số tiền) | ✅ |
 | 1.4 | Yêu cầu liên kết hồ sơ (NOT_FOUND → mã NV + họ tên → CnB duyệt) | ✅ |
 | 1.5 | Gọn ERP (1 field "đã xem", đơn vị ngày/giờ trong Settings), phiếu NV nghỉ việc, report theo kỳ, role CnB, icon Desk | ✅ |
+| 1.9 | **Payslip Structure**: khoản lương / nhãn / chữ công thức theo kỳ, phiếu giữ bản chụp riêng (`lines_json`); `content_version`; `get_config.payslip.show_zero_lines` (28/10) | ✅ |
 | M3 | Đơn nghỉ, giấy tờ, giải trình, duyệt trên Desk | chưa |
 | M4 | Tin OA | chưa |
 
@@ -50,10 +51,13 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 | `employee_portal/demo.py` | **dữ liệu mẫu cho reviewer của Zalo** (Review Mode) — sinh theo ngày hôm nay, phiếu lương mẫu chạy qua đúng `build_payslip_payload` |
 | `utils/zalo_graph.py` | gọi `graph.zalo.me` (user id, tên, SĐT) + dịch mã lỗi Zalo |
 | `employee_portal/utils.py` | kỳ 26→25, SĐT (9 số cuối, `cell_number` rồi `custom_cell_phone_zalo`), quyền theo trạng thái NV, field khoản lương |
+| `employee_portal/payslip_structure.py` | **cấu trúc phiếu theo kỳ** (28/10): chọn structure của kỳ, validate, bản chụp `lines_json`, sinh `rows` / `sections`, chặn số vô lý, Apply Labels |
+| `employee_portal/doctype/tiqn_payslip_structure/` | TIQN Payslip Structure (+ bảng con `…_line`): dòng phiếu từ kỳ `valid_from`; nút **Apply Labels to Payslips** |
 | `employee_portal/payslip_admin.py` | Desk: file mẫu (tháng / NV nghỉ việc), preview, nhập Draft, phát hành, thu hồi |
 | `employee_portal/page/payslip_upload/` | trang Payslip Upload |
 | `employee_portal/doctype/tiqn_payslip/tiqn_payslip_list.js` | list TIQN Payslip: màu trạng thái + nút **Download PDF** (import / publish chỉ ở trang Payslip Upload, 27/10) |
-| `employee_portal/report/payslip_period_summary/` | 1 kỳ: phát hành / đã xem / chưa xem + bảng các khoản chính |
+| `employee_portal/report/payslip_period_summary/` | 1 kỳ: phát hành / đã xem / chưa xem + bảng các khoản chính (cột `basic_pay`… theo Report Column) |
+| `employee_portal/report/payslip_detail/` | 1 kỳ: mọi dòng của mọi phiếu, cột động theo dòng của kỳ (đọc `lines_json`) — thay cho export cột `sc_*`; chỉ để xem (không có cột Period → không upload lại được). Filter Pay Period của 2 report = Select từ `payslip_admin.get_report_periods` (kỳ đã có phiếu) |
 | `employee_portal/doctype/tiqn_portal_link_request/` | yêu cầu liên kết hồ sơ, nút Approve / Reject |
 | `employee_portal/notify.py` | tạo thông báo trong app (không gửi gì ra ngoài) |
 | `employee_portal/translation_strings.py` | chuỗi dịch qua biến — liệt kê literal để vào `locale/vi.po` |
@@ -68,11 +72,14 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 2. **Employee Portal Settings** (tab):
    - General: tên công ty, hotline HR, SĐT công ty (logo dùng logo Zalo App, không cấu hình ở đây).
    - Mini App Features: bật/tắt tính năng (giai đoạn này chỉ Payslip + Notifications); ngày trả lương (mặc định 5);
-     hiện dòng 0; **Check Formulas on Import**.
+     hiện dòng 0 (trạng thái đầu của nút "Ẩn khoản 0đ", `get_config.payslip.show_zero_lines`, app 1.9.0+).
+     Check Formulas on Import + Payslip Lines: **ẩn**, không dùng từ 28/10 (xoá ở phase 2).
    - Access: hạn chỉ xem sau nghỉ việc (30 ngày), số ngày phiên, phiên bản Mini App tối thiểu.
    - Zalo OA & Chat: **ID by OA** của người C&B (nút "Chat với C&B"), OA ID.
    - Legal: nội dung chính sách / điều khoản (công khai ở `/portal-policy`, `/portal-terms`).
 3. Gán role **CnB** cho người C&B.
+4. **TIQN Payslip Structure**: phải có structure cho kỳ (Valid From ≤ kỳ) trước khi tải template / upload.
+   `PSS-2026-09` do patch `employee_portal_payslip_structure` tạo từ cấu hình cũ.
 
 ## Đăng nhập: Zalo User ID + SĐT (contract §2.2, §2.6)
 
@@ -113,7 +120,7 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
   (thêm endpoint có token mới thì PHẢI thêm handler vào `demo.HANDLERS`, test sẽ báo). Chỉ ghi vào chính account
   của reviewer (theo dõi OA, đã xem thông báo). SĐT của NV thật luôn đăng nhập là NV đó. Tắt mode / xoá SĐT /
   SĐT về tay NV thật → phiên REVIEW bị từ chối ngay (`REVOKED`). Không có ngày hết hạn (user chốt 27/10: chỉ thấy
-  dữ liệu mẫu). Tính năng tắt trong Settings thì reviewer cũng không thấy, như nhân viên.
+  dữ liệu mẫu). Tính năng tắt trong Settings thì reviewer cũng không thấy, như nhân viên. Phiếu mẫu: **3 kỳ đã kết thúc gần nhất** (`demo.DEMO_PERIODS`, tự lùi theo ngày; 28/10 = 10, 09, 08/2026), bộ dòng riêng `demo.DEMO_LINES`. 🔴 Zalo kiểm lại **mỗi lần release** → đổi gì ở portal cũng phải giữ demo chạy (test so key demo với response thật).
 - Giới hạn `login`: 3000/phút/IP (cả nhà máy chung 1 IP WiFi) + 10 lần/10 phút/Zalo ID.
 
 ## Vận hành phiếu lương
@@ -128,8 +135,12 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
 2. Điền số → **Upload Excel** → xem lỗi/cảnh báo → **Import as Draft**.
 3. Bảng "2. Publish" → **Publish** kỳ. Phiếu tháng: tạo **1 thông báo chung** cho kỳ. Chỉ toàn phiếu NV nghỉ việc
    (`final_settlement`, tự suy từ `relieving_date` trong kỳ): **không** thông báo — HR tự nhắn họ.
-4. Sai → **Withdraw** → sửa → upload lại → Publish. **Delete Drafts** xoá phiếu nháp chưa từng phát hành.
-5. Theo dõi: report **Payslip Period Summary** (Published / Viewed / Not Viewed, các khoản 1, 2, 5, 6, 9, ngày xem đầu).
+4. Sai → **Withdraw** → sửa → upload lại → Publish. **Delete Payslips** (28/10, `delete_period`) xoá **mọi** phiếu
+   Draft + Withdrawn của kỳ (Published không bao giờ bị xoá — Withdraw trước); hộp xác nhận nêu số phiếu Withdrawn và
+   số đã được NV mở. Bản xoá nằm ở Deleted Document (System Manager khôi phục được). > 150 phiếu chạy nền
+   (`payslip_delete_done` realtime). Trước 28/10 nút là "Delete Drafts", chỉ xoá nháp chưa từng phát hành.
+5. Theo dõi: report **Payslip Period Summary** (Published / Viewed / Not Viewed, lương cơ bản / tăng ca / tổng /
+   khấu trừ / thực lĩnh theo Report Column, ngày xem đầu); **Payslip Detail** = mọi dòng của kỳ (xuất Excel).
 6. **In phiếu** (27/10, `payslip_print.py` + `payslip_print.html`): nút **Download PDF** trên form và trên list. Chỉ **A4** (khổ A5 thì C&B chọn trên máy in). 1 phiếu → PDF; nhiều
    phiếu → ZIP mỗi phiếu 1 PDF, tên `{Period}_{section}_{group}_{employee}_{employee_name}.pdf` (bỏ ký tự cấm, bỏ
    phần rỗng). Bố cục = phiếu giấy (`phiếu lương.png`): song ngữ English/label Mini App, đủ 44 dòng (0 = "-"), dưới
@@ -159,38 +170,49 @@ Department | Section | Group | Note | <khoản>`.
   ghi đè phiếu Draft/Withdrawn mà Note khác → cảnh báo cũ/mới. Bị khoá khi Published như số tiền. Payload `note`
   (contract 1.8.0), in thành khung dưới bảng.
 - `No.` và `Designation` chỉ để HR nhìn, không đọc lại. Tiêu đề cũ (`Kỳ lương | MSNV | Họ tên | …`) vẫn đọc được.
-- Cột khoản nhận theo **mã số đầu tiêu đề** (`3.2 …`); cột `… - Days` / `… - Hours` (cũ: `Unit/ĐVT`) = số ngày/giờ.
+- Cột khoản = dòng của **Payslip Structure của kỳ**, nhận theo **mã số đầu tiêu đề** (`3.2 …`); `<mã> Days` /
+  `<mã> Hours` (cũ: `… - Days`, `Unit/ĐVT`) = số ĐVT. Cùng 1 file các kỳ phải chung structure. Cột thiếu = 0 (liệt kê
+  cho HR), cột có mã không thuộc structure = lỗi.
 - `Period From/To` phải nằm trong kỳ 26→25; trống = tự tính. `Pay Date` trống = ngày trả lương tháng (hoặc nghỉ + 14).
-- Lỗi (chặn): MSNV không có, trùng dòng, ô không phải số/ngày, cột lạ, ngày ngoài kỳ, kỳ đã phát hành.
+- Lỗi (chặn): MSNV không có, trùng dòng, ô không phải số/ngày, cột lạ, ngày ngoài kỳ, kỳ đã phát hành, kỳ chưa có
+  structure; **số vô lý** (`payslip_structure.absurd_errors`, 28/10): ngày/giờ âm (mọi dòng); chỉ dòng khối
+  **Attendance**: số ngày > số ngày của kỳ, số giờ > 24 × số ngày của kỳ (7.4 thanh toán phép khi nghỉ việc có thể > 31);
+  |số tiền| ≥ 100 tỷ. Controller TIQN Payslip kiểm lại cùng điều đó khi lưu. Thiếu cột Kỳ / kỳ chưa có structure / file
+  trộn structure → chỉ báo 1 lỗi đó (không liệt kê từng cột "lạ").
 - Cảnh báo (xác nhận rồi vẫn nhập): tên khác ERP, NV nghỉ trước kỳ, **NV nghỉ giữa kỳ mà Period To trong file ≥
   `relieving_date`** (file tháng tải trước khi nhập ngày nghỉ — controller giữ Period To của file, không tự cắt về
   ngày nghỉ − 1; Period To trống thì không cảnh báo vì tự tính; từ 26/10), **ghi đè phiếu Draft/Withdrawn đang có** (lô + giờ
-  lưu cũ; Period From/To, Pay Date khác thì hiện cũ/mới — trước 26/10 ghi đè im lặng); nếu bật **Check Formulas on Import**: `3=1+2`,
-  `5=3+3.1+4`, `9=5−6+7+8`, tổng nhóm = tổng dòng con, thực lĩnh âm. **Không bao giờ tự sửa số của HR.**
+  lưu cũ; Period From/To, Pay Date khác thì hiện cũ/mới — trước 26/10 ghi đè im lặng), thực lĩnh âm.
+  **Không kiểm công thức** (user chốt 28/10: 100% số liệu do HR quyết) và **không bao giờ tự sửa số của HR.**
 - File upload bị xoá khỏi `File` ngay sau khi nhập/huỷ (chứa lương cả kỳ).
-- **Cấu trúc phiếu = field của TIQN Payslip, không dùng Salary Component của HRMS** (v4, 26/10;
-  `utils.payslip_component_fields`):
-  - mỗi dòng = field `sc_<mã>` (`3.2` → `sc_3_2`), thứ tự theo mã (1, 1.1, 1.2, 2 … 3.10, 4 … 9);
-  - label field = `"<mã> <English ngắn> (ký hiệu)"` (v5, 26/10): tiêu đề cột file mẫu / Data Import-Export = label
-    nguyên văn; `formula` = ký hiệu (a), (c=a+b) đọc từ label;
-  - **chữ Mini App** = Employee Portal Settings ▸ **Payslip Lines** (bảng con `TIQN Portal Payslip Line`, CnB sửa cột
-    Mini App Label; dòng tự đồng bộ theo field ở `sync_payslip_lines`, không thêm/xoá tay), **nguyên văn gồm số thứ tự
-    + ký hiệu** ("9 Thực lĩnh (j=f-g+h+i)"; validate bắt đầu bằng đúng mã) → payload `display_label`; `label` =
-    `strip_code_formula(display_label)` và `formula` (FORMULA_RE trên display_label) cho bản app trước 1.7.0. Trống →
-    label field ERP. Patch `employee_portal_payslip_lines_v5` + `_numbered` điền sẵn chữ app hiện trước đó. ⚠ test phải xoá cache Settings sau rollback
-    (Redis không rollback);
+- **Cấu trúc phiếu = TIQN Payslip Structure theo kỳ** (28/10/2026, `payslip_structure.py`; plan
+  `payslip_structure_by_period.md`). Trước đó (v4–v5) là 50 field `sc_*` + Settings ▸ Payslip Lines — nay **ẩn,
+  không đọc nữa**, xoá ở phase 2:
+  - structure áp từ `valid_from` tới structure kế tiếp (`structure_for_period`: `valid_from` lớn nhất ≤ kỳ, so chuỗi
+    YYYY-MM). Mỗi dòng: `code`, `label_en`, `label_vi` (= chữ Mini App + phần tiếng Việt bản in), `formula_display`
+    (**C&B gõ tay**, chỉ để in trong ngoặc, ERP không kiểm/tính; gõ "(c=a+b)" thì tự bỏ ngoặc), `unit` (VND/Day/Hour),
+    `quantity_unit` (cột ĐVT của dòng tiền), `parent_code` (khai rõ, JS gợi ý theo mã — vì 3.2–3.10 thuộc 3.1 chứ
+    không thuộc 3), `row_type`, `section` (khối của `sections` deprecated — app hiện tại **còn đọc**), `report_key`
+    (→ cột `basic_pay`, `overtime_pay`, `gross_pay`, `total_deductions`, `net_pay`, `standard_days`, `actual_days`,
+    `ot_hours`; OT Hours cộng dồn);
+  - validate chỉ chặn chuyện vô lý: mã sai dạng/trùng, Under Line không có hoặc vòng lặp, thiếu nhãn, 0 hoặc 2 dòng
+    Net, Day/Hour có cột ĐVT, 2 Section Total trong 1 khối;
+  - **bản chụp** `TIQN Payslip.lines_json` (Long Text ẩn) = dòng + số HR nhập, ghi lúc import (`make_snapshot`;
+    phiếu tạo tay = dòng của structure, số 0). `rows`, `sections`, PDF, report đọc **chỉ** bản chụp → structure sau
+    không đổi phiếu đã nhập. Controller dựng lại level / is_header, chặn số vô lý, ghi `content_version`
+    (sha1 bản chụp) + các cột report. Phiếu Draft/Withdrawn sửa số ngay trên tab Detail (bảng HTML), Published thì chặn;
+  - **khoá**: structure đã có phiếu (mọi trạng thái) chỉ sửa được 3 field nhãn + description; sửa mã / thêm-bớt dòng /
+    đơn vị / loại dòng / khối / report_key / valid_from → chặn (Duplicate với kỳ mới, hoặc xoá phiếu nháp). Structure
+    mới không được "chiếm" kỳ đã có phiếu của structure khác (`block_periods_taken`). Publish kiểm lại phiếu đúng
+    structure của kỳ;
+  - **Apply Labels to Payslips** (nút trên structure): chép nhãn mới vào bản chụp mọi phiếu của structure (kể cả
+    Published) — **không** đổi số, `published_on`, `modified`, không thông báo; `content_version` đổi; > 150 phiếu chạy
+    nền; ghi Comment. App hiện tại cache theo `(period, published_on)` → máy đã mở phiếu vẫn thấy nhãn cũ tới khi
+    xoá cache (như 1.6.0); app 1.9.0+ thêm `content_version` vào khoá cache;
+  - Data Import TIQN Payslip **tắt** (`allow_import = 0`): chỉ nhập qua trang Payslip Upload;
+  - demo (Review Mode) có bộ dòng riêng `demo.DEMO_LINES`, không đọc structure thật;
   - text khác trả về app (`_()` + vi.po): System Manager đè bằng DocType **Translation** (`/app/translation`, Language
-    vi, Source Text = chuỗi tiếng Anh trong code / msgid vi.po) — không cần sửa code;
-  - số ngày/giờ = Float `sc_<mã>_qty`, label `"<mã> Days"` / `"<mã> Hours"`; upload nhận cột ngày/giờ khi tiêu đề **đúng
-    bằng** label đó (file cũ: `… - Days`, `Unit/ĐVT`) — "1.1 Standard Working Days" không phải cột ngày; Float
-    `sc_<mã>` không có field tiền (1.1) = dòng chỉ có số ngày;
-  - nhóm cha = mã cha (1.2 → 1); ngoại lệ ghi cứng `GROUP_PARENT`: 3.2–3.10 thuộc 3.1, 3.1 là dòng chính.
-    Khối / Subtotal / Section Total (chỉ cho `sections` deprecated + kiểm tổng nhóm) ở `SECTION_OF`, `SUBTOTALS`,
-    `SECTION_TOTALS` trong `utils.py`;
-  - **thêm dòng** = IT thêm field (+ `_qty` nếu có số ngày/giờ) với label đúng phiếu giấy → migrate, không cấu hình gì khác;
-  - field `sc_*` không dùng được (`_qty` thiếu field tiền, tên không phải mã) → trang Payslip Upload hiện cảnh báo đỏ.
-  - Cấu hình cũ trên Salary Component (`custom_portal_*`) đã xoá bằng patch `employee_portal_payslip_layout_v4`,
-    bản sao lưu ở `sites/erp.tiqn.local/private/backups/salary_component_portal_config_*.json`.
+    vi, Source Text = chuỗi tiếng Anh trong code / msgid vi.po) — không cần sửa code.
 - "Đã xem" = `first_viewed_on` (lần `get_payslip` đầu tiên; các lần sau không ghi DB).
 
 ## Test
@@ -222,11 +244,16 @@ Rollback toàn bộ; dùng zalo id `unit-<uuid>` và kỳ 2030-xx. ⚠ Biến `r
     (`--max-requests`) TRƯỚC migrate → code đọc bảng mới phải kiểm `table_exists` (xem `link_request_payload`).
 13. **Không cấp role `Leave Approver` cho trưởng bộ phận** (M3): role đó đọc MỌI đơn nghỉ.
 14. **Phiên bị huỷ phải báo đúng lý do đã lưu** (`revoked_reason`, dạng `STATUS_CHANGED:EXPIRED`).
-15. **Upload lại phiếu Withdrawn phải giữ Withdrawn** — Publish nhận cả Draft lẫn Withdrawn; Delete Drafts không đụng.
+15. **Upload lại phiếu Withdrawn phải giữ Withdrawn** — Publish nhận cả Draft lẫn Withdrawn; trang Upload vẫn thấy
+    phiếu đó từng phát hành (Delete Payslips cảnh báo trước khi xoá).
 16. **Field SĐT Zalo trên Employee tên `custom_cell_phone_zalo`** (không phải `…_number_…`). Code cũ đọc nhầm tên →
     cột bị bỏ qua im lặng (`has_field` = False) tới 24/10.
 17. **`frappe.call` mặc định POST** → endpoint `@frappe.whitelist(methods=["GET"])` phải gọi với `type: 'GET'`,
     không thì 403 "Not permitted" (bảng kỳ lương Payslip Upload trống tới 24/10).
 18. **File mẫu trống vẫn import trót lọt** (toàn 0 thì công thức vẫn "đúng") — kiểm số dòng ở màn xem trước.
 19. **`scripts/build_navigation.py` ghi đè toàn bộ file sidebar/icon** — link thêm tay vào JSON (Quiz trong New
-    Joiners) phải đưa vào script, không thì lần chạy sau mất.
+    Joiners) phải đưa vào script, không thì lần chạy sau mất. Sidebar đổi item sau lần nạp đầu cần `modified` mới
+    (`SIDEBAR_STAMPS`), không thì migrate bỏ qua file.
+20. **Filter `between` của Frappe coi giá trị là NGÀY** → kỳ `YYYY-MM` phải lọc bằng `>=` / `<` (block_periods_taken).
+21. **Đổi cấu trúc phiếu ≠ đổi phiếu đã nhập**: phiếu giữ bản chụp. Muốn nhãn mới trên phiếu cũ → Apply Labels;
+    muốn số mới → Withdraw + upload lại.

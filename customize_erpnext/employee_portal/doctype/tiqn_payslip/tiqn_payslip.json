@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_import": 1,
+ "allow_import": 0,
  "autoname": "format:PS-{period}-{employee}",
  "creation": "2026-10-12 12:00:00",
  "doctype": "DocType",
@@ -20,10 +20,17 @@
   "pay_date",
   "note",
   "attendance_section",
+  "standard_days",
+  "actual_days",
+  "ot_hours",
   "sc_9",
   "sc_1_1",
   "sc_1_2_qty",
   "column_break_attendance",
+  "basic_pay",
+  "overtime_pay",
+  "gross_pay",
+  "total_deductions",
   "sc_2_1_qty",
   "sc_2_2_qty",
   "sc_2_3_qty",
@@ -37,7 +44,11 @@
   "viewed_column",
   "first_viewed_on",
   "import_batch",
+  "structure",
+  "content_version",
   "tab_detail",
+  "lines_html",
+  "lines_json",
   "column_break_earnings",
   "sc_1",
   "sc_1_2",
@@ -177,19 +188,22 @@
    "fieldname": "sc_9",
    "fieldtype": "Currency",
    "label": "9 Net Salary (j=f-g+h+i)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_1_1",
    "fieldtype": "Float",
    "label": "1.1 Standard Working Days",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "sc_1_2_qty",
    "fieldtype": "Float",
    "label": "1.2 Days",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "column_break_attendance",
@@ -199,19 +213,22 @@
    "fieldname": "sc_2_1_qty",
    "fieldtype": "Float",
    "label": "2.1 Hours",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2_2_qty",
    "fieldtype": "Float",
    "label": "2.2 Hours",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2_3_qty",
    "fieldtype": "Float",
    "label": "2.3 Hours",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "status_section",
@@ -232,10 +249,9 @@
    "no_copy": 1
   },
   {
-   "description": "Copied from component 9 (Net Salary) - kept for the list view, filters and the API",
+   "description": "From the line whose Report Column is Net (Payslip Structure) - kept for the list view, filters and the API",
    "fieldname": "net_pay",
    "fieldtype": "Currency",
-   "hidden": 1,
    "in_list_view": 1,
    "label": "Net Pay",
    "precision": "0",
@@ -300,283 +316,329 @@
   {
    "fieldname": "column_break_earnings",
    "fieldtype": "Column Break",
-   "label": "Earnings"
+   "label": "Earnings",
+   "hidden": 1
   },
   {
    "fieldname": "sc_1",
    "fieldtype": "Currency",
    "label": "1 Basic Salary (a)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_1_2",
    "fieldtype": "Currency",
    "label": "1.2 Actual Working Days",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2",
    "fieldtype": "Currency",
    "label": "2 Overtime (b)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2_1",
    "fieldtype": "Currency",
    "label": "2.1 OT on Normal Days",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2_2",
    "fieldtype": "Currency",
    "label": "2.2 OT on Weekends",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_2_3",
    "fieldtype": "Currency",
    "label": "2.3 OT on Public Holidays",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_3",
    "fieldtype": "Currency",
    "label": "3 Monthly Salary (c=a+b)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_3_1",
    "fieldtype": "Currency",
    "label": "3.1 Allowances (d)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_2",
    "fieldtype": "Currency",
    "label": "3.2 Technical Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_3",
    "fieldtype": "Currency",
    "label": "3.3 Position Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_4",
    "fieldtype": "Currency",
    "label": "3.4 Accommodation Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_5",
    "fieldtype": "Currency",
    "label": "3.5 Commuting Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_6",
    "fieldtype": "Currency",
    "label": "3.6 Phone Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_7",
    "fieldtype": "Currency",
    "label": "3.7 Fire Prevention Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_8",
    "fieldtype": "Currency",
    "label": "3.8 Safety & Hygiene Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_9",
    "fieldtype": "Currency",
    "label": "3.9 Supporting Stages Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_3_10",
    "fieldtype": "Currency",
    "label": "3.10 Fire Training Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_4",
    "fieldtype": "Currency",
    "label": "4 Incentives (e)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_1",
    "fieldtype": "Currency",
    "label": "4.1 Attendance Incentive",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_2",
    "fieldtype": "Currency",
    "label": "4.2 Responsibility Incentive",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_3",
    "fieldtype": "Currency",
    "label": "4.3 KPI Incentive",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_4",
    "fieldtype": "Currency",
    "label": "4.4 Processing Company Support",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_5",
    "fieldtype": "Currency",
    "label": "4.5 Shift Support",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_6",
    "fieldtype": "Currency",
    "label": "4.6 Children Support",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_4_7",
    "fieldtype": "Currency",
    "label": "4.7 Commuting Support",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_5",
    "fieldtype": "Currency",
    "label": "5 Sub Total (f=c+d+e)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "column_break_deductions",
    "fieldtype": "Column Break",
-   "label": "Deductions & Other Items"
+   "label": "Deductions & Other Items",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_6",
    "fieldtype": "Currency",
    "label": "6 Deductions (g)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_1",
    "fieldtype": "Currency",
    "label": "6.1 SI 8%",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_2",
    "fieldtype": "Currency",
    "label": "6.2 HI 1.5%",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_3",
    "fieldtype": "Currency",
    "label": "6.3 UI 1%",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_4",
    "fieldtype": "Currency",
    "label": "6.4 Union Fee",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_5",
    "fieldtype": "Currency",
    "label": "6.5 PIT",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_6_6",
    "fieldtype": "Currency",
    "label": "6.6 Contract Compensation",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_7",
    "fieldtype": "Currency",
    "label": "7 Others (h)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_1",
    "fieldtype": "Currency",
    "label": "7.1 Meal Support",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_2",
    "fieldtype": "Currency",
    "label": "7.2 Marriage Gift",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_3",
    "fieldtype": "Currency",
    "label": "7.3 PIT Finalization",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_4_qty",
    "fieldtype": "Float",
    "label": "7.4 Days",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_4",
    "fieldtype": "Currency",
    "label": "7.4 Annual Leave Payment",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_5_qty",
    "fieldtype": "Float",
    "label": "7.5 Days",
-   "precision": "2"
+   "precision": "2",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_5",
    "fieldtype": "Currency",
    "label": "7.5 Menstrual Allowance",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_6",
    "fieldtype": "Currency",
    "label": "7.6 SI+HI+UI 21.5%",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fieldname": "sc_7_7",
    "fieldtype": "Currency",
    "label": "7.7 Public Holiday Bonus",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "bold": 1,
    "fieldname": "sc_8",
    "fieldtype": "Currency",
    "label": "8 Previous Month Adjustment (i)",
-   "precision": "0"
+   "precision": "0",
+   "hidden": 1
   },
   {
    "fetch_from": "employee.designation",
@@ -584,10 +646,97 @@
    "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Designation"
+  },
+  {
+   "fieldname": "standard_days",
+   "fieldtype": "Float",
+   "label": "Standard Working Days",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Standard Days (Payslip Structure)"
+  },
+  {
+   "fieldname": "actual_days",
+   "fieldtype": "Float",
+   "label": "Actual Working Days",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Actual Days"
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours",
+   "read_only": 1,
+   "description": "Sum of the lines whose Report Column is OT Hours"
+  },
+  {
+   "fieldname": "basic_pay",
+   "fieldtype": "Currency",
+   "label": "Basic Salary",
+   "options": "VND",
+   "precision": "0",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Basic"
+  },
+  {
+   "fieldname": "overtime_pay",
+   "fieldtype": "Currency",
+   "label": "Overtime Pay",
+   "options": "VND",
+   "precision": "0",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Overtime"
+  },
+  {
+   "fieldname": "gross_pay",
+   "fieldtype": "Currency",
+   "label": "Gross Pay",
+   "options": "VND",
+   "precision": "0",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Gross"
+  },
+  {
+   "fieldname": "total_deductions",
+   "fieldtype": "Currency",
+   "label": "Total Deductions",
+   "options": "VND",
+   "precision": "0",
+   "read_only": 1,
+   "description": "From the line whose Report Column is Deductions"
+  },
+  {
+   "fieldname": "structure",
+   "fieldtype": "Link",
+   "label": "Payslip Structure",
+   "options": "TIQN Payslip Structure",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Structure of the period when the payslip was imported. The payslip keeps its own copy of the lines"
+  },
+  {
+   "fieldname": "content_version",
+   "fieldtype": "Data",
+   "label": "Content Version",
+   "hidden": 1,
+   "read_only": 1,
+   "description": "Changes whenever the payslip content changes (Mini App cache key, contract 1.9.0)"
+  },
+  {
+   "fieldname": "lines_html",
+   "fieldtype": "HTML",
+   "label": "Payslip Lines"
+  },
+  {
+   "fieldname": "lines_json",
+   "fieldtype": "Long Text",
+   "label": "Lines (JSON)",
+   "hidden": 1,
+   "read_only": 1,
+   "description": "The payslip's own copy of the lines and numbers (employee_portal/payslip_structure.py)"
   }
  ],
  "links": [],
- "modified": "2026-10-27 14:30:00.000000",
+ "modified": "2026-10-28 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip",

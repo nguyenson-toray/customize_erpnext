@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "autoname": "format:PSS-{valid_from}",
+ "creation": "2026-10-28 14:00:00",
+ "description": "Lines of the payslip from a pay period on: the Excel template, the Mini App and the printout follow it. A payslip keeps its own copy of the lines, so changing a structure never changes a payslip already imported",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "valid_from",
+  "column_break_main",
+  "description",
+  "lines_section",
+  "lines"
+ ],
+ "fields": [
+  {
+   "description": "First pay period (YYYY-MM) that uses these lines, until the next structure",
+   "fieldname": "valid_from",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Valid From Period",
+   "reqd": 1,
+   "unique": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "What changed from the previous structure",
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Description"
+  },
+  {
+   "description": "Once payslips use this structure only the labels and the formula text can change (then Apply Labels to Payslips). To add, remove or renumber lines, Duplicate it with a new Valid From Period",
+   "fieldname": "lines_section",
+   "fieldtype": "Section Break",
+   "label": "Lines"
+  },
+  {
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Lines",
+   "options": "TIQN Payslip Structure Line",
+   "reqd": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-28 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Employee Portal",
+ "name": "TIQN Payslip Structure",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CnB",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "valid_from",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "valid_from",
+ "track_changes": 1
+}

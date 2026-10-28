@@ -449,7 +449,9 @@ check("get_config policy url absolute", r["data"]["legal"]["privacy_policy_url"]
 
 # ---------------------------------------------------------------------------
 print("\n=== payslips ===")
-components = utils.payslip_component_fields()
+components = utils.payslip_component_fields()  # the hidden sc_* fields (phase 1 of the Payslip Structure)
+from customize_erpnext.employee_portal import payslip_structure as pss
+STRUCT, SLINES = pss.period_structure_lines("2030-03")  # structure of the test periods (2030-xx)
 check("payslip: 44 component fields on TIQN Payslip", len(components), 44)
 check("payslip: every sc_ field is a payslip line", utils.payslip_field_mismatches(), [])
 check("payslip: no child table any more", frappe.get_meta("TIQN Payslip").get_table_fields(), [])
@@ -544,6 +546,13 @@ def _fake_amounts(employee, period):
 	return a, q
 
 
+def _snap(a, q, lines=None):
+	"""lines_json of amounts `a` + days / hours `q` (a days-only line, 1.1, takes its days from `a`)."""
+	lines = lines or SLINES
+	values = {l.code: {"amount": a.get(l.code, 0), "quantity": (a if l.unit != "VND" else q).get(l.code, 0)} for l in lines}
+	return pss.dump_snapshot(pss.make_snapshot(lines, values))
+
+
 def make_payslip(emp, period, status="Published"):
 	a, q = _fake_amounts(emp, period)
 	doc = frappe.get_doc(
@@ -555,8 +564,7 @@ def make_payslip(emp, period, status="Published"):
 			"status": status,
 			"published_on": now_datetime() if status == "Published" else None,
 			"import_batch": f"UNIT-{RUN}",
-			**{c.fieldname: a.get(str(c.abbr), 0) for c in components},
-			**{c.qty_fieldname: q.get(str(c.abbr), 0) for c in components if c.qty_fieldname},
+			"lines_json": _snap(a, q),
 		}
 	)
 	doc.flags.portal_status_change = True
@@ -575,7 +583,7 @@ check("periods: only own Published", periods, ["2030-03"])
 check("periods: no amounts anywhere", "net" in frappe.as_json(r["data"]) or "amount" in frappe.as_json(r["data"]), False)
 check("periods: is_new before viewing", r["data"]["items"][0]["is_new"], True)
 
-check("payslip: default shows zero lines like the paper (show_zero_lines = 1)", utils.get_settings().show_zero_lines, 1)
+check("config: payslip.show_zero_lines = Settings (1.9.0)", call(api.get_config)["data"]["payslip"]["show_zero_lines"], bool(utils.get_settings().show_zero_lines))
 r = call(api.get_payslip, token=TOKEN_A, period="2030-03", include_zero=0)
 check("payslip: ok", r["ok"], True)
 d = r["data"]
@@ -609,40 +617,21 @@ check("rows: 6 header, amount positive", (rows_by_no["6"]["is_header"], rows_by_
 check("rows: 6.1 under 6", rows_by_no["6.1"]["level"], 1)
 check("rows: plain amount line has no days/hours", (rows_by_no["6.1"]["quantity"], rows_by_no["6.1"]["quantity_unit"]), (None, None))
 check("rows: formulas", (rows_by_no["3"]["formula"], rows_by_no["9"]["formula"], rows_by_no["6.2"]["formula"]), ("c=a+b", "j=f-g+h+i", None))
-check("rows: display_label = Settings > Payslip Lines word for word", (rows_by_no["1"]["display_label"], rows_by_no["1.2"]["display_label"], rows_by_no["9"]["display_label"]),
+check("rows: display_label = No. + Vietnamese Label + (Formula) of the structure", (rows_by_no["1"]["display_label"], rows_by_no["1.2"]["display_label"], rows_by_no["9"]["display_label"]),
 	("1 Lương cơ bản (a)", "1.2 Số ngày công thực tế làm việc", "9 Thực lĩnh (j=f-g+h+i)"))
 check("rows: label = the text without number / letters (older app builds)", (rows_by_no["1"]["label"], rows_by_no["1.2"]["label"], rows_by_no["9"]["label"]),
 	("Lương cơ bản", "Số ngày công thực tế làm việc", "Thực lĩnh"))
 check("strip_code_formula", [utils.strip_code_formula(x) for x in ("9 Thực lĩnh (j=f-g+h+i)", "6.1 BHXH (8%)", "3.1 Phụ cấp/Trợ cấp (d)", "Thưởng")],
 	["Thực lĩnh", "BHXH (8%)", "Phụ cấp/Trợ cấp", "Thưởng"])
-st_l = frappe.get_doc("Employee Portal Settings")
-check("settings: one Payslip Lines row per payslip line, ERP label = field label",
-	[(r.code, r.payslip_field, r.erp_label) for r in st_l.payslip_lines],
-	[(c.abbr, c.fieldname, c.name) for c in components])
-row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
-row_1.portal_label = "Lương căn bản"
-check("settings: Mini App Label without the line number refused", refused_fn(lambda: st_l.save(ignore_permissions=True)), "refused")
-st_l.reload()  # the refused save already stamped `modified` on this copy
-row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
-row_1.portal_label = "1   Lương căn bản  (a = lương HĐ)"
-st_l.save(ignore_permissions=True)
-c1 = next(c for c in utils.payslip_component_fields() if c.abbr == "1")
-check("settings: CnB's text shown word for word (spaces tidied)", (c1.display_label, c1.label), ("1 Lương căn bản (a = lương HĐ)", "Lương căn bản (a = lương HĐ)"))
-row_1 = next(r for r in st_l.payslip_lines if r.payslip_field == "sc_1")
-row_1.portal_label = ""
-st_l.save(ignore_permissions=True)
-c1 = next(c for c in utils.payslip_component_fields() if c.abbr == "1")
-check("settings: empty Mini App label -> the ERP label", (c1.display_label, c1.label), ("1 Basic Salary (a)", "Basic Salary"))
-st_l.payslip_lines = st_l.payslip_lines[:-1]  # rows follow the fields whatever the form sends
-st_l.save(ignore_permissions=True)
-check("settings: rows re-synced with the fields", len(st_l.payslip_lines), len(components))
 check("payslip: attendance total null", att["total"], None)
 check("payslip: section-total line not repeated", any(l["code"] == "5" for l in earn["lines"]), False)
 check("payslip: first_viewed_on set", bool(frappe.db.get_value("TIQN Payslip", doc_a.name, "first_viewed_on")), True)
 check("payslip: View Log DocType gone", frappe.db.exists("DocType", "TIQN Payslip View Log"), None)
 check("payslip: old view columns gone", {"viewed", "view_count", "last_viewed_on"} & set(frappe.db.get_table_columns("TIQN Payslip")), set())
 v = frappe.db.get_value("TIQN Payslip", doc_a.name, ["first_viewed_on", "modified"], as_dict=True)
-check("payslip: net_pay field = sc_9", frappe.db.get_value("TIQN Payslip", doc_a.name, "net_pay"), round(amounts_a["9"]))
+check("payslip: net_pay = the Net line", frappe.db.get_value("TIQN Payslip", doc_a.name, "net_pay"), round(amounts_a["9"]))
+check("payslip: report columns from the lines", [frappe.db.get_value("TIQN Payslip", doc_a.name, f) for f in ("basic_pay", "gross_pay", "total_deductions", "actual_days", "ot_hours")],
+	[amounts_a["1"], amounts_a["5"], amounts_a["6"], qty_a["1.2"], qty_a["2.1"] + qty_a["2.2"] + qty_a["2.3"]])
 r = call(api.get_payslip, token=TOKEN_A, period="2030-03", include_zero=1)
 allowance = next(l for l in r["data"]["sections"][0]["lines"] if l["code"] == "3.1")
 check("payslip: include_zero shows 3.3", any(c["code"] == "3.3" for c in allowance["children"]), True)
@@ -668,7 +657,9 @@ frappe.db.set_single_value("Employee Portal Settings", "feature_payslip", 1)
 frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
 
 pub = frappe.get_doc("TIQN Payslip", doc_a.name)
-pub.sc_1 = 1
+_pl = frappe.parse_json(pub.lines_json)
+_pl[0]["amount"] = 1
+pub.lines_json = frappe.as_json(_pl)
 try:
 	pub.save(ignore_permissions=True)
 	check("published payslip cannot be edited", "saved", "refused")
@@ -689,9 +680,26 @@ draft_b = frappe.get_doc({"doctype": "TIQN Payslip", "employee": EMP_B, "period"
 draft_b.status = "Published"
 check("Draft -> Published by editing refused", refused(lambda: draft_b.save(ignore_permissions=True)), "refused")
 draft_b.reload()
-draft_b.sc_1 = 123
+check("hand-made payslip: the structure's lines at 0", (draft_b.structure, len(pss.snapshot_of(draft_b)), draft_b.net_pay), (STRUCT, len(SLINES), 0))
+
+
+def _edit_line(doc, code_, **kw):
+	lines_ = frappe.parse_json(doc.lines_json)
+	next(l for l in lines_ if l["code"] == code_).update(kw)
+	doc.lines_json = frappe.as_json(lines_)
+
+
+_edit_line(draft_b, "9", amount=123)
 check("Draft numbers editable", refused(lambda: draft_b.save(ignore_permissions=True)), "saved")
-check("Data Import allowed on TIQN Payslip", frappe.get_meta("TIQN Payslip").allow_import, 1)
+check("Draft edit: net_pay follows the Net line", frappe.db.get_value("TIQN Payslip", draft_b.name, "net_pay"), 123)
+for code_, kw in (("1.2", {"quantity": -1}), ("1.2", {"quantity": 40}), ("2.1", {"quantity": 24 * 31 + 1}), ("1", {"amount": 10**11})):
+	draft_b.reload()
+	_edit_line(draft_b, code_, **kw)
+	check(f"impossible number refused: {code_} {kw}", refused(lambda: draft_b.save(ignore_permissions=True)), "refused")
+draft_b.reload()
+_edit_line(draft_b, "9", amount=-500)
+check("negative net salary allowed (HR decides)", refused(lambda: draft_b.save(ignore_permissions=True)), "saved")
+check("Data Import off on TIQN Payslip (lines live in lines_json)", frappe.get_meta("TIQN Payslip").allow_import, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -701,10 +709,10 @@ from openpyxl import Workbook
 wb = Workbook()
 ws = wb.active
 cols = []  # (header, code, is Unit/ĐVT) in template order
-for c in payslip_admin._components():
-	if c.qty_fieldname:
-		cols.append((payslip_admin.qty_header(c), str(c.abbr), True))
-	cols.append((c.name, str(c.abbr), False))
+for l in SLINES:
+	if l.quantity_unit:
+		cols.append((payslip_admin.qty_header(l), l.code, True))
+	cols.append((payslip_admin.amount_header(l), l.code, False))
 comp_cols = [h for h, _code, _q in cols]
 
 
@@ -733,18 +741,11 @@ data = payslip_admin.parse_upload(f.file_url)
 rows = {(r["row"]): r for r in data["rows"]}
 check("upload: 4 rows read", len(data["rows"]), 4)
 check("upload: good row clean", (rows[2]["errors"], rows[2]["warnings"]), ([], []))
-check("upload: formula warning on 9", any(w.startswith("9 =") for w in rows[3]["warnings"]), True)
-check("upload: group warning on 2 (OT amounts)", any(w.startswith("2 =") for w in rows[3]["warnings"]), True)
-check("upload: Unit/ĐVT values read", (rows[2]["values"]["sc_1_2_qty"], rows[2]["values"]["sc_1_2"]), (good[1]["1.2"], good[0]["1.2"]))
+check("upload: formulas never checked (HR's numbers)", [w for w in rows[3]["warnings"] if w[:4] in ("9 = ", "2 = ")], [])
+check("upload: Unit/ĐVT values read", (rows[2]["values"]["1.2"]["quantity"], rows[2]["values"]["1.2"]["amount"]), (good[1]["1.2"], good[0]["1.2"]))
+check("upload: structure of the file", data["structure"], STRUCT)
 check("upload: template headers = all columns", data["missing_components"], [])
 check("upload: name mismatch warning", any("Tên Sai" in w for w in rows[3]["warnings"]), True)
-frappe.db.set_single_value("Employee Portal Settings", "validate_payslip_formulas", 0)
-frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
-off = {r["row"]: r for r in payslip_admin.parse_upload(f.file_url)["rows"]}
-check("formula check off: no formula / group warnings", [w for w in off[3]["warnings"] if w[:4] in ("9 = ", "2 = ")], [])
-check("formula check off: name warning still shown", any("Tên Sai" in w for w in off[3]["warnings"]), True)
-frappe.db.set_single_value("Employee Portal Settings", "validate_payslip_formulas", 1)
-frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
 check("upload: unknown employee error", bool(rows[4]["errors"]), True)
 check("upload: duplicate + non-number errors", len(rows[5]["errors"]) >= 2, True)
 check("upload: periods", data["periods"], ["2030-07"])
@@ -759,7 +760,7 @@ wb2 = Workbook()
 ws2 = wb2.active
 ws2.append(["Kỳ lương", "MSNV", "Họ tên"] + comp_cols)
 ws2.append(["07-2030", EMP_A, ""] + vals(good))
-ws2.append(["07-2030", EMP_B, ""] + vals(bad_formula))
+ws2.append(["07-2030", EMP_B, ""] + vals((dict(bad_a, **{"9": -5000}), bad_q)))  # negative net = a warning
 buf2 = io.BytesIO()
 wb2.save(buf2)
 f2 = frappe.get_doc({"doctype": "File", "file_name": f"unit2-{RUN}.xlsx", "is_private": 1, "content": buf2.getvalue()}).insert(
@@ -770,6 +771,8 @@ try:
 	check("import needs warning confirmation", "imported", "refused")
 except frappe.ValidationError:
 	check("import needs warning confirmation", "refused", "refused")
+check("upload: negative net salary only warned (one warning, no error)",
+	[(len(r["errors"]), len(r["warnings"])) for r in payslip_admin.parse_upload(f2.file_url)["rows"]], [(0, 0), (0, 1)])
 res = payslip_admin.import_upload(f2.file_url, confirm_warnings=1)
 check("import: 2 drafts", res["rows"], 2)
 check("import: upload file deleted", frappe.db.exists("File", {"file_url": f2.file_url}), None)
@@ -860,7 +863,7 @@ check("template layout: dates inside the period read", (rows3[5]["errors"], str(
 payslip_admin.discard_upload(f3.file_url)
 
 # Re-importing a Withdrawn payslip keeps it Withdrawn (published once: view log + notification
-# link to it), so "Delete Drafts" never tries to delete it; Publish takes it again.
+# link to it); Publish takes it again.
 wb4 = Workbook()
 ws4 = wb4.active
 ws4.append(list(payslip_admin.TEMPLATE_IDENT) + comp_cols)
@@ -1045,7 +1048,6 @@ try:
 	check("period pdf: unknown output refused", refused_fn(lambda: payslip_print.start_pdf_job(period="2030-07", mode="docx")), "refused")
 finally:
 	frappe.enqueue = _real_enqueue
-check("delete drafts skips re-imported withdrawn", payslip_admin.delete_draft_period("2030-07")["deleted"], 0)
 check("publish takes re-imported withdrawn", payslip_admin.publish_period("2030-07")["published"], 2)
 # ignore_no_copy=False = what the form's Duplicate does (frappe.model.copy_doc in JS).
 _dup = frappe.copy_doc(frappe.get_doc("TIQN Payslip", {"period": "2030-07", "status": "Published"}), ignore_no_copy=False)
@@ -1132,39 +1134,42 @@ check("resigned: From after To refused",
 check("template periods carry their dates", {k for k in payslip_admin.get_template_periods()["periods"][0]} >= {"from_date", "to_date"}, True)
 check("prefilled: bad period refused", refused(lambda: payslip_admin.download_template(period="2026-13")), "refused")
 theader = [c.value for c in tws[1]]
-c12 = next(c for c in components if c.abbr == "1.2")
-check("template: days column just before its amount", theader.index(payslip_admin.qty_header(c12)) + 1, theader.index(c12.name))
+c12 = next(l for l in SLINES if l.code == "1.2")
+check("template: days column just before its amount", theader.index(payslip_admin.qty_header(c12)) + 1, theader.index(payslip_admin.amount_header(c12)))
 check("template: days / hours headers short", (payslip_admin.qty_header(c12),
-	payslip_admin.qty_header(next(c for c in components if c.abbr == "2.1"))), ("1.2 Days", "2.1 Hours"))
+	payslip_admin.qty_header(next(l for l in SLINES if l.code == "2.1"))), ("1.2 Days", "2.1 Hours"))
 check("template: starts with No.", theader[:2], ["No.", "Period"])
 check("template: Note column right after Group", theader[10:12], ["Group", "Note"])
 _m, qty_errors, _missing = payslip_admin._map_columns(
-	["Kỳ lương", "MSNV", "3.2 Technical allowance - Days"], payslip_admin._components()
+	["Kỳ lương", "MSNV", "3.2 Technical allowance - Days"], SLINES, STRUCT
 )
 # Language-independent: earlier portal calls leave frappe.local.lang = "vi".
 check("upload: days column on a line without one is an error", (len(qty_errors), "3.2" in qty_errors[0] if qty_errors else None), (1, True))
-_m, old_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", f"{c12.name} - Unit/ĐVT", c12.name], payslip_admin._components())
+_m, old_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", f"{payslip_admin.amount_header(c12)} - Unit/ĐVT", payslip_admin.amount_header(c12)], SLINES, STRUCT)
 check("upload: older 'Unit/ĐVT' header still read", (old_errors, sorted(x[2] for x in _m["components"].values())), ([], [False, True]))
-_m, name_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", c12.name], payslip_admin._components())
+_m, name_errors, _missing = payslip_admin._map_columns(["Kỳ lương", "MSNV", payslip_admin.amount_header(c12)], SLINES, STRUCT)
 check("upload: 'working days' in a name is not a days column", [x[2] for x in _m["components"].values()], [False])
 _m, _e, _missing = payslip_admin._map_columns(
 	["Kỳ lương", "MSNV", "1.1 Standard Working Days", "1.2 Days", "2.1 hour",
 	 "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần - Hours", "2.2 OT working hours on weekend/Số giờ làm thêm ngày cuối tuần"],
-	payslip_admin._components(),
+	SLINES,
+	STRUCT,
 )
 check("upload: v5 short headers + older bilingual ones",
-	(_e, [(x[0].abbr, x[2]) for x in _m["components"].values()]),
+	(_e, [(x[0].code, x[2]) for x in _m["components"].values()]),
 	([], [("1.1", False), ("1.2", True), ("2.1", True), ("2.2", True), ("2.2", False)]))
 meta_ps = frappe.get_meta("TIQN Payslip")
 check("desk: two tabs General / Detail", [df.label for df in meta_ps.fields if df.fieldtype == "Tab Break"], ["General", "Detail"])
 ps_order = [df.fieldname for df in meta_ps.fields]
-on_general = {f: ps_order.index(f) < ps_order.index("tab_detail") for f in ("sc_9", "sc_1_1", "sc_1_2_qty", "sc_2_3_qty", "sc_1_2", "sc_6")}
-check("desk: net pay + days/hours on General, amounts on Detail", on_general,
-	{"sc_9": True, "sc_1_1": True, "sc_1_2_qty": True, "sc_2_3_qty": True, "sc_1_2": False, "sc_6": False})
-check("desk: net_pay hidden (sc_9 is the one shown)", meta_ps.get_field("net_pay").hidden, 1)
+on_general = {f: ps_order.index(f) < ps_order.index("tab_detail") for f in ("net_pay", "standard_days", "actual_days", "ot_hours", "gross_pay", "lines_html")}
+check("desk: net pay + report columns on General, the lines on Detail", on_general,
+	{"net_pay": True, "standard_days": True, "actual_days": True, "ot_hours": True, "gross_pay": True, "lines_html": False})
+check("desk: net_pay shown, sc_* hidden", (meta_ps.get_field("net_pay").hidden, all(df.hidden for df in meta_ps.fields if df.fieldname.startswith("sc_"))), (0, True))
 
 imported = frappe.get_doc("TIQN Payslip", {"employee": EMP_A, "period": "2030-07"})
-check("import writes component fields", (imported.sc_1, imported.sc_9, imported.sc_1_2_qty), (good[0]["1"], good[0]["9"], good[1]["1.2"]))
+imp = {r.code: r for r in pss.snapshot_of(imported)}
+check("import writes the snapshot + report columns", (imp["1"].amount, imp["9"].amount, imp["1.2"].quantity, imported.net_pay, imported.structure),
+	(good[0]["1"], good[0]["9"], good[1]["1.2"], good[0]["9"], STRUCT))
 summary = next(p for p in payslip_admin.get_period_summary() if p["period"] == "2030-07")
 check("period summary: viewed count of published", (summary["Published"], summary["viewed"]), (2, 1))
 
@@ -1196,10 +1201,10 @@ check("monthly payslip: not a final settlement", frappe.db.get_value("TIQN Paysl
 
 st = frappe.get_doc("Employee Portal Settings")
 check("settings: logo field gone", st.meta.has_field("logo"), False)
-check("settings: formula check on by default", st.validate_payslip_formulas, 1)
 check("settings: Day / Hour table gone (units from the field labels)", st.meta.has_field("payslip_qty_units"), False)
-check("template: headers = TIQN Payslip field labels", theader[len(payslip_admin.TEMPLATE_IDENT):][:3],
-	[frappe.get_meta("TIQN Payslip").get_label(f) for f in ("sc_1", "sc_1_1", "sc_1_2_qty")])
+_l = {l.code: l for l in SLINES}
+check("template: headers = Payslip Structure lines", theader[len(payslip_admin.TEMPLATE_IDENT):][:3],
+	[payslip_admin.amount_header(_l["1"]), payslip_admin.amount_header(_l["1.1"]), payslip_admin.qty_header(_l["1.2"])])
 
 
 # ---------------------------------------------------------------------------
@@ -1538,7 +1543,13 @@ with mock.patch("customize_erpnext.api.employee_portal.payslip._published", boom
 	check("review: sample payslip, net = paper formula", (code(ps), ps["data"]["employee"]["employee_id"], ps["data"]["net_pay"]), (None, demo.EMPLOYEE_ID, 8871250))
 	check("review: sample payslip has the 9 numbered lines", [x["no"] for x in ps["data"]["rows"] if "." not in x["no"]], [str(i) for i in range(1, 10)])
 	check("review: payslip marked seen (is_new off)",
-		[i["is_new"] for i in call(api.get_payslip_periods, TOKEN_RV)["data"]["items"]], [False, True])
+		[i["is_new"] for i in call(api.get_payslip_periods, TOKEN_RV)["data"]["items"]], [False, True, True])
+	check("review: 3 sample payslips = the last 3 ended periods, newest first", periods,
+		[utils.shift_period(utils.period_of_date(today()), -i) for i in (1, 2, 3)])
+	nets = [call(api.get_payslip, TOKEN_RV, period=p_)["data"]["net_pay"] for p_ in periods]
+	check("review: the 3 sample payslips differ", len(set(nets)), 3)
+	check("review: a payslip notification per sample period",
+		sorted(i["target"]["id"] for i in call(api.get_notifications, TOKEN_RV)["data"]["items"] if i["type"] == "PAYSLIP_PUBLISHED"), sorted(periods))
 	check("review: real period of an employee -> NOT_FOUND", code(call(api.get_payslip, TOKEN_RV, period="2030-07")), "NOT_FOUND")
 	ar = rv["get_attendance_requests"]["data"]["items"][0]["id"]
 	la = rv["get_leave_applications"]["data"]["items"][0]["id"]
@@ -1580,16 +1591,192 @@ check("review: is_review_phone off", utils.is_review_phone(rv_phone), False)
 
 
 # ---------------------------------------------------------------------------
+print("\n=== payslip structure (lines per period, 28/10/2026) ===")
+from customize_erpnext.employee_portal.doctype.tiqn_payslip_structure import tiqn_payslip_structure as pss_doc
+from customize_erpnext.employee_portal.report.payslip_detail.payslip_detail import execute as detail_report
+
+
+def _structure(valid_from, lines):
+	return frappe.get_doc({"doctype": "TIQN Payslip Structure", "valid_from": valid_from, "lines": [dict(l) for l in lines]})
+
+
+def _bad(change):
+	lines_ = [dict(l) for l in SLINES]
+	change(lines_)
+	return refused_fn(lambda: _structure("2032-02", lines_).insert(ignore_permissions=True))
+
+
+check("structure: No. used twice refused", _bad(lambda ls: ls.append(dict(ls[-1]))), "refused")
+check("structure: No. not numbers refused", _bad(lambda ls: ls[0].update(code="1a")), "refused")
+check("structure: Under Line that does not exist refused", _bad(lambda ls: ls[1].update(parent_code="99")), "refused")
+check("structure: no Net line refused", _bad(lambda ls: [l.update(report_key=None) for l in ls if l["report_key"] == "Net"]), "refused")
+check("structure: two Net lines refused", _bad(lambda ls: ls[0].update(report_key="Net")), "refused")
+check("structure: Day line with a Unit/ĐVT column refused", _bad(lambda ls: next(l for l in ls if l["code"] == "1.1").update(quantity_unit="Day")), "refused")
+check("structure: two Section Totals in one block refused", _bad(lambda ls: next(l for l in ls if l["code"] == "4").update(row_type="Section Total")), "refused")
+check("structure: no formula is checked (any text allowed)", _bad(lambda ls: next(l for l in ls if l["code"] == "9").update(formula_display="(anything + 8%)")), "saved")
+frappe.db.delete("TIQN Payslip Structure", {"valid_from": "2032-02"})
+check("structure: may not take over periods that have payslips (2030-07)",
+	refused_fn(lambda: _structure("2030-06", SLINES).insert(ignore_permissions=True)), "refused")
+
+# 2032-01: + 3.11, - 3.10, 3.2 renamed, new formula text on 9.
+new_lines = [dict(l) for l in SLINES if l.code != "3.10"]
+new_lines.append(dict(code="3.11", label_en="Night Shift Allowance", label_vi="Phụ cấp ca đêm", unit="VND", parent_code="3.1", row_type="Line", section="Earnings"))
+next(l for l in new_lines if l["code"] == "3.2").update(label_vi="Phụ cấp tay nghề")
+next(l for l in new_lines if l["code"] == "9").update(formula_display="(j = f - g + h + i + k)")
+s31 = _structure("2032-01", new_lines).insert(ignore_permissions=True)
+check("structure: formula text kept without its brackets", next(l.formula_display for l in s31.lines if l.code == "9"), "j = f - g + h + i + k")
+check("structure: rows sorted by No. on save", [l.code for l in s31.lines], sorted([l.code for l in s31.lines], key=code_key))
+check("structure: periods resolve", (pss.structure_for_period("2031-12"), pss.structure_for_period("2032-01"), pss.structure_for_period("2032-06")),
+	(STRUCT, s31.name, s31.name))
+L31 = pss.structure_lines(s31.name)
+check("structure: 3.11 under 3.1 after 3.9", [l.code for l in L31 if l.code.startswith("3.")][-2:], ["3.9", "3.11"])
+
+frappe.local.response = frappe._dict()
+payslip_admin.download_template(period="2032-01")
+from openpyxl import load_workbook as _lw
+h31 = [c.value for c in _lw(io.BytesIO(frappe.response["filecontent"])).active[1]]
+check("template 2032-01: + 3.11, - 3.10", ("3.11 Night Shift Allowance" in h31, any(str(x).startswith("3.10 ") for x in h31)), (True, False))
+
+cols31 = []
+for l in L31:
+	if l.quantity_unit:
+		cols31.append((payslip_admin.qty_header(l), l.code, True))
+	cols31.append((payslip_admin.amount_header(l), l.code, False))
+a31, q31 = _fake_amounts(EMP_A, "2032-01")
+a31 = dict(a31, **{"3.11": 400_000})
+
+
+def _file(rows_, tag, columns=None):
+	columns = columns or cols31
+	wb_ = Workbook()
+	ws_ = wb_.active
+	ws_.append(list(payslip_admin.TEMPLATE_IDENT) + [h for h, _c, _q in columns])
+	for period_, emp_, a_, q_ in rows_:
+		ws_.append([1, period_, None, None, None, emp_, "", "", "", "", "", None] + [(q_ if is_q else a_).get(c_, 0) for _h, c_, is_q in columns])
+	buf_ = io.BytesIO()
+	wb_.save(buf_)
+	return frappe.get_doc({"doctype": "File", "file_name": f"unit-pss{tag}-{RUN}.xlsx", "is_private": 1, "content": buf_.getvalue()}).insert(ignore_permissions=True)
+
+
+fm = _file([("2032-01", EMP_A, a31, q31), ("2030-11", EMP_B, a31, q31)], "mix")
+check("upload: periods of two structures in one file refused", bool(payslip_admin.parse_upload(fm.file_url)["header_errors"]), True)
+payslip_admin.discard_upload(fm.file_url)
+fo = _file([("2032-01", EMP_A, a31, q31)], "old", columns=cols)
+check("upload: old columns (3.10) for 2032-01 refused", any("3.10" in e for e in payslip_admin.parse_upload(fo.file_url)["header_errors"]), True)
+payslip_admin.discard_upload(fo.file_url)
+absurd = []
+for kw in ({"q": {"1.2": -1}}, {"q": {"1.2": 32}}, {"q": {"2.1": 24 * 31 + 1}}, {"a": {"5": 10**11}}):
+	fa = _file([("2032-01", EMP_A, dict(a31, **kw.get("a", {})), dict(q31, **kw.get("q", {})))], f"abs{len(absurd)}")
+	absurd.append(len(payslip_admin.parse_upload(fa.file_url)["rows"][0]["errors"]))
+	payslip_admin.discard_upload(fa.file_url)
+check("upload: impossible numbers are errors (negative / > period days / > 24h x days / >= 100 bn)", absurd, [1, 1, 1, 1])
+fl = _file([("2032-01", EMP_A, a31, dict(q31, **{"7.4": 45}))], "leave")
+check("upload: days outside Attendance (7.4 leave paid out) may exceed the period", payslip_admin.parse_upload(fl.file_url)["rows"][0]["errors"], [])
+payslip_admin.discard_upload(fl.file_url)
+def _clean_formula(text):
+	row_ = frappe.get_doc({"doctype": "TIQN Payslip Structure Line", "code": "1", "formula_display": text})
+	pss.clean_line(row_)
+	return row_.formula_display
+
+
+check("structure: one pair of brackets stripped, \"(a) + (b)\" kept", [_clean_formula(x) for x in ("(c=a+b)", "(a) + (b)", "8%")],
+	["c=a+b", "(a) + (b)", "8%"])
+wb_np = Workbook()
+wb_np.active.append(["MSNV", "1 Basic Salary"])
+wb_np.active.append([EMP_A, 1])
+_b = io.BytesIO()
+wb_np.save(_b)
+f_np = frappe.get_doc({"doctype": "File", "file_name": f"unit-np-{RUN}.xlsx", "is_private": 1, "content": _b.getvalue()}).insert(ignore_permissions=True)
+check("upload: no Period column = one clear error", len(payslip_admin.parse_upload(f_np.file_url)["header_errors"]), 1)
+payslip_admin.discard_upload(f_np.file_url)
+dcols_no = next(c for c in detail_report({"period": "2030-07"})[0] if c["fieldname"] == "no")
+check("detail report: No. not summed in the total row", dcols_no["fieldtype"], "Data")
+f31 = _file([("2032-01", EMP_A, a31, q31)], "ok")
+d31 = payslip_admin.parse_upload(f31.file_url)
+check("upload 2032-01: clean, structure 2032", (d31["header_errors"], d31["missing_components"], d31["rows"][0]["errors"], d31["structure"]), ([], [], [], s31.name))
+payslip_admin.import_upload(f31.file_url, confirm_warnings=1)
+payslip_admin.publish_period("2032-01")
+p31 = call(api.get_payslip, token=TOKEN_A, period="2032-01", include_zero=1)["data"]
+r31 = {x["no"]: x for x in p31["rows"]}
+check("app 2032-01: 3.11 shown, 3.10 gone, 3.2 renamed, new formula", ("3.11" in r31, "3.10" in r31, r31["3.2"]["label"], r31["9"]["formula"]),
+	(True, False, "Phụ cấp tay nghề", "j=f-g+h+i+k"))
+check("app 2032-01: 3.11 amount", r31["3.11"]["amount"], 400_000)
+check("app 2032-01: sections still built (older app builds)", [s_["key"] for s_ in p31["sections"]][:2], ["EARNINGS", "DEDUCTIONS"])
+r07 = {x["no"]: x for x in call(api.get_payslip, token=TOKEN_A, period="2030-07", include_zero=1)["data"]["rows"]}
+check("app 2030-07 unchanged by the new structure", ("3.10" in r07, "3.11" in r07, r07["3.2"]["label"]), (True, False, "Phụ cấp kỹ thuật"))
+per31 = next(i for i in call(api.get_payslip_periods, token=TOKEN_A, year=2032)["data"]["items"] if i["period"] == "2032-01")
+check("content_version: periods item = payslip", (bool(p31["content_version"]), per31["content_version"]), (True, p31["content_version"]))
+check("content_version: home latest_payslip", call(api.get_home, token=TOKEN_A)["data"]["latest_payslip"]["content_version"], p31["content_version"])
+
+# Locked once used: labels only, then Apply Labels to Payslips.
+s31.reload()
+s31.append("lines", dict(code="3.12", label_en="X", label_vi="X", unit="VND", row_type="Line", section="Earnings"))
+check("structure in use: adding a line refused", refused_fn(lambda: s31.save(ignore_permissions=True)), "refused")
+s31.reload()
+next(l for l in s31.lines if l.code == "3.11").report_key = "Basic"
+check("structure in use: changing a Report Column refused", refused_fn(lambda: s31.save(ignore_permissions=True)), "refused")
+s31.reload()
+next(l for l in s31.lines if l.code == "3.11").label_vi = "Phụ cấp làm đêm"
+check("structure in use: changing a label allowed", refused_fn(lambda: s31.save(ignore_permissions=True)), "saved")
+ch = pss_doc.get_label_changes(s31.name)
+check("apply labels: change listed", [(c["code"], c["old"], c["new"], c["payslips"]) for c in ch["changes"]], [("3.11", "Phụ cấp ca đêm", "Phụ cấp làm đêm", 1)])
+before31 = frappe.db.get_value("TIQN Payslip", {"employee": EMP_A, "period": "2032-01"}, ["published_on", "net_pay", "modified", "content_version"], as_dict=True)
+check("apply labels: 1 payslip changed", pss_doc.apply_labels(s31.name)["changed"], 1)
+after31 = frappe.db.get_value("TIQN Payslip", {"employee": EMP_A, "period": "2032-01"}, ["published_on", "net_pay", "modified", "content_version"], as_dict=True)
+check("apply labels: published_on, net, modified unchanged; content_version changed",
+	(after31.published_on == before31.published_on, after31.net_pay == before31.net_pay, after31.modified == before31.modified, after31.content_version != before31.content_version),
+	(True, True, True, True))
+r31b = {x["no"]: x for x in call(api.get_payslip, token=TOKEN_A, period="2032-01")["data"]["rows"]}
+check("apply labels: the app shows the new label", r31b["3.11"]["label"], "Phụ cấp làm đêm")
+check("apply labels: nothing left to apply", pss_doc.get_label_changes(s31.name)["changes"], [])
+from customize_erpnext.employee_portal import payslip_print as _pp
+ctx31 = _pp.payslip_context(frappe.get_doc("TIQN Payslip", {"employee": EMP_A, "period": "2032-01"}))
+row311 = next(r for r in ctx31["rows"] if r.no == "3.11")
+check("print 2032-01: English / Vietnamese of the snapshot", (row311.english, row311.vietnamese), ("Night Shift Allowance", "Phụ cấp làm đêm"))
+check("print 2032-01: formula text", next(r.formula for r in ctx31["rows"] if r.no == "9"), "j=f-g+h+i+k")
+check("structure in use cannot be deleted", refused_fn(lambda: frappe.delete_doc("TIQN Payslip Structure", s31.name)), "refused")
+
+dcols, drows = detail_report({"period": "2032-01"})
+dfields = [c["fieldname"] for c in dcols]
+check("detail report: columns of the period's lines", ("l_3_11" in dfields, "l_3_10" in dfields, "q_1_2" in dfields, "q_1_1" in dfields), (True, False, True, True))
+check("detail report: values", (drows[0]["l_3_11"], drows[0]["q_1_2"]), (400_000, q31["1.2"]))
+check("detail report: 2030-07 keeps 3.10", "l_3_10" in [c["fieldname"] for c in detail_report({"period": "2030-07"})[0]], True)
+
+# Review Mode: the sample payslip has its own lines, never the real structure.
+check("demo: own lines, not a structure", {l[0] for l in demo.DEMO_LINES} >= {"1", "9"} and not hasattr(demo, "structure_lines"), True)
+
+# Delete Payslips (28/10): every Draft AND Withdrawn payslip of the period, never a Published one.
+payslip_admin.withdraw_period("2032-01")
+row32 = next(p_ for p_ in payslip_admin.get_period_summary() if p_["period"] == "2032-01")
+check("summary: withdrawn + opened by the employee", (row32["Withdrawn"], row32["withdrawn_viewed"]), (1, 1))
+pub_0303 = frappe.db.count("TIQN Payslip", {"period": "2030-03", "status": "Published"})
+check("delete payslips: Published never deleted", (payslip_admin.delete_period("2030-03")["deleted"], frappe.db.count("TIQN Payslip", {"period": "2030-03", "status": "Published"})), (0, pub_0303))
+del32 = payslip_admin.delete_period("2032-01")
+check("delete payslips: Withdrawn deleted too", (del32["deleted"], del32["withdrawn"], del32["viewed"], del32["queued"]), (1, 1, 1, False))
+check("delete payslips: none left in the period", frappe.db.count("TIQN Payslip", {"period": "2032-01"}), 0)
+check("delete payslips: kept in Deleted Document", bool(frappe.db.exists("Deleted Document", {"deleted_doctype": "TIQN Payslip", "deleted_name": f"PS-2032-01-{EMP_A}"})), True)
+make_payslip(EMP_B, "2030-06", status="Draft")
+check("delete payslips: Draft deleted", payslip_admin.delete_period("2030-06")["deleted"], 1)
+check("delete payslips: bad period refused", refused_fn(lambda: payslip_admin.delete_period("2030-13")), "refused")
+check("structure free again once its payslips are gone", refused_fn(lambda: frappe.delete_doc("TIQN Payslip Structure", s31.name)), "saved")
+
+
+# ---------------------------------------------------------------------------
 print("\n=== payslip period summary report ===")
 from customize_erpnext.employee_portal.report.payslip_period_summary.payslip_period_summary import execute as period_report
 
 cols_r, rows_r, _m, _c, cards = period_report({"period": "2030-07"})
 # Cards by position: labels are translated (the portal calls leave frappe.local.lang = "vi").
 check("report: published / viewed / not viewed", [c["value"] for c in cards[:3]], [2, 1, 1])
-check("report: main lines as columns", [c["fieldname"] for c in cols_r if c["fieldname"].startswith("sc_")], ["sc_1", "sc_2", "sc_5", "sc_6", "sc_9"])
+check("report: main figures as columns", [c["fieldname"] for c in cols_r if c["fieldname"].endswith(("_pay", "_deductions"))],
+	["basic_pay", "overtime_pay", "gross_pay", "total_deductions", "net_pay"])
 check("report: No. column 1..n", [r.no for r in rows_r], [1, 2])
 check("report: filter not viewed", len(period_report({"period": "2030-07", "viewed": "Not Viewed"})[1]), 1)
 check("report: bad period refused", refused_fn(lambda: period_report({"period": "2030-13"})), "refused")
+rp = payslip_admin.get_report_periods()
+check("report periods filter: periods with payslips, newest first, default = newest",
+	([x["value"] for x in rp["periods"]] == sorted({x["value"] for x in rp["periods"]}, reverse=True), "2030-07" in [x["value"] for x in rp["periods"]], rp["default"] == rp["periods"][0]["value"]),
+	(True, True, True))
 
 
 # ---------------------------------------------------------------------------

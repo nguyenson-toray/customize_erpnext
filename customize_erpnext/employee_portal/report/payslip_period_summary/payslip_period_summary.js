@@ -6,16 +6,10 @@ frappe.query_reports['Payslip Period Summary'] = {
 		{
 			fieldname: 'period',
 			label: __('Pay Period'),
-			fieldtype: 'Data',
+			fieldtype: 'Select',
 			reqd: 1,
-			description: __('YYYY-MM, e.g. 2026-09'),
-			default: (() => {
-				// The last period that has ENDED (periods run from the 26th to the 25th).
-				const d = new Date();
-				const month = d.getDate() > 25 ? d.getMonth() : d.getMonth() - 1;
-				const p = new Date(d.getFullYear(), month, 1);
-				return `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, '0')}`;
-			})(),
+			// Periods that have payslips, newest first - filled in onload.
+			options: [],
 		},
 		{
 			fieldname: 'status',
@@ -36,4 +30,15 @@ frappe.query_reports['Payslip Period Summary'] = {
 			options: ['', 'Yes', 'No'].join('\n'),
 		},
 	],
+	onload(report) {
+		frappe
+			.call({ method: 'customize_erpnext.employee_portal.payslip_admin.get_report_periods', type: 'GET' })
+			.then((r) => {
+				const m = r.message || {};
+				const filter = report.get_filter('period');
+				filter.df.options = (m.periods || []).map((p) => ({ value: p.value, label: p.label }));
+				filter.refresh();
+				if (m.default) report.set_filter_value('period', m.default);
+			});
+	},
 };

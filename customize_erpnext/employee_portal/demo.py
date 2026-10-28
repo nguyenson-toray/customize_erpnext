@@ -31,6 +31,7 @@ from customize_erpnext.api.employee_portal.core import (
 )
 from customize_erpnext.api.employee_portal.notifications import paging
 from customize_erpnext.api.employee_portal.payslip import build_payslip_payload
+from customize_erpnext.employee_portal import payslip_structure as pss
 from customize_erpnext.employee_portal import attendance_data as ad
 from customize_erpnext.employee_portal.requests_common import DOCUMENT_LEAVE_TYPES, status_label
 from customize_erpnext.employee_portal.utils import (
@@ -563,10 +564,17 @@ def get_leave_application(id=None):
 # ---------------------------------------------------------------------------
 # Payslips - an unsaved TIQN Payslip through the real serialiser
 # ---------------------------------------------------------------------------
+DEMO_PERIODS = 3  # user, 28/10/2026: 3 payslips (on that day 10, 09 and 08/2026)
+# Per period, newest first: (OT hours on normal days, on weekends, attendance incentive) -
+# a little different each month so the three payslips do not look copied.
+DEMO_VARIANTS = [(10, 8, 300_000), (6, 0, 300_000), (8, 4, 0)]
+
+
 def _periods():
-	"""The last two ENDED periods, both published (newest first)."""
+	"""The last DEMO_PERIODS ENDED periods, all published (newest first). Rolls forward
+	by itself, so the reviewer of the next release still sees recent months."""
 	last = shift_period(period_of_date(_today()), -1)
-	return [last, shift_period(last, -1)]
+	return [shift_period(last, -i) for i in range(DEMO_PERIODS)]
 
 
 def _published_on(period):
@@ -575,31 +583,71 @@ def _published_on(period):
 	return get_datetime(f"{period_bounds(period)[1]} 16:00:00")
 
 
+# The reviewer's payslip has its OWN lines (the paper payslip of 2026), never the real
+# Payslip Structure: (code, English, Vietnamese, formula, unit, Unit/ĐVT, under, row type,
+# block, report column).
+DEMO_LINES = [
+	("1", "Basic Salary", "Lương cơ bản", "a", "VND", None, None, "Line", "Earnings", "Basic"),
+	("1.1", "Standard Working Days", "Số ngày công chuẩn", None, "Day", None, "1", "Line", "Attendance", "Standard Days"),
+	("1.2", "Actual Working Days", "Số ngày công thực tế làm việc", None, "VND", "Day", "1", "Line", "Attendance", "Actual Days"),
+	("2", "Overtime", "Làm việc ngoài giờ", "b", "VND", None, None, "Line", "Earnings", "Overtime"),
+	("2.1", "OT on Normal Days", "Số giờ làm thêm ngày thường", None, "VND", "Hour", "2", "Line", "Attendance", "OT Hours"),
+	("2.2", "OT on Weekends", "Số giờ làm thêm ngày cuối tuần", None, "VND", "Hour", "2", "Line", "Attendance", "OT Hours"),
+	("2.3", "OT on Public Holidays", "Số giờ làm thêm ngày Lễ", None, "VND", "Hour", "2", "Line", "Attendance", "OT Hours"),
+	("3", "Monthly Salary", "Lương tháng", "c=a+b", "VND", None, None, "Subtotal", "Earnings", None),
+	("3.1", "Allowances", "Phụ cấp", "d", "VND", None, None, "Subtotal", "Earnings", None),
+	("3.2", "Technical Allowance", "Phụ cấp kỹ thuật", None, "VND", None, "3.1", "Line", "Earnings", None),
+	("3.5", "Commuting Allowance", "Phụ cấp xăng xe", None, "VND", None, "3.1", "Line", "Earnings", None),
+	("3.6", "Phone Allowance", "Phụ cấp điện thoại", None, "VND", None, "3.1", "Line", "Earnings", None),
+	("3.8", "Safety & Hygiene Allowance", "Phụ cấp ATVS viên", None, "VND", None, "3.1", "Line", "Earnings", None),
+	("4", "Incentives", "Thưởng", "e", "VND", None, None, "Subtotal", "Earnings", None),
+	("4.1", "Attendance Incentive", "Thưởng Chuyên cần", None, "VND", None, "4", "Line", "Earnings", None),
+	("4.3", "KPI Incentive", "Thưởng đánh giá kết quả làm việc", None, "VND", None, "4", "Line", "Earnings", None),
+	("4.7", "Commuting Support", "Hỗ trợ xăng xe", None, "VND", None, "4", "Line", "Earnings", None),
+	("5", "Sub Total", "Tổng", "f=c+d+e", "VND", None, None, "Section Total", "Earnings", "Gross"),
+	("6", "Deductions", "Các khoản khấu trừ", "g", "VND", None, None, "Section Total", "Deductions", "Deductions"),
+	("6.1", "SI 8%", "BHXH (8%)", None, "VND", None, "6", "Line", "Deductions", None),
+	("6.2", "HI 1.5%", "BHYT (1,5%)", None, "VND", None, "6", "Line", "Deductions", None),
+	("6.3", "UI 1%", "BHTN (1%)", None, "VND", None, "6", "Line", "Deductions", None),
+	("6.4", "Union Fee", "Phí Công Đoàn", None, "VND", None, "6", "Line", "Deductions", None),
+	("6.5", "PIT", "Thuế TNCN", None, "VND", None, "6", "Line", "Deductions", None),
+	("7", "Others", "Các khoản khác", "h", "VND", None, None, "Section Total", "Others", None),
+	("7.1", "Meal Support", "Hỗ trợ tiền cơm", None, "VND", None, "7", "Line", "Others", None),
+	("8", "Previous Month Adjustment", "Điều chỉnh lương tháng trước", "i", "VND", None, None, "Section Total", "Adjustment", None),
+	("9", "Net Salary", "Thực lĩnh", "j=f-g+h+i", "VND", None, None, "Section Total", "Net Pay", "Net"),
+]
+DEMO_LINE_FIELDS = (
+	"code", "label_en", "label_vi", "formula_display", "unit", "quantity_unit", "parent_code", "row_type", "section", "report_key",
+)
+
+
 def _payslip_doc(period):
 	from_date, to_date = period_bounds(period)
-	ot_normal = 10 if period == _periods()[0] else 6
-	ot_weekend = 8 if period == _periods()[0] else 0
+	periods = _periods()
+	ot_normal, ot_weekend, attendance_incentive = DEMO_VARIANTS[periods.index(period) if period in periods else 0]
 	hourly = 6_500_000 / 26 / 8
 	v = {
-		"sc_1_1": 26, "sc_1_2": 6_250_000, "sc_1_2_qty": 25,
-		"sc_2_1": round(ot_normal * hourly * 1.5), "sc_2_1_qty": ot_normal,
-		"sc_2_2": round(ot_weekend * hourly * 2), "sc_2_2_qty": ot_weekend,
-		"sc_3_2": 300_000, "sc_3_5": 200_000, "sc_3_6": 100_000, "sc_3_8": 150_000,
-		"sc_4_1": 300_000, "sc_4_3": 500_000, "sc_4_7": 200_000,
-		"sc_6_1": 520_000, "sc_6_2": 97_500, "sc_6_3": 65_000, "sc_6_4": 65_000, "sc_6_5": 0,
-		"sc_7_1": 650_000, "sc_8": 0,
+		"1.2": 6_250_000,
+		"2.1": round(ot_normal * hourly * 1.5), "2.2": round(ot_weekend * hourly * 2),
+		"3.2": 300_000, "3.5": 200_000, "3.6": 100_000, "3.8": 150_000,
+		"4.1": attendance_incentive, "4.3": 500_000, "4.7": 200_000,
+		"6.1": 520_000, "6.2": 97_500, "6.3": 65_000, "6.4": 65_000, "6.5": 0,
+		"7.1": 650_000, "8": 0,
 	}
-	v["sc_1"] = v["sc_1_2"]
-	v["sc_2"] = v["sc_2_1"] + v["sc_2_2"]
-	v["sc_3"] = v["sc_1"] + v["sc_2"]
-	v["sc_3_1"] = sum(v[f"sc_3_{i}"] for i in (2, 5, 6, 8))
-	v["sc_4"] = sum(v[f"sc_4_{i}"] for i in (1, 3, 7))
-	v["sc_5"] = v["sc_3"] + v["sc_3_1"] + v["sc_4"]
-	v["sc_6"] = sum(v[f"sc_6_{i}"] for i in range(1, 6))
-	v["sc_7"] = v["sc_7_1"]
-	v["sc_9"] = v["sc_5"] - v["sc_6"] + v["sc_7"] + v["sc_8"]
+	v["1"] = v["1.2"]
+	v["2"] = v["2.1"] + v["2.2"]
+	v["3"] = v["1"] + v["2"]
+	v["3.1"] = sum(v[f"3.{i}"] for i in (2, 5, 6, 8))
+	v["4"] = sum(v[f"4.{i}"] for i in (1, 3, 7))
+	v["5"] = v["3"] + v["3.1"] + v["4"]
+	v["6"] = sum(v[f"6.{i}"] for i in range(1, 6))
+	v["7"] = v["7.1"]
+	v["9"] = v["5"] - v["6"] + v["7"] + v["8"]
+	values = {code: {"amount": amount} for code, amount in v.items()}
+	for code, quantity in (("1.1", 26), ("1.2", 25), ("2.1", ot_normal), ("2.2", ot_weekend), ("2.3", 0)):
+		values.setdefault(code, {})["quantity"] = quantity
+	snapshot = pss.make_snapshot([dict(zip(DEMO_LINE_FIELDS, line)) for line in DEMO_LINES], values)
 	doc = frappe.new_doc("TIQN Payslip")  # never inserted
-	doc.update(v)
 	doc.update(
 		{
 			"employee": EMPLOYEE_ID,
@@ -611,7 +659,9 @@ def _payslip_doc(period):
 			"period_to": to_date,
 			"pay_date": expected_pay_date(period),
 			"published_on": _published_on(period),
-			"net_pay": v["sc_9"],
+			"lines_json": pss.dump_snapshot(snapshot),
+			"content_version": pss.content_version(snapshot),
+			"net_pay": v["9"],
 			"note": "Đây là phiếu lương mẫu dành cho bộ phận kiểm duyệt Zalo.",
 		}
 	)
@@ -636,6 +686,7 @@ def get_payslip_periods(year=None):
 				"period_to": fmt_date(period_bounds(p)[1]),
 				"pay_date": fmt_date(expected_pay_date(p)),
 				"published_on": fmt_datetime(_published_on(p)),
+				"content_version": _payslip_doc(p).content_version,
 				"is_new": p not in seen,
 			}
 			for p in periods
@@ -665,15 +716,16 @@ def get_payslip(period=None, include_zero=None):
 # Notifications ("seen" mark kept on the reviewer's own account, as for employees)
 # ---------------------------------------------------------------------------
 def _notifications():
-	latest, previous = _periods()
+	# One "payslip published" per sample period + one general message.
 	rows = [
-		("DEMO-N-3", "PAYSLIP_PUBLISHED", f"Phiếu lương {period_label(latest)}", "Phiếu lương của bạn đã có. Bấm để xem chi tiết.",
-		 _published_on(latest), "PAYSLIP", latest),
-		("DEMO-N-2", "GENERAL", "Chào mừng đến với Cổng nhân viên", "Đây là dữ liệu mẫu dành cho bộ phận kiểm duyệt Zalo.",
-		 get_datetime(f"{add_days(_today(), -20)} 08:00:00"), None, None),
-		("DEMO-N-1", "PAYSLIP_PUBLISHED", f"Phiếu lương {period_label(previous)}", "Phiếu lương của bạn đã có. Bấm để xem chi tiết.",
-		 _published_on(previous), "PAYSLIP", previous),
+		(f"DEMO-N-PS-{p}", "PAYSLIP_PUBLISHED", f"Phiếu lương {period_label(p)}", "Phiếu lương của bạn đã có. Bấm để xem chi tiết.",
+		 _published_on(p), "PAYSLIP", p)
+		for p in _periods()
 	]
+	rows.append(
+		("DEMO-N-GENERAL", "GENERAL", "Chào mừng đến với Cổng nhân viên", "Đây là dữ liệu mẫu dành cho bộ phận kiểm duyệt Zalo.",
+		 get_datetime(f"{add_days(_today(), -20)} 08:00:00"), None, None)
+	)
 	rows = [frappe._dict(name=r[0], type=r[1], title=r[2], body=r[3], creation=r[4], target_screen=r[5], target_id=r[6]) for r in rows]
 	return sorted(rows, key=lambda r: r.creation, reverse=True)
 
@@ -770,6 +822,7 @@ def get_home():
 			"label": _("Payslip {0}").format(period_label(latest)),
 			"published_on": fmt_date(_published_on(latest)),
 			"published_at": fmt_datetime(_published_on(latest)),
+			"content_version": _payslip_doc(latest).content_version,
 		}
 	if feature_enabled("notifications"):
 		seen = _seen()

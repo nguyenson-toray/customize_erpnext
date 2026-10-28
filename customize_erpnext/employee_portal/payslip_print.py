@@ -34,8 +34,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, now_datetime
 
-from customize_erpnext.api.employee_portal.payslip import FORMULA_RE, build_payslip_rows
-from customize_erpnext.employee_portal.utils import payslip_component_fields, strip_code_formula
+from customize_erpnext.employee_portal import payslip_structure as pss
 
 PAYSLIP_DT = "TIQN Payslip"
 ROLES = ("CnB", "System Manager")
@@ -92,20 +91,20 @@ def _d(date, fmt="%d/%m/%Y"):
 
 def payslip_context(doc):
 	"""Everything the template needs, worked out once per payslip."""
-	components = payslip_component_fields()
-	by_code = {str(c.abbr): c for c in components}
+	# The payslip's own copy of its lines (Payslip Structure, 28/10/2026): a payslip
+	# printed again later shows what was published, whatever the structure is now.
+	snapshot = {r.code: r for r in pss.snapshot_of(doc)}
 	rows = []
-	for r in build_payslip_rows(doc, True, components):
-		c = by_code[r["no"]]
-		m = FORMULA_RE.search(c.display_label or "") or FORMULA_RE.search(c.name or "")
-		english = strip_code_formula(c.name) or c.name
-		vietnamese = r["label"]
+	for r in pss.rows_from_snapshot(list(snapshot.values()), True):
+		line = snapshot[r["no"]]
+		english = line.label_en or r["label"]
+		vietnamese = line.label_vi or ""
 		rows.append(
 			frappe._dict(
 				no=r["no"],
 				english=english,
-				vietnamese=vietnamese if vietnamese and vietnamese != english else "",
-				formula=re.sub(r"\s+", "", m.group(1)) if m else "",
+				vietnamese=vietnamese if vietnamese != english else "",
+				formula=r["formula"] or "",
 				unit=_fmt_qty(r["quantity"]) if r["quantity_unit"] else "",
 				amount=_fmt_money(r["amount"]) if r["amount"] is not None else "",
 				level=r["level"],
