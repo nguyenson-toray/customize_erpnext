@@ -846,8 +846,24 @@ def delete_period(period):
 
 
 def _delete_payslips(names, period, user):
-	for name in names:
-		frappe.delete_doc("TIQN Payslip", name, ignore_permissions=True)
+	# delete_doc queues one delete_dynamic_links job per document: a whole period (~1.000)
+	# overflows the queue (QueueOverloaded, 29/10/2026) and blocks every other job of the
+	# site. Do that cleanup (comments, versions... of the payslip) here, in this job.
+	from frappe.model.delete_doc import delete_dynamic_links
+
+	enqueue = frappe.enqueue
+
+	def inline_dynamic_links(method, *args, **kwargs):
+		if method == "frappe.model.delete_doc.delete_dynamic_links":
+			return delete_dynamic_links(kwargs["doctype"], kwargs["name"])
+		return enqueue(method, *args, **kwargs)
+
+	frappe.enqueue = inline_dynamic_links
+	try:
+		for name in names:
+			frappe.delete_doc("TIQN Payslip", name, ignore_permissions=True)
+	finally:
+		frappe.enqueue = enqueue
 	if frappe.flags.in_test:
 		return
 	frappe.db.commit()

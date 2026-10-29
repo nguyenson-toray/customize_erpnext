@@ -1736,8 +1736,15 @@ del32 = payslip_admin.delete_period("2032-01")
 check("delete payslips: Withdrawn deleted too", (del32["deleted"], del32["withdrawn"], del32["viewed"], del32["queued"]), (1, 1, 1, False))
 check("delete payslips: none left in the period", frappe.db.count("TIQN Payslip", {"period": "2032-01"}), 0)
 check("delete payslips: kept in Deleted Document", bool(frappe.db.exists("Deleted Document", {"deleted_doctype": "TIQN Payslip", "deleted_name": f"PS-2032-01-{EMP_A}"})), True)
-make_payslip(EMP_B, "2030-06", status="Draft")
-check("delete payslips: Draft deleted", payslip_admin.delete_period("2030-06")["deleted"], 1)
+ps_0306 = make_payslip(EMP_B, "2030-06", status="Draft")[0].name
+frappe.get_doc("TIQN Payslip", ps_0306).add_comment("Info", "unit comment")
+with mock.patch.object(frappe, "enqueue") as _enq:
+	check("delete payslips: Draft deleted", payslip_admin.delete_period("2030-06")["deleted"], 1)
+# 29/10: one queued job per payslip overflowed the queue for a whole period (~1.000).
+check("delete payslips: no job queued per payslip, links cleaned in place",
+	([c for c in _enq.call_args_list if c.args and c.args[0].endswith("delete_dynamic_links")],
+	 frappe.db.exists("Comment", {"reference_doctype": "TIQN Payslip", "reference_name": ps_0306})), ([], None))
+check("delete payslips: frappe.enqueue put back", frappe.enqueue is _enq, False)
 check("delete payslips: bad period refused", refused_fn(lambda: payslip_admin.delete_period("2030-13")), "refused")
 check("structure free again once its payslips are gone", refused_fn(lambda: frappe.delete_doc("TIQN Payslip Structure", s31.name)), "saved")
 
