@@ -4743,13 +4743,13 @@
   "doctype_or_field": "DocField",
   "field_name": "relation",
   "is_system_generated": 0,
-  "modified": "2026-10-15 17:25:52.473495",
+  "modified": "2026-10-29 10:00:00.000000",
   "module": null,
   "name": "Employee-relation-options",
   "property": "options",
   "property_type": "Text",
   "row_name": null,
-  "value": "\nChồng\nVợ\nMẹ\nBố\nCon\nAnh trai\nChị gái\nEm trai\nEm gái\nÔng\nBà\nCô\nDì\nChú\nBác\nCậu\nMợ\nMẹ chồng\nChị chồng\nChị dâu"
+  "value": "\nChồng\nVợ\nMẹ\nBố\nCon\nAnh trai\nChị gái\nEm trai\nEm gái\nEm\nÔng\nBà\nCô\nDì\nChú\nBác\nCậu\nMợ\nMẹ chồng\nChị chồng\nChị dâu"
  },
  {
   "default_value": null,
