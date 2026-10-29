@@ -18,6 +18,7 @@ periods 2030-xx) - the test team uses TIQN-0148 / TIQN-1405 on the same database
 """
 
 import io
+import re
 import uuid
 from unittest import mock
 
@@ -1605,6 +1606,11 @@ new_lines.append(dict(code="3.11", label_en="Night Shift Allowance", label_vi="P
 next(l for l in new_lines if l["code"] == "3.2").update(label_vi="Phụ cấp tay nghề")
 next(l for l in new_lines if l["code"] == "9").update(formula_display="(j = f - g + h + i + k)")
 s31 = _structure("2032-01", new_lines).insert(ignore_permissions=True)
+# 29/10: numbered names (PSS-2026-09 read as one period's) + derived Valid To.
+check("structure: named PSS-<number>, not after a period", bool(re.match(r"^PSS-\d{2,}$", s31.name)), True)
+check("structure: Valid To = period before the next one, last one open",
+	(frappe.db.get_value("TIQN Payslip Structure", STRUCT, "valid_to"), frappe.db.get_value("TIQN Payslip Structure", s31.name, "valid_to") or ""),
+	("2031-12", ""))
 check("structure: formula text kept without its brackets", next(l.formula_display for l in s31.lines if l.code == "9"), "j = f - g + h + i + k")
 check("structure: rows sorted by No. on save", [l.code for l in s31.lines], sorted([l.code for l in s31.lines], key=code_key))
 check("structure: periods resolve", (pss.structure_for_period("2031-12"), pss.structure_for_period("2032-01"), pss.structure_for_period("2032-06")),
@@ -1747,6 +1753,7 @@ check("delete payslips: no job queued per payslip, links cleaned in place",
 check("delete payslips: frappe.enqueue put back", frappe.enqueue is _enq, False)
 check("delete payslips: bad period refused", refused_fn(lambda: payslip_admin.delete_period("2030-13")), "refused")
 check("structure free again once its payslips are gone", refused_fn(lambda: frappe.delete_doc("TIQN Payslip Structure", s31.name)), "saved")
+check("structure: Valid To open again after the next one is deleted", frappe.db.get_value("TIQN Payslip Structure", STRUCT, "valid_to") or "", "")
 
 
 # ---------------------------------------------------------------------------

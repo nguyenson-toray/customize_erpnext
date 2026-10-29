@@ -25,7 +25,7 @@ import frappe
 from frappe import _
 from frappe.utils import date_diff, flt
 
-from customize_erpnext.employee_portal.utils import code_key, period_bounds
+from customize_erpnext.employee_portal.utils import code_key, period_bounds, shift_period
 
 STRUCTURE_DT = "TIQN Payslip Structure"
 PAYSLIP_DT = "TIQN Payslip"
@@ -69,6 +69,16 @@ def structure_for_period(period):
 	return frappe.db.get_value(
 		STRUCTURE_DT, {"valid_from": ("<=", period)}, "name", order_by="valid_from desc"
 	)
+
+
+def refresh_valid_to():
+	"""Valid To Period of every structure = the period before the next one's Valid From
+	(empty for the last). Derived, so recomputed after any insert / change / delete."""
+	rows = frappe.get_all(STRUCTURE_DT, fields=["name", "valid_from", "valid_to"], order_by="valid_from asc")
+	for row, nxt in zip(rows, rows[1:] + [None]):
+		valid_to = shift_period(nxt.valid_from, -1) if nxt else ""
+		if (row.valid_to or "") != valid_to:
+			frappe.db.set_value(STRUCTURE_DT, row.name, "valid_to", valid_to, update_modified=False)
 
 
 def structure_lines(name):

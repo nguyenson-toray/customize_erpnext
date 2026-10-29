@@ -9,10 +9,32 @@ const PSS_API = 'customize_erpnext.employee_portal.doctype.tiqn_payslip_structur
 
 frappe.ui.form.on('TIQN Payslip Structure', {
 	refresh(frm) {
+		show_periods(frm);
 		if (frm.is_new()) return;
 		frm.add_custom_button(__('Apply Labels to Payslips'), () => apply_labels(frm));
 	},
 });
+
+// Pay period "2026-10" = 26/09/2026 - 25/10/2026 (utils.period_bounds).
+function period_dates(period) {
+	const [y, m] = period.split('-').map(Number);
+	const pad = (n) => String(n).padStart(2, '0');
+	const prev = m === 1 ? [y - 1, 12] : [y, m - 1];
+	return [`${prev[0]}-${pad(prev[1])}-26`, `${y}-${pad(m)}-25`].map((d) => frappe.datetime.str_to_user(d));
+}
+
+// Valid To Period is hidden while empty (read-only): the range is spelled out under Valid From.
+function show_periods(frm) {
+	const { valid_from, valid_to } = frm.doc;
+	if (frm.is_new() || !/^\d{4}-\d{2}$/.test(valid_from || '')) return;
+	frm.set_df_property(
+		'valid_from',
+		'description',
+		valid_to
+			? __('Periods {0} to {1} ({2} - {3}).', [valid_from, valid_to, period_dates(valid_from)[0], period_dates(valid_to)[1]])
+			: __('From period {0} ({1}) on, until a structure with a later Valid From Period is created.', [valid_from, period_dates(valid_from)[0]])
+	);
+}
 
 frappe.ui.form.on('TIQN Payslip Structure Line', {
 	code(frm, cdt, cdn) {

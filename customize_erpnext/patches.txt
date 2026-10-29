@@ -116,3 +116,6 @@ customize_erpnext.patches.set_attendance_machine_peak_defaults
 # Employee Portal patches that built / migrated the sc_* fields (v2 ... payslip_structure) were
 # removed with them: they had all run. Idempotent.
 customize_erpnext.patches.employee_portal_drop_sc_fields
+# post_model_sync: TIQN Payslip Structure PSS-<valid_from> -> PSS-01, PSS-02... (Valid From order), series
+# PSS- set past them, Valid To Period filled. Idempotent.
+customize_erpnext.patches.employee_portal_structure_numbered

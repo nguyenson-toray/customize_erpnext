@@ -16,6 +16,10 @@ class TIQNPayslipStructure(Document):
 	employee_portal/payslip_structure.py). Changing the lines of a month = Duplicate the
 	previous structure, edit it, give it a new Valid From Period.
 
+	Named PSS-01, PSS-02... (29/10/2026): "PSS-2026-09" read as the structure of one
+	period. `valid_to` (the period before the next structure) is derived, kept by
+	refresh_valid_to.
+
 	Once payslips use a structure only the labels and the formula text can change -
 	their snapshot keeps the old ones until "Apply Labels to Payslips".
 	"""
@@ -33,6 +37,12 @@ class TIQNPayslipStructure(Document):
 		pss.validate_lines(self.lines)
 		self.block_locked_changes()
 		self.block_periods_taken()
+
+	def on_update(self):
+		pss.refresh_valid_to()
+
+	def after_delete(self):
+		pss.refresh_valid_to()
 
 	def used(self):
 		return not self.is_new() and frappe.db.exists(pss.PAYSLIP_DT, {"structure": self.name})

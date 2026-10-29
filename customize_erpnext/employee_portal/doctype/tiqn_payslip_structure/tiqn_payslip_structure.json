@@ -1,12 +1,13 @@
 {
  "actions": [],
- "autoname": "format:PSS-{valid_from}",
+ "autoname": "PSS-.##",
  "creation": "2026-10-28 14:00:00",
  "description": "Lines of the payslip from a pay period on: the Excel template, the Mini App and the printout follow it. A payslip keeps its own copy of the lines, so changing a structure never changes a payslip already imported",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "valid_from",
+  "valid_to",
   "column_break_main",
   "description",
   "lines_section",
@@ -14,7 +15,7 @@
  ],
  "fields": [
   {
-   "description": "First pay period (YYYY-MM) that uses these lines, until the next structure",
+   "description": "First pay period (YYYY-MM) that uses these lines",
    "fieldname": "valid_from",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -22,6 +23,15 @@
    "reqd": 1,
    "unique": 1,
    "no_copy": 1
+  },
+  {
+   "description": "Last pay period that uses these lines: the one before the next structure's Valid From Period. Set by the system; empty = no next structure yet",
+   "fieldname": "valid_to",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Valid To Period",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_main",
@@ -49,7 +59,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-28 14:00:00.000000",
+ "modified": "2026-10-29 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Payslip Structure",
@@ -85,6 +95,5 @@
  "sort_field": "valid_from",
  "sort_order": "DESC",
  "states": [],
- "title_field": "valid_from",
  "track_changes": 1
 }

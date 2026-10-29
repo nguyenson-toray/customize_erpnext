@@ -108,10 +108,11 @@ Payslip / Status).
 
 Các khoản trên phiếu (mã, tên tiếng Anh, tên tiếng Việt, chữ công thức in trong ngoặc) nằm ở **Cấu trúc phiếu lương**
 (Payslip Structure). Mỗi bản áp dụng **từ kỳ** ghi ở *Valid From Period* cho tới bản kế tiếp. File mẫu, Mini App và
-phiếu in đều theo bản của kỳ.
+phiếu in đều theo bản của kỳ. Tên bản chỉ là số thứ tự (`PSS-01`, `PSS-02`…); *Valid To Period* (kỳ cuối) do ERP tự
+điền khi có bản mới, trống = đang áp dụng.
 
 **Đổi từ kỳ 11/2026** (ví dụ):
-1. Mở bản đang dùng (ví dụ `PSS-2026-09`) → menu **…** → **Duplicate**.
+1. Mở bản đang dùng (bản có *Valid To Period* trống, ví dụ `PSS-02`) → menu **…** → **Duplicate**.
 2. *Valid From Period* = **2026-11** (ô này để trống khi Duplicate, phải điền). ERP không cho chọn kỳ đã có phiếu của
    cấu trúc khác.
 3. Sửa bảng *Lines*:

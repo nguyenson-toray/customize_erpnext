@@ -78,7 +78,9 @@ Employee Portal Settings. Sinh bằng `scripts/build_navigation.py` (đừng s�
    - Legal: nội dung chính sách / điều khoản (công khai ở `/portal-policy`, `/portal-terms`).
 3. Gán role **CnB** cho người C&B.
 4. **TIQN Payslip Structure**: phải có structure cho kỳ (Valid From ≤ kỳ) trước khi tải template / upload.
-   `PSS-2026-09` do patch `employee_portal_payslip_structure` tạo từ cấu hình cũ.
+   Tên `PSS-01`, `PSS-02`… (series `PSS-.##`, không chứa kỳ: tên cũ `PSS-2026-09` dễ hiểu là của riêng 1 kỳ,
+   patch `employee_portal_structure_numbered` đổi tên 29/10/2026). *Valid To Period* = kỳ trước Valid From của bản kế
+   tiếp, field dẫn xuất do `payslip_structure.refresh_valid_to()` tính lại sau mỗi lần lưu / xoá.
 
 ## Đăng nhập: Zalo User ID + SĐT (contract §2.2, §2.6)
 
