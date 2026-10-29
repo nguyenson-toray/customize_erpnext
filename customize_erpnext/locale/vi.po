@@ -89460,8 +89460,29 @@ msgid "Valid From Period"
 msgstr "Áp dụng từ kỳ"
 
 #. source: tiqn
-msgid "First pay period (YYYY-MM) that uses these lines, until the next structure"
-msgstr "Kỳ lương đầu tiên (YYYY-MM) dùng các dòng này, cho tới cấu trúc kế tiếp"
+msgid "First pay period (YYYY-MM) that uses these lines"
+msgstr "Kỳ lương đầu tiên (YYYY-MM) dùng các dòng này"
+
+#. source: tiqn
+msgid "Valid To Period"
+msgstr "Áp dụng đến kỳ"
+
+#. source: tiqn
+msgid "Last pay period that uses these lines: the one before the next structure's Valid From Period. Set by the system; empty = no next structure yet"
+msgstr "Kỳ lương cuối cùng dùng các dòng này: kỳ liền trước Áp dụng từ kỳ của cấu trúc kế tiếp. Hệ thống tự điền; để trống = chưa có cấu trúc kế tiếp"
+
+#. source: tiqn
+msgctxt "Payslip Structure"
+msgid "Ongoing"
+msgstr "Đang áp dụng"
+
+#. source: tiqn
+msgid "Periods {0} to {1} ({2} - {3})."
+msgstr "Các kỳ {0} đến {1} ({2} - {3})."
+
+#. source: tiqn
+msgid "From period {0} ({1}) on, until a structure with a later Valid From Period is created."
+msgstr "Từ kỳ {0} ({1}) trở đi, cho tới khi có cấu trúc với Áp dụng từ kỳ muộn hơn."
 
 #. source: tiqn
 msgid "What changed from the previous structure"

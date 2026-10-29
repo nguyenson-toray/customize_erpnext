@@ -4,6 +4,6 @@
 frappe.listview_settings['TIQN Payslip Structure'] = {
 	formatters: {
 		// Empty Valid To = no later structure yet.
-		valid_to: (value) => value || __('Ongoing'),
+		valid_to: (value) => value || __('Ongoing', null, 'Payslip Structure'),
 	},
 };
