@@ -978,7 +978,7 @@ bsync.setup = function (root) {
                 });
                 if (msg.status !== 'success') throw new Error(msg.message);
                 _filteredDeviceIds = new Set(msg.employees.map(e => String(e.attendance_device_id)).filter(Boolean));
-                statusEl.innerHTML = `<span style="color:#28a745;">✓ Found ${msg.count} matching employees</span>`;
+                statusEl.innerHTML = `<span style="color:#1e7e34;">✓ Found ${msg.count} matching employees</span>`;
                 renderUserTable(_masterUsers);
             } catch (e) {
                 statusEl.innerHTML = `<span style="color:#dc3545;">❌ ${escapeHtml(e.message)}</span>`;
@@ -1391,7 +1391,7 @@ bsync.setup = function (root) {
             if (!employees.length) { wrap.style.display = 'none'; return; }
             tbody.innerHTML = employees.map((e, i) => `
                 <tr>
-                    <td style="color:#adb5bd;">${i + 1}</td>
+                    <td style="color:#6c757d;">${i + 1}</td>
                     <td><code>${escapeHtml(e.employee_id)}</code></td>
                     <td>${escapeHtml(e.employee_name || '') || '<span class="missing">—</span>'}</td>
                     <td>${escapeHtml(String(e.attendance_device_id ?? '')) || '<span class="missing">—</span>'}</td>
@@ -1413,7 +1413,7 @@ bsync.setup = function (root) {
                     const ids = raw.split('\n').map(s => s.trim()).filter(Boolean);
                     if (!ids.length) { statusEl.innerHTML = '<span style="color:#dc3545;">❌ No Employee IDs entered</span>'; return; }
                     _fp41Employees = ids.map(id => ({ employee_id: id, employee_name: '', attendance_device_id: '', custom_group: '' }));
-                    statusEl.innerHTML = `<span style="color:#28a745;">✓ ${ids.length} Employee IDs entered</span>`;
+                    statusEl.innerHTML = `<span style="color:#1e7e34;">✓ ${ids.length} Employee IDs entered</span>`;
                 } else {
                     const args = {};
                     if (scope === 'date') {
@@ -1428,7 +1428,7 @@ bsync.setup = function (root) {
                         attendance_device_id: e.attendance_device_id ?? '',
                         custom_group: e.custom_group || '',
                     }));
-                    statusEl.innerHTML = `<span style="color:#28a745;">✓ Loaded <strong>${msg.count}</strong> active employees</span>`;
+                    statusEl.innerHTML = `<span style="color:#1e7e34;">✓ Loaded <strong>${msg.count}</strong> active employees</span>`;
                 }
                 fp41RenderEmpTable(_fp41Employees);
             } catch (e) {
@@ -1653,7 +1653,7 @@ bsync.setup = function (root) {
                 const rows = users.map((u, idx) => {
                     const empCell = u.employee_id
                         ? `<strong>${escapeHtml(u.employee_name || '')}</strong><br><small>${escapeHtml(u.employee_id)}</small>`
-                        : `<em style="color:#999;">— not found in ERPNext</em>`;
+                        : `<em style="color:#6c757d;">— not found in ERPNext</em>`;
                     const rdCell = u.relieving_date
                         ? `${escapeHtml(u.relieving_date)}<br><small style="color:#dc3545;">(+${u.days_since_relieving}d)</small>`
                         : '—';
@@ -2160,10 +2160,12 @@ bsync.setup = function (root) {
                 if (!cap) return escapeHtml(String(used));
                 const pct = Math.min(100, Math.round(used / cap * 100));
                 const color = pct > 85 ? '#dc3545' : pct > 60 ? '#f0ad4e' : '#28a745';
+                // bar keeps the bright fill; the % label needs darker shades to stay readable on white
+                const textColor = pct > 85 ? '#dc3545' : pct > 60 ? '#b45309' : '#1e7e34';
                 return `<div class="ai-cap">
                     <span>${used} / ${cap}</span>
                     <div class="ai-cap-bar"><div class="ai-cap-fill" style="width:${pct}%;background:${color};"></div></div>
-                    <span style="color:${color};font-weight:600;">${pct}%</span>
+                    <span style="color:${textColor};font-weight:600;">${pct}%</span>
                 </div>`;
             }
 
@@ -2185,7 +2187,7 @@ bsync.setup = function (root) {
                         <td>${capCell(msg.fp_count, msg.fp_capacity)}</td>
                         <td>${capCell(msg.record_count, msg.record_capacity)}</td>
                         <td style="font-family:monospace;white-space:nowrap;">${escapeHtml(msg.device_time || '—')}</td>
-                        <td><span style="color:#28a745;">✅ OK</span></td>`;
+                        <td><span style="color:#1e7e34;">✅ OK</span></td>`;
                 } catch (e) {
                     if (!tr) return;
                     tr.className = 'row-error';

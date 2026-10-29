@@ -13,11 +13,11 @@
            >= 1024px = door grid left, access log right. Palette follows /biometric_sync. */
         :root {
             --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --line: #e2e8f0; --line-2: #cbd5e1;
-            --fg: #0f172a; --fg-2: #475569; --fg-3: #7c8aa0;
+            --fg: #0f172a; --fg-2: #475569; --fg-3: #5f6e84;
             --accent: #2563eb; --accent-soft: #e6eefe; --on-accent: #ffffff;
             --ok: #047857; --ok-soft: #dcf3ea;
             --open: #b45309; --open-soft: #fdf0d9; --open-ring: #f59e0b;
-            --bad: #c0262d; --bad-soft: #fde4e4;
+            --bad: #c0262d; --bad-soft: #fde4e4; --on-bad: #ffffff;
             --idle: #64748b; --idle-soft: #edf1f5;
             /* whole-card tint from the door sensor: closed = green, open = yellow */
             --card-closed: #e2f5eb; --card-closed-line: #a3d9bf;
@@ -30,10 +30,10 @@
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #0c111b; --surface: #151c29; --surface-2: #1b2433; --line: #263042; --line-2: #344157;
-                --fg: #e6ebf3; --fg-2: #a8b3c5; --fg-3: #75839a;
+                --fg: #e6ebf3; --fg-2: #a8b3c5; --fg-3: #8391a8;
                 --accent: #5b8cff; --accent-soft: #1d2b4d; --on-accent: #0b1220;
                 --ok: #3fcf9a; --ok-soft: #123227; --open: #fbbf5a; --open-soft: #3a2a10; --open-ring: #fbbf24;
-                --bad: #ff7b7b; --bad-soft: #3b1719; --idle: #8b97aa; --idle-soft: #202a3a;
+                --bad: #ff7b7b; --bad-soft: #3b1719; --on-bad: #0b1220; --idle: #8b97aa; --idle-soft: #202a3a;
                 --card-closed: #10281e; --card-closed-line: #1f5a41;
                 --card-open: #2d2709; --card-open-line: #6f5c12;
                 --scrim: rgba(0, 0, 0, .6);
@@ -169,7 +169,7 @@
         .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border-top: 1px solid var(--line); padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
         .tab { font-size: 12.5px; font-weight: 600; background: none; border: 0; color: var(--fg-3); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; cursor: pointer; border-radius: 12px; position: relative; }
         .tab[aria-selected="true"] { color: var(--accent); }
-        .badge { position: absolute; top: 2px; left: calc(50% + 8px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
+        .badge { position: absolute; top: 2px; left: calc(50% + 8px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: var(--on-bad); font-size: 11px; display: grid; place-items: center; padding: 0 5px; }
         .main[data-tab="doors"] .log { display: none; }
         .main[data-tab="log"] .doors { display: none; }
 
