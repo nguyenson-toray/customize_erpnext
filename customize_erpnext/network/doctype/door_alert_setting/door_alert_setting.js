@@ -5,6 +5,7 @@ const DA_API = "customize_erpnext.network.door.alerts.";
 
 frappe.ui.form.on("Door Alert Setting", {
 	refresh(frm) {
+		set_door_options(frm);
 		render_status(frm);
 		frm.add_custom_button(__("Open Door Control"), () => window.open("/door_control", "_blank"));
 	},
@@ -169,4 +170,14 @@ function render_status(frm) {
 			`);
 		},
 	});
+}
+
+// Unlock Permissions > Door: the door controllers of Attendance Machine Setting (sent by onload)
+function set_door_options(frm) {
+	const doors = (frm.doc.__onload && frm.doc.__onload.doors) || [];
+	const options = [""].concat(doors.map(d => ({
+		value: d.device_name,
+		label: d.enable ? d.device_name : `${d.device_name} (${__("Disabled")})`,
+	})));
+	frm.fields_dict.unlock_permissions.grid.update_docfield_property("door", "options", options);
 }

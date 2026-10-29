@@ -17,6 +17,7 @@ và xem nhật ký ra vào. Chạy thật từ 08/10/2026.
 |---|---|
 | URL | `/door_control` (trang `www`, không phải Desk Page) |
 | Quyền | Role **`Door Control`** — trang + mọi API đều `frappe.only_for("Door Control")`. Role không gán cho ai ⇒ mặc định chỉ Administrator (Administrator có mọi role). Người không có role: trang 403, API `PermissionError` |
+| Quyền mở từng cửa (29/10/2026) | Door Alert Setting › tab **Unlock Permissions** (bảng con `Door Unlock Permission`: Door = Select máy cửa, options do `onload` gửi + JS đổ vào; Users = User ID gõ tay, cách nhau dấu phẩy). Ai có role vẫn **thấy mọi cửa**; chỉ chặn Unlock / Hold open / Close (server `_require_unlock`, nút bị tắt trên trang). Mở tất cả **bỏ qua** cửa không có quyền (trả `skipped`). Cửa không có dòng hoặc Users trống = mọi user Door Control. Administrator luôn được. Bảng ở **permlevel 1**: chỉ System Manager sửa, Door Control chỉ xem (Door Control vốn SỬA được Door Alert Setting). Lưu sẽ chuẩn hoá: Door nhận cả Location (nếu duy nhất) → Device Name, user không tồn tại → throw, user thiếu role → cảnh báo. Đổi Device Name trong Attendance Machine Setting tự cập nhật bảng (`on_update`), nếu không cửa đổi tên sẽ im lặng mở cho tất cả. Test: `test_unlock_permission.py` (không kết nối máy) |
 | Shortcut Desk | `desktop_icon/door_control.json` (roles: Door Control) **+** `workspace_sidebar/door_control.json` |
 
 🔴 Desktop Icon kiểu `Link` (v16) chỉ hiện khi có **Workspace Sidebar CÙNG TÊN** và sidebar có ≥1 item

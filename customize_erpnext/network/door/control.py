@@ -6,7 +6,8 @@ Full documentation (config, measured device facts, traps, tests): network/door/R
 Door controllers are rows of Attendance Machine Setting with `is_door_control`
 ticked. They are kept apart from attendance (see network/biometric/machines.py):
 this module is the only place that talks to them besides the fingerprint push
-dialog. Every endpoint requires the `Door Control` role.
+dialog. Every endpoint requires the `Door Control` role; unlocking a door also
+requires Door Alert Setting > Unlock Permissions to allow the user (can_unlock).
 
 Facts measured on a real F21Lite (fw 6.60, ZMM220_TFT) on 2026-10-08:
 - pyzk only has `unlock(seconds)`: it pulses the lock relay for N seconds.
@@ -103,6 +104,54 @@ def mask_ip(text):
     if not text or can_see_ip():
         return text
     return _IP_RE.sub("•••", str(text))
+
+
+# Who may unlock which door: Door Alert Setting > Unlock Permissions (29/10/2026).
+# Every Door Control user still SEES every door; only the commands that release a
+# lock (Unlock, Hold open, Close, Open all) are refused. A door with no row, or a row
+# whose Users is empty, is unlockable by everyone with the role. The table is
+# permlevel 1: only System Manager edits it, Door Control users only read it.
+_USERS_SPLIT_RE = re.compile(r"[,;\s]+")
+
+
+def split_users(text):
+    """'a@x.vn, B@x.vn' -> ['a@x.vn', 'b@x.vn'] (lower case, order kept, no duplicates)."""
+    users = []
+    for u in _USERS_SPLIT_RE.split((text or "").strip().lower()):
+        if u and u not in users:
+            users.append(u)
+    return users
+
+
+def unlock_rules():
+    """{device_name: set of lower-case users, or None = every Door Control user}.
+    Read from the DB on every call (one small query): never stale after a save."""
+    rows = frappe.get_all(
+        "Door Unlock Permission",
+        filters={"parenttype": "Door Alert Setting", "parentfield": "unlock_permissions"},
+        fields=["door", "users"],
+    )
+    return {r.door: (set(split_users(r.users)) or None) for r in rows}
+
+
+def can_unlock(device_name, user=None, rules=None):
+    user = user or frappe.session.user
+    if user == "Administrator":
+        return True
+    if rules is None:
+        rules = unlock_rules()
+    if device_name not in rules:
+        return True
+    allowed = rules[device_name]
+    return allowed is None or user.lower() in allowed
+
+
+def _require_unlock(door):
+    if not can_unlock(door["device_name"]):
+        frappe.throw(
+            _("You do not have permission to unlock {0}").format(door.get("location") or door["device_name"]),
+            frappe.PermissionError,
+        )
 
 
 def lock_sensor_enabled():
@@ -327,7 +376,7 @@ def _last_activity(door):
     return last
 
 
-def _door_payload(door, probe):
+def _door_payload(door, probe, rules=None):
     remaining, hold = _open_state(door)
     sensor_raw = probe.get("sensor_raw")
     device_mode = probe.get("device_sensor_mode")
@@ -346,6 +395,7 @@ def _door_payload(door, probe):
         "sensor_mode_mismatch": mismatch,
         "allow_hold_close": door["allow_hold_close"],
         "hold_close_enabled": HOLD_CLOSE_ENABLED,
+        "can_unlock": can_unlock(door["device_name"], rules=rules),
         "online": bool(probe.get("online")),
         "error": mask_ip(probe.get("error")),
         "response_ms": probe.get("response_ms"),
@@ -424,8 +474,9 @@ def get_doors(force=0):
     _check_access()
     doors = _doors()
     probes = _probe_all(doors, force=frappe.utils.cint(force))
+    rules = unlock_rules()
     return {
-        "doors": [_door_payload(d, probes.get(d["device_name"], {})) for d in doors],
+        "doors": [_door_payload(d, probes.get(d["device_name"], {}), rules) for d in doors],
         "server_time": str(now_datetime()),
     }
 
@@ -435,6 +486,7 @@ def unlock_door(device_name):
     """Open the lock for the door's `unlock_seconds`, then the device locks it again."""
     _check_access()
     door = _door(device_name)
+    _require_unlock(door)
     secs = door["unlock_seconds"]
     return _command(door, "Unlock", secs, lambda conn: conn.unlock(secs), open_for=secs)
 
@@ -444,6 +496,7 @@ def hold_open(device_name):
     """Keep the lock open for HOLD_OPEN_SECONDS (until Close is pressed)."""
     _check_access()
     door = _door(device_name)
+    _require_unlock(door)
     _require_hold_close(door)
     return _command(
         door, "Hold Open", HOLD_OPEN_SECONDS,
@@ -456,17 +509,24 @@ def close_door(device_name):
     """Lock now: unlock(0). Only offered where verified (allow_hold_close)."""
     _check_access()
     door = _door(device_name)
+    _require_unlock(door)
     _require_hold_close(door)
     return _command(door, "Close", 0, lambda conn: conn.unlock(0))
 
 
 @frappe.whitelist(methods=["POST"])
 def unlock_all():
-    """Emergency: open every enabled door at once (2-step confirmation is on the page)."""
+    """Emergency: open every enabled door the user may unlock at once (2-step
+    confirmation is on the page). Doors without unlock permission are skipped."""
     _check_access()
     doors = _doors()
     if not doors:
         frappe.throw(_("No door controller is enabled"))
+    rules = unlock_rules()
+    skipped = [d["device_name"] for d in doors if not can_unlock(d["device_name"], rules=rules)]
+    doors = [d for d in doors if d["device_name"] not in skipped]
+    if not doors:
+        frappe.throw(_("You do not have permission to unlock any door"), frappe.PermissionError)
 
     def send(door):
         secs = door["unlock_seconds"]
@@ -495,6 +555,7 @@ def unlock_all():
         "results": results,
         "opened": sum(1 for r in results if r["success"]),
         "failed": sum(1 for r in results if not r["success"]),
+        "skipped": skipped,
     }
 
 

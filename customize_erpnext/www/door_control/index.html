@@ -446,16 +446,19 @@
                 facts.push(`<span>${I.sensor(15)}${esc(__('Last reading: {0} · {1}', [ls.state === 'open' ? __('Door open') : __('Door closed'), at]))}</span>`);
             }
             if (needless) facts.push(`<span>${I.doorOpen(15)}${__('Door is open — no need to unlock')}</span>`);
+            // Door Alert Setting > Unlock Permissions: the door stays visible, its lock buttons do not work
+            const denied = !d.can_unlock;
+            if (denied && !off) facts.push(`<span>${I.warn(15)}${__('You do not have permission to unlock this door')}</span>`);
             const n = esc(d.device_name);
             let acts;
             if (off) {
                 acts = `<button class="btn xl ghost" data-act="retry">${I.refresh(20)}${__('Try to reconnect')}</button>`;
             } else {
-                acts = `<button class="btn xl ${needless ? 'ghost' : 'primary'}" data-act="ask-open" data-id="${n}" ${erpOpen ? 'disabled' : ''}>${I.unlock(22)}${__('Unlock {0} seconds', [d.unlock_seconds])}</button>`;
+                acts = `<button class="btn xl ${needless || denied ? 'ghost' : 'primary'}" data-act="ask-open" data-id="${n}" ${erpOpen || denied ? 'disabled' : ''}>${I.unlock(22)}${__('Unlock {0} seconds', [d.unlock_seconds])}</button>`;
                 if (d.allow_hold_close) {
                     // switched off server-side for now (HOLD_CLOSE_ENABLED): shown, but disabled
-                    const off = !d.hold_close_enabled;
-                    const tip = off ? ` title="${esc(__('Temporarily unavailable'))}"` : '';
+                    const off = !d.hold_close_enabled || denied;
+                    const tip = off ? ` title="${esc(denied ? __('You do not have permission to unlock this door') : __('Temporarily unavailable'))}"` : '';
                     acts += `<button class="btn ghost" data-act="ask-hold" data-id="${n}"${tip} ${off || hold ? 'disabled' : ''}>${__('Hold open')}</button>
                              <button class="btn ghost" data-act="close" data-id="${n}"${tip} ${!off && (open || erpOpen) ? '' : 'disabled'}>${__('Close')}</button>`;
                 }
@@ -500,7 +503,7 @@
                 <div class="doors-grid">${S.doors.map(doorCard).join('')}</div>
                 <div class="emergency">
                     <p><b>${__('Open all doors')}</b>${__('For emergencies such as a fire alarm. Needs two confirmation steps.')}</p>
-                    <button class="btn danger-o" data-act="ask-all" ${online ? '' : 'disabled'}>${__('Open all')}</button>
+                    <button class="btn danger-o" data-act="ask-all" ${S.doors.some(d => d.online && d.can_unlock) ? '' : 'disabled'}>${__('Open all')}</button>
                 </div>`;
         }
 
@@ -641,7 +644,10 @@
             try {
                 const r = await call('unlock_all', {}, true);
                 const failed = r.results.filter(x => !x.success).map(x => doorLabel(x.device_name));
-                toast(failed.length ? __('{0} door(s) opened. Failed: {1}', [r.opened, failed.join(', ')]) : __('{0} door(s) opened', [r.opened]), !!failed.length);
+                const skipped = (r.skipped || []).map(doorLabel);
+                let msg = failed.length ? __('{0} door(s) opened. Failed: {1}', [r.opened, failed.join(', ')]) : __('{0} door(s) opened', [r.opened]);
+                if (skipped.length) msg += ' ' + __('Skipped (no permission): {0}', [skipped.join(', ')]);
+                toast(msg, !!failed.length);
             } catch (e) {
                 toast(e.message, true);
             }
@@ -677,14 +683,15 @@
                 <button class="btn xl primary" data-act="do-hold" data-id="${esc(d.device_name)}" data-focus>${__('Hold open')}</button></div></div>`);
         }
         function askAll(step) {
-            const online = S.doors.filter(d => d.online);
-            const offline = S.doors.filter(d => !d.online).map(label);
+            const online = S.doors.filter(d => d.online && d.can_unlock);
+            const offline = S.doors.filter(d => !d.online && d.can_unlock).map(label);
+            const denied = S.doors.filter(d => !d.can_unlock).map(label);
             if (step === 1) {
                 modal(`<div class="dlg danger" role="dialog" aria-modal="true"><div class="grab"></div>
                     <div class="steps"><span class="on">1. ${__('Confirm')}</span><span>2. ${__('Hold to open')}</span></div>
                     <div class="ico-big">${I.warn(28)}</div>
                     <h4>${__('Open all {0} online doors?', [online.length])}</h4>
-                    <p>${__('Every door opens at the same time.')}${offline.length ? ' ' + esc(__('Offline and will not open: {0}', [offline.join(', ')])) : ''}</p>
+                    <p>${__('Every door opens at the same time.')}${offline.length ? ' ' + esc(__('Offline and will not open: {0}', [offline.join(', ')])) : ''}${denied.length ? ' ' + esc(__('No unlock permission, will not open: {0}', [denied.join(', ')])) : ''}</p>
                     <div class="row"><button class="btn xl ghost" data-act="cancel" data-focus>${__('Cancel')}</button>
                     <button class="btn xl danger" data-act="all-step2">${__('Continue')}</button></div></div>`);
                 return;

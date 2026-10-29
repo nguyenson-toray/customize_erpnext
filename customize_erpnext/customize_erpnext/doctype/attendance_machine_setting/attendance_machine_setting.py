@@ -15,6 +15,31 @@ class AttendanceMachineSetting(Document):
 		self._validate_error_email()
 		self._validate_peak_times()
 
+	def on_update(self):
+		self._rename_doors_in_unlock_permissions()
+
+	def _rename_doors_in_unlock_permissions(self):
+		"""Door Alert Setting > Unlock Permissions names doors by Device Name: follow a
+		rename, otherwise the renamed door would silently be unlockable by everyone."""
+		before = self.get_doc_before_save()
+		if not before:
+			return
+		old = {r.name: r.device_name for r in before.machines or []}
+		renamed = {
+			old[r.name]: r.device_name
+			for r in self.machines or []
+			if r.name in old and old[r.name] != r.device_name
+		}
+		if not renamed:
+			return
+		for old_name, new_name in renamed.items():
+			frappe.db.sql(
+				"""update `tabDoor Unlock Permission` set door = %s
+				where parenttype = 'Door Alert Setting' and door = %s""",
+				(new_name, old_name),
+			)
+		frappe.clear_document_cache("Door Alert Setting", "Door Alert Setting")
+
 	def _validate_unique_machines(self):
 		"""device_name is used as the machine identifier across all sync APIs,
 		so it must be unique; duplicate IPs are almost certainly a mistake too."""

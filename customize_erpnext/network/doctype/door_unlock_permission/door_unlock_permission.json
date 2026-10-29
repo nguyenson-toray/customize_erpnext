@@ -1,0 +1,45 @@
+{
+ "actions": [],
+ "creation": "2026-10-29 10:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "door",
+  "users"
+ ],
+ "fields": [
+  {
+   "fieldname": "door",
+   "fieldtype": "Select",
+   "label": "Door",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3,
+   "permlevel": 1,
+   "description": "Door controller of Attendance Machine Setting"
+  },
+  {
+   "fieldname": "users",
+   "fieldtype": "Small Text",
+   "label": "Users",
+   "in_list_view": 1,
+   "columns": 7,
+   "permlevel": 1,
+   "description": "User IDs (e-mail) separated by commas. Empty = every Door Control user"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-29 12:00:00",
+ "modified_by": "Administrator",
+ "module": "Network",
+ "name": "Door Unlock Permission",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

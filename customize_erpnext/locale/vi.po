@@ -89803,3 +89803,63 @@ msgstr "Chưa có Cấu trúc phiếu lương nào áp dụng cho kỳ {0}. Hãy
 msgid "Payslip Detail"
 msgstr "Chi tiết phiếu lương"
 
+#. source: tiqn
+msgid "Unlock Permissions"
+msgstr "Quyền mở cửa"
+
+#. source: tiqn
+msgid "Door Unlock Permission"
+msgstr "Quyền mở cửa"
+
+#. source: tiqn
+msgid "Telegram Alerts"
+msgstr "Cảnh báo Telegram"
+
+#. source: tiqn
+msgid "Door controller of Attendance Machine Setting"
+msgstr "Máy điều khiển cửa trong Attendance Machine Setting"
+
+#. source: tiqn
+msgid "User IDs (e-mail) separated by commas. Empty = every Door Control user"
+msgstr "User ID (e-mail), cách nhau bởi dấu phẩy. Để trống = mọi người dùng có quyền Door Control"
+
+#. source: tiqn
+msgid "Who may unlock which door on /door_control (Unlock, Hold open, Close, Open all). A door with no row, or a row with Users empty, can be unlocked by every Door Control user. Every user still sees every door. Only System Manager can edit this table"
+msgstr "Ai được mở cửa nào trên /door_control (Mở khoá, Giữ mở, Đóng, Mở tất cả). Cửa không có dòng nào, hoặc có dòng nhưng Người dùng để trống, thì mọi người dùng Door Control đều mở được. Mọi người dùng vẫn thấy tất cả các cửa. Chỉ System Manager được sửa bảng này"
+
+#. source: tiqn
+msgid "You do not have permission to unlock {0}"
+msgstr "Bạn không có quyền mở {0}"
+
+#. source: tiqn
+msgid "You do not have permission to unlock any door"
+msgstr "Bạn không có quyền mở cửa nào"
+
+#. source: tiqn
+msgid "You do not have permission to unlock this door"
+msgstr "Bạn không có quyền mở cửa này"
+
+#. source: tiqn
+msgid "No unlock permission, will not open: {0}"
+msgstr "Không có quyền mở, sẽ không mở: {0}"
+
+#. source: tiqn
+msgid "Skipped (no permission): {0}"
+msgstr "Bỏ qua (không có quyền): {0}"
+
+#. source: tiqn
+msgid "Unlock Permissions row {0}: {1} is not a door controller. Use one of: {2}"
+msgstr "Quyền mở cửa dòng {0}: {1} không phải máy điều khiển cửa. Dùng một trong: {2}"
+
+#. source: tiqn
+msgid "Unlock Permissions row {0}: {1} is listed twice"
+msgstr "Quyền mở cửa dòng {0}: {1} bị khai báo hai lần"
+
+#. source: tiqn
+msgid "Unlock Permissions row {0}: user not found: {1}"
+msgstr "Quyền mở cửa dòng {0}: không tìm thấy người dùng: {1}"
+
+#. source: tiqn
+msgid "These users do not have the Door Control role and cannot open /door_control yet: {0}"
+msgstr "Những người dùng này chưa có quyền Door Control nên chưa vào được /door_control: {0}"
+

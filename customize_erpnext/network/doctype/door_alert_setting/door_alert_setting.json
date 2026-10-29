@@ -5,6 +5,7 @@
  "engine": "InnoDB",
  "issingle": 1,
  "field_order": [
+  "alerts_tab",
   "enabled",
   "column_break_top",
   "mute_until",
@@ -32,13 +33,6 @@
   "offline_after_minutes",
   "alert_unlock_all",
   "alert_command_failed",
-  "sensor_section",
-  "use_lock_sensor",
-  "sensor_locked_value",
-  "read_sensors",
-  "column_break_sensor",
-  "alert_not_locked_after_hours",
-  "not_locked_repeat_minutes",
   "schedule_section",
   "check_interval_minutes",
   "column_break_schedule",
@@ -52,9 +46,25 @@
   "sent_count_date",
   "sent_count",
   "last_error",
-  "alert_state"
+  "alert_state",
+  "sensor_tab",
+  "sensor_section",
+  "use_lock_sensor",
+  "sensor_locked_value",
+  "read_sensors",
+  "column_break_sensor",
+  "alert_not_locked_after_hours",
+  "not_locked_repeat_minutes",
+  "unlock_tab",
+  "unlock_permissions_section",
+  "unlock_permissions"
  ],
  "fields": [
+  {
+   "fieldname": "alerts_tab",
+   "fieldtype": "Tab Break",
+   "label": "Telegram Alerts"
+  },
   {
    "fieldname": "enabled",
    "fieldtype": "Check",
@@ -221,52 +231,6 @@
    "description": "Any time"
   },
   {
-   "fieldname": "sensor_section",
-   "fieldtype": "Section Break",
-   "label": "Door Sensor",
-   "description": "Sensor wired to the SEN/GND input of the door device. Only doors with Sensor Installed (Attendance Machine Setting) are read. Calibrate with Read Sensors Now before turning this on"
-  },
-  {
-   "fieldname": "use_lock_sensor",
-   "fieldtype": "Check",
-   "label": "Use Door Sensor",
-   "default": "0",
-   "description": "Master switch. Off = sensors are not read and /door_control shows nothing about them"
-  },
-  {
-   "fieldname": "sensor_locked_value",
-   "fieldtype": "Select",
-   "label": "Sensor Value When Closed",
-   "options": "1\n0",
-   "default": "1",
-   "depends_on": "use_lock_sensor",
-   "description": "Raw value the device reports while the door is closed (see Read Sensors Now). Production (.50): 0"
-  },
-  {
-   "fieldname": "read_sensors",
-   "fieldtype": "Button",
-   "label": "Read Sensors Now"
-  },
-  {
-   "fieldname": "column_break_sensor",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "alert_not_locked_after_hours",
-   "fieldtype": "Check",
-   "label": "Door Open After Hours",
-   "default": "0",
-   "depends_on": "use_lock_sensor",
-   "description": "Outside working hours: message when a door stays open for 2 minutes, a reminder every N minutes, and one message once it is closed"
-  },
-  {
-   "fieldname": "not_locked_repeat_minutes",
-   "fieldtype": "Int",
-   "label": "Remind Every (Minutes)",
-   "default": "30",
-   "depends_on": "eval:doc.use_lock_sensor && doc.alert_not_locked_after_hours"
-  },
-  {
    "fieldname": "schedule_section",
    "fieldtype": "Section Break",
    "label": "Schedule"
@@ -350,11 +314,81 @@
    "read_only": 1,
    "no_copy": 1,
    "description": "Per-door alert state (offline, door left open) as JSON. Kept in the database because clear-cache wipes Redis"
+  },
+  {
+   "fieldname": "sensor_tab",
+   "fieldtype": "Tab Break",
+   "label": "Door Sensor"
+  },
+  {
+   "fieldname": "sensor_section",
+   "fieldtype": "Section Break",
+   "label": "Door Sensor",
+   "description": "Sensor wired to the SEN/GND input of the door device. Only doors with Sensor Installed (Attendance Machine Setting) are read. Calibrate with Read Sensors Now before turning this on"
+  },
+  {
+   "fieldname": "use_lock_sensor",
+   "fieldtype": "Check",
+   "label": "Use Door Sensor",
+   "default": "0",
+   "description": "Master switch. Off = sensors are not read and /door_control shows nothing about them"
+  },
+  {
+   "fieldname": "sensor_locked_value",
+   "fieldtype": "Select",
+   "label": "Sensor Value When Closed",
+   "options": "1\n0",
+   "default": "1",
+   "depends_on": "use_lock_sensor",
+   "description": "Raw value the device reports while the door is closed (see Read Sensors Now). Production (.50): 0"
+  },
+  {
+   "fieldname": "read_sensors",
+   "fieldtype": "Button",
+   "label": "Read Sensors Now"
+  },
+  {
+   "fieldname": "column_break_sensor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alert_not_locked_after_hours",
+   "fieldtype": "Check",
+   "label": "Door Open After Hours",
+   "default": "0",
+   "depends_on": "use_lock_sensor",
+   "description": "Outside working hours: message when a door stays open for 2 minutes, a reminder every N minutes, and one message once it is closed"
+  },
+  {
+   "fieldname": "not_locked_repeat_minutes",
+   "fieldtype": "Int",
+   "label": "Remind Every (Minutes)",
+   "default": "30",
+   "depends_on": "eval:doc.use_lock_sensor && doc.alert_not_locked_after_hours"
+  },
+  {
+   "fieldname": "unlock_tab",
+   "fieldtype": "Tab Break",
+   "label": "Unlock Permissions"
+  },
+  {
+   "fieldname": "unlock_permissions_section",
+   "fieldtype": "Section Break",
+   "label": "Unlock Permissions",
+   "permlevel": 1,
+   "description": "Who may unlock which door on /door_control (Unlock, Hold open, Close, Open all). A door with no row, or a row with Users empty, can be unlocked by every Door Control user. Every user still sees every door. Only System Manager can edit this table"
+  },
+  {
+   "fieldname": "unlock_permissions",
+   "fieldtype": "Table",
+   "label": "Unlock Permissions",
+   "options": "Door Unlock Permission",
+   "permlevel": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-22 08:10:54.016513",
+ "modified": "2026-10-29 11:30:00.000000",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Alert Setting",
@@ -375,6 +409,17 @@
    "create": 1,
    "print": 1,
    "email": 0
+  },
+  {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Door Control",
+   "permlevel": 1,
+   "read": 1
   }
  ],
  "row_format": "Dynamic",
