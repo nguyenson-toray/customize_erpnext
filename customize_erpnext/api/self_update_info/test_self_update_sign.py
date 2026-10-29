@@ -1443,6 +1443,14 @@ def test_start_notes():
 	def check(name, ok, detail=""):
 		results.append((bool(ok), name, detail))
 
+	def refused(fn):
+		try:
+			fn()
+		except frappe.DoesNotExistError:
+			frappe.clear_messages()
+			return True
+		return False
+
 	real_get = api._get_setting
 	fake = frappe.copy_doc(real_get())
 	_set("_get_setting", lambda: fake)
@@ -1462,6 +1470,47 @@ def test_start_notes():
 			fake.start_button_delay = v
 			check(f"start_button_delay {v!r} → {want}", api.get_field_config()["start_button_delay"] == want)
 		check("Setting đang đặt 20 giây", real_get().get("start_button_delay") == 20, real_get().get("start_button_delay"))
+
+		# Ảnh trong ghi chú (29/10/2026): file private gắn vào Setting → URL start_note_image cho Guest
+		img = frappe.get_all("File", filters={"attached_to_doctype": api.SETTING_DT, "is_private": 1},
+			fields=["name", "file_url"], limit=1)
+		other = frappe.db.get_value("File", {"is_private": 1, "attached_to_doctype": ["!=", api.SETTING_DT]}, "file_url")
+		if img:
+			fake.start_notes = f'<p><img src="{img[0].file_url}?fid={img[0].name}"></p><p><img src="{other}"></p>'
+			h = api.get_field_config()["start_notes_html"]
+			check("ảnh private của Setting → start_note_image?fid=…&v=…",
+				f"start_note_image?fid={img[0].name}&amp;v=" in h and img[0].file_url not in h, h)
+			check("ghi chú chỉ có ảnh (không chữ) vẫn hiện", bool(h))
+			fake.start_notes = f'<p><img src="https://erp.tiqn.local:8888{img[0].file_url}?fid={img[0].name}"></p>'
+			h_abs = api.get_field_config()["start_notes_html"]
+			check("src tuyệt đối (https://host/private/files/…) cũng được đổi (bug 29/10: 2 ảnh chỉ hiện 1)",
+				"start_note_image?fid=" in h_abs and "/private/files/" not in h_abs, h_abs)
+			big = next((x for x in frappe.get_all("File", filters={"attached_to_doctype": api.SETTING_DT, "is_private": 1},
+				fields=["name", "file_url", "file_size"], order_by="file_size desc", limit=1) if x.file_size > 1024 * 1024), None)
+			if big:
+				body, mime = api._note_image_content(big.name, "image/png")
+				from PIL import Image
+				dims = Image.open(io.BytesIO(body)).size
+				check("ảnh > 1 MB → thu nhỏ cạnh dài ≤ 1200px, JPEG, nhẹ hơn nhiều",
+					mime == "image/jpeg" and max(dims) <= 1200 and len(body) < big.file_size / 4, (mime, dims, len(body), big.file_size))
+			if other:
+				check("file private KHÔNG gắn Setting → giữ nguyên src (không mở đường lộ)", f'src="{other}"' in h, h)
+			_set("_get_setting", lambda: fake)
+			frappe.set_user("Guest")
+			try:
+				frappe.local.response = frappe._dict()
+				api.start_note_image(img[0].name)
+				r = frappe.local.response
+				check("Guest tải được ảnh, inline, đúng kiểu", r.get("display_content_as") == "inline"
+					and (r.get("content_type") or "").startswith("image/") and len(r.get("filecontent") or b"") > 0)
+				fake.start_notes = "<p>không còn ảnh</p>"
+				check("ảnh đã gỡ khỏi ghi chú → chặn", refused(lambda: api.start_note_image(img[0].name)))
+				oname = frappe.db.get_value("File", {"file_url": other}, "name") if other else None
+				if oname:
+					fake.start_notes = f'<img src="{other}">'
+					check("file private khác (dù có trong ghi chú) → chặn", refused(lambda: api.start_note_image(oname)))
+			finally:
+				frappe.set_user("Administrator")
 	finally:
 		_set("_get_setting", real_get)
 

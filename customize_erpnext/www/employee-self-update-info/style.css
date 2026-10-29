@@ -347,6 +347,10 @@ input.auto-calc { background:#F4F3EF; color:var(--ink); cursor:default; pointer-
 .start-notes .ql-align-center { text-align:center; }
 .start-notes .ql-align-right { text-align:right; }
 .start-notes .ql-align-justify { text-align:justify; }
+/* Ảnh trong ghi chú: co theo bề ngang khung (điện thoại), không cao quá 70% màn hình, giữ tỉ lệ; cỡ HR kéo trong editor
+   (thuộc tính width) vẫn được tôn trọng khi nhỏ hơn khung. */
+.start-notes img { display:block; max-width:100%; max-height:70vh; height:auto; object-fit:contain;
+  margin:8px auto; border-radius:8px; background:#fff; }
 .start-btn { display:block; width:100%; margin:0 0 14px; }
 
 /* ---------- cam kết + chữ ký (cuối form) ---------- */

@@ -9,6 +9,7 @@ to the Employee record.
 
 Public (allow_guest=True):
     get_field_config        -> field list built from settings + Employee meta
+    start_note_image        -> image (private file attached to the setting) shown in Start Screen Notes
     get_eligible_employees  -> employees configured in the setting
     get_form_data           -> current Employee values overlaid with any draft
     save_form_data          -> store submitted values as JSON
@@ -177,6 +178,9 @@ from .export import (  # noqa: F401
 )
 from .portal import (  # noqa: F401
 	_submit_device_info,
+	_guest_note_images,
+	_note_image_content,
+	start_note_image,
 	get_field_config,
 	verify_employee,
 	get_access_info,

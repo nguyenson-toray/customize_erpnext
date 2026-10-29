@@ -3,6 +3,8 @@
 Tách nguyên văn từ self_update_info_api.py (27/10/2026) — mặt tiền đó re-export mọi tên."""
 
 import json
+import mimetypes
+import re
 
 import frappe
 from frappe import _
@@ -15,6 +17,7 @@ from .rules import (
 	DOCUMENTS_KEY,
 	INFO_DT,
 	REMARKS_KEY,
+	SETTING_DT,
 	_SIGNATURE_MAX_LEN,
 	_SIGNATURE_PREFIX,
 )
@@ -88,6 +91,95 @@ def _submit_device_info():
 	return "\n".join(parts)
 
 
+# Ảnh chèn vào Start Screen Notes (Text Editor) là file PRIVATE gắn vào Setting → Guest mở /private/files bị 403
+# (ảnh hỏng). Trang nhận URL qua start_note_image thay vì /private/files (user 29/10/2026).
+# Editor có khi lưu src TUYỆT ĐỐI (https://erp.tiqn.local:8888/private/files/…) → bỏ qua phần scheme + host.
+_NOTE_IMG_SRC = re.compile(
+	r'(<img\b[^>]*?\bsrc=")(?:https?://[^/"]+)?(/private/files/[^"?]+)(?:\?([^"]*))?(")', re.I)
+# Ảnh dán từ điện thoại / ảnh chụp màn hình thường 1–3 MB, trang chỉ hiện rộng ≤ ~600px → thu về cạnh dài ≤ 1200px
+# (nét trên màn hình 2x), JPEG: 2,1 MB → ~190 KB. Cache Redis theo content_hash.
+_NOTE_IMG_MAX = 1200
+_NOTE_IMG_METHOD = "/api/method/customize_erpnext.api.self_update_info.self_update_info_api.start_note_image"
+
+
+def _note_image_files():
+	"""{file_url: File} — ảnh private gắn vào Setting (ảnh dán vào Text Editor của Setting)."""
+	rows = frappe.get_all("File", filters={"attached_to_doctype": SETTING_DT, "is_private": 1},
+		fields=["name", "file_url", "content_hash", "modified"], order_by="creation desc")
+	out = {}
+	for r in rows:
+		out.setdefault(r.file_url, r)
+	return out
+
+
+def _guest_note_images(html):
+	"""img src=/private/files/… gắn vào Setting → URL start_note_image (kèm v= để trình duyệt cache đúng bản).
+	File private không gắn vào Setting → giữ nguyên (không mở đường lộ file khác)."""
+	if "/private/files/" not in html:
+		return html
+	files = _note_image_files()
+
+	def sub(m):
+		f = files.get(m.group(2))
+		if not f:
+			return m.group(0)
+		v = (f.content_hash or str(f.modified))[:12]
+		return f"{m.group(1)}{_NOTE_IMG_METHOD}?fid={f.name}&amp;v={frappe.utils.escape_html(v)}{m.group(4)}"
+
+	return _NOTE_IMG_SRC.sub(sub, html)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def start_note_image(fid, v=None):
+	"""Ảnh của Start Screen Notes cho Guest. Chỉ trả file ảnh gắn vào Setting VÀ đang có trong ghi chú."""
+	f = frappe.db.get_value("File", fid, ["name", "file_url", "file_name", "attached_to_doctype"], as_dict=True)
+	notes = _get_setting().get("start_notes") or ""
+	mime = f and (mimetypes.guess_type(f.file_name or f.file_url)[0] or "")
+	if not f or f.attached_to_doctype != SETTING_DT or not f.file_url or f.file_url not in notes \
+			or not mime.startswith("image/") or mime == "image/svg+xml":
+		raise frappe.DoesNotExistError
+	content, mime = _note_image_content(f.name, mime)
+	frappe.response.update({
+		"type": "download", "filename": f.file_name or "image", "content_type": mime,
+		"display_content_as": "inline", "filecontent": content,
+	})
+	# URL đổi theo v= (content_hash) khi thay ảnh → cache lâu được
+	frappe.local.response_headers["Cache-Control"] = "private, max-age=86400"
+
+
+def _note_image_content(fid, mime):
+	"""(bytes, mime) ảnh đã thu nhỏ — ảnh nhỏ sẵn / GIF (có thể động) / lỗi đọc ảnh → trả nguyên file."""
+	doc = frappe.get_doc("File", fid)
+	key = f"esui_note_img:{doc.content_hash or doc.name}:{_NOTE_IMG_MAX}"
+	cached = frappe.cache.get_value(key)
+	if cached:
+		return cached
+	raw = doc.get_content()
+	out = (raw, mime)
+	if mime != "image/gif":
+		try:
+			import io
+
+			from PIL import Image, ImageOps
+
+			im = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+			if max(im.size) > _NOTE_IMG_MAX:
+				im.thumbnail((_NOTE_IMG_MAX, _NOTE_IMG_MAX), Image.LANCZOS)
+				if im.mode in ("RGBA", "LA", "P"):
+					im = im.convert("RGBA")
+					bg = Image.new("RGB", im.size, (255, 255, 255))   # JPEG không có nền trong → nền trắng như khung
+					bg.paste(im, mask=im.getchannel("A"))
+					im = bg
+				buf = io.BytesIO()
+				im.convert("RGB").save(buf, "JPEG", quality=85, optimize=True, progressive=True)
+				if buf.tell() < len(raw):
+					out = (buf.getvalue(), "image/jpeg")
+		except Exception:
+			pass  # ảnh lạ → trả nguyên file
+	frappe.cache.set_value(key, out, expires_in_sec=7 * 86400)
+	return out
+
+
 @frappe.whitelist(allow_guest=True)
 def get_field_config():
 	"""Return the dynamic field configuration for the web form."""
@@ -112,7 +204,8 @@ def get_field_config():
 	# javascript:) vì trang chèn thẳng innerHTML. Editor trống (<p><br></p>) → "" để trang ẩn khung.
 	notes = setting.get("start_notes") or ""
 	config["start_notes_html"] = (
-		sanitize_html(notes, always_sanitize=True) if frappe.utils.strip_html(notes).strip() else ""
+		_guest_note_images(sanitize_html(notes, always_sanitize=True))
+		if frappe.utils.strip_html(notes).strip() or "<img" in notes else ""
 	)
 	# Lần đầu mở trên 1 máy: nút "Bắt đầu" chờ N giây để NV đọc ghi chú (user 28/10/2026). Trống / âm → 0 = không chờ.
 	config["start_button_delay"] = max(0, frappe.utils.cint(setting.get("start_button_delay")))
