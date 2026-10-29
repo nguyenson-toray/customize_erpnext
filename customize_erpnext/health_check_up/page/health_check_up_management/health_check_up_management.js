@@ -1663,7 +1663,7 @@ function renderHistory() {
                 <span style="color: var(--hc-text-light); min-width: 70px;">${h.xray ? 'X-Quang' : ''}</span>
                 <span style="color: var(--hc-text-light); min-width: 75px;">${h.gynec ? 'Phụ khoa' : ''}</span>
             ` : ''}
-            <span style="color: var(--hc-yellow); font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${esc(h.note)}</span>
+            <span style="color: var(--hc-yellow-text); font-style: italic; overflow: hidden; text-overflow: ellipsis; flex: 1;">${esc(h.note)}</span>
             <span class="hc-history-mode" style="font-weight: 600; min-width: 30px; text-align: right;">${h.mode === "distribute" ? "Phát" : "Thu"}</span>
         </div>`
         )
