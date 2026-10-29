@@ -172,15 +172,15 @@
    "fieldtype": "Select",
    "label": "Fingerprint",
    "options": "Off\nAfter Hours\nAlways",
-   "default": "Off",
-   "description": "Always also covers fingerprint IDs that match no employee"
+   "default": "Off"
   },
   {
    "fieldname": "alert_unknown_user",
    "fieldtype": "Check",
    "label": "Unknown Fingerprint ID",
    "default": "0",
-   "description": "Any time. The ID on the device matches no employee"
+   "description": "Not used since 29/10/2026: punches of fingerprint IDs that match no employee (partners) are not stored in Door Access Log",
+   "hidden": 1
   },
   {
    "fieldname": "only_staff_user_ids",
@@ -388,7 +388,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-29 11:30:00.000000",
+ "modified": "2026-10-29 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Alert Setting",

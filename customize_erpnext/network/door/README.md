@@ -93,7 +93,7 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | `unlock_door(device_name)` | POST | `conn.unlock(unlock_seconds)` + ghi Door Control Action |
 | `hold_open` / `close_door` | POST | **Tạm tắt** (`HOLD_CLOSE_ENABLED = False`) — throw |
 | `unlock_all()` | POST | Mở mọi cửa song song (cửa offline không làm chậm cửa khác) |
-| `fetch_logs(device_name=None, force=0)` | POST | Đọc log máy → Door Access Log (30 ngày gần nhất). So số record với lần trước, không đổi thì bỏ qua. Không xoá log trên máy |
+| `fetch_logs(device_name=None, force=0)` | POST | Đọc log máy → Door Access Log (30 ngày gần nhất). So số record với lần trước, không đổi thì bỏ qua. Không xoá log trên máy. `access.store_door_punches` chỉ lưu ID **khớp nhân viên** (từ 29/10/2026: ID không khớp = đối tác chấm công, bỏ qua như ID ≥ ngưỡng đối tác ⇒ "Unknown Fingerprint ID" của Door Alert Setting không còn tác dụng, đã ẩn) và ghi `device_name` theo IP lúc lưu (IP vẫn permlevel 1, chỉ Administrator thấy) |
 | `get_timeline(device_name=None, limit=150)` | GET | Gộp Door Access Log + Door Control Action, mới nhất trước |
 
 Lệnh lỗi **không throw** mà trả `{success: False}` — để dòng Failed của Door Control Action vẫn được

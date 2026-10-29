@@ -12,6 +12,7 @@
   "employee_name",
   "column_break_main",
   "timestamp",
+  "device_name",
   "device_ip",
   "section_break_note",
   "note"
@@ -57,6 +58,15 @@
    "search_index": 1
   },
   {
+   "fieldname": "device_name",
+   "fieldtype": "Data",
+   "label": "Device Name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Door controller of Attendance Machine Setting, by IP at the time the punch was stored"
+  },
+  {
    "fieldname": "device_ip",
    "fieldtype": "Data",
    "label": "Device IP",
@@ -76,7 +86,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-09 20:30:00.000000",
+ "modified": "2026-10-29 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Access Log",

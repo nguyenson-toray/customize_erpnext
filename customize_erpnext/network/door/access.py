@@ -15,6 +15,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
+from customize_erpnext.network.biometric.machines import get_machines
 from customize_erpnext.network.biometric.zk_device import build_zk_cfg, fetch_attendance
 
 DEFAULT_PORT = 4370
@@ -96,6 +97,10 @@ def store_door_punches(attendances, device_ip, d_from, d_to):
     }
     emp_map = _employee_map()
     partner_from = _partner_user_id_from()
+    # the IP -> name of Attendance Machine Setting now; None for an ad-hoc IP not listed there
+    device_name = next(
+        (m["device_name"] for m in get_machines(include_door=True) if m["ip_address"] == device_ip), None
+    )
 
     counts = {"fetched": len(attendances), "in_range": len(in_range),
               "inserted": 0, "duplicated": 0, "no_employee": 0, "error": 0, "partner_skipped": 0}
@@ -108,16 +113,19 @@ def store_door_punches(attendances, device_ip, d_from, d_to):
         if partner_from and user_id.isdigit() and int(user_id) >= partner_from:
             counts["partner_skipped"] += 1
             continue
+        # ID không khớp nhân viên nào = đối tác chấm công (user 29/10/2026): KHÔNG lưu, như ID đối
+        # tác ở trên. NV mới chưa có attendance_device_id sẽ được lưu ở lần đọc sau khi đã điền
+        # (máy giữ lịch sử, lần đọc kế đọc lại cả khoảng ngày).
+        employee, employee_name = emp_map.get(user_id, (None, None))
+        if not employee:
+            counts["no_employee"] += 1
+            continue
         ts = get_datetime(att.timestamp)
         key = (user_id, ts)
         if key in existing or key in seen:
             counts["duplicated"] += 1
             continue
         seen.add(key)
-
-        employee, employee_name = emp_map.get(user_id, (None, None))
-        if not employee:
-            counts["no_employee"] += 1
 
         # savepoint, not a full rollback: a duplicate must not undo the rows
         # already inserted earlier in this same request
@@ -129,6 +137,7 @@ def store_door_punches(attendances, device_ip, d_from, d_to):
                 "employee": employee,
                 "employee_name": employee_name,
                 "timestamp": ts,
+                "device_name": device_name,
                 "device_ip": device_ip,
             })
             doc.insert(ignore_permissions=True)
