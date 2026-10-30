@@ -414,78 +414,111 @@ class EmployeeMaternity(Document):
 		self._collect_affected_dates()
 
 	def _collect_affected_dates(self):
-		"""So sánh old vs new để tìm các ngày cần recalc attendance.
-		Nếu đổi employee, thu thập ngày cho CẢ employee cũ lẫn mới
-		(employee cũ cần clear trạng thái maternity trên attendance)."""
-		jobs = {}  # employee -> set of date strings
+		"""Ngày cần recalc = ngày mà KẾT QUẢ engine (giai đoạn, giảm giờ) đổi giữa bản
+		cũ và bản mới — không phải mọi ngày của 3 giai đoạn. Kéo dài thai sản 3 ngày chỉ
+		tính lại đúng những ngày đổi loại, không phải ~400 ngày như bản cũ.
 
-		if not self.is_new():
-			old_doc = self.get_doc_before_save()
-			if old_doc:
-				# Kiểm tra có thay đổi không
-				# Include source fields that trigger derived-date recalculation
-				tracked_fields = [
-					"employee",
-					"pregnant_from_date", "pregnant_to_date",
-					"maternity_from_date", "leave_months",
-					"maternity_to_date",
-					"youg_child_from_date", "youg_child_to_date",
-					"estimated_due_date", "date_of_birth",
-					"apply_hour_reduction",
-				]
-				changed = any(
-					str(getattr(old_doc, f, "") or "") != str(getattr(self, f, "") or "")
-					for f in tracked_fields
-				)
-				if not changed:
-					return
+		Đổi employee: NV cũ mất toàn bộ giai đoạn của record, NV mới nhận toàn bộ.
+		Không cắt mốc dưới: ngày thuộc kỳ lương đã chốt VẪN tính lại (user chốt 30/10/2026).
+		"""
+		old_doc = None if self.is_new() else self.get_doc_before_save()
+		new_phases = maternity_phases(self)
 
-				# Collect all old date ranges (theo employee cũ)
-				old_dates = set()
-				self._add_all_ranges(old_dates, old_doc)
-				if old_dates:
-					jobs.setdefault(old_doc.employee, set()).update(old_dates)
+		if old_doc and old_doc.employee != self.employee:
+			jobs = {
+				old_doc.employee: changed_dates(
+					maternity_phases(old_doc), [], recalc_upper_bound(old_doc.employee)),
+				self.employee: changed_dates([], new_phases, recalc_upper_bound(self.employee)),
+			}
+		else:
+			old_phases = maternity_phases(old_doc) if old_doc else []
+			jobs = {
+				self.employee: changed_dates(old_phases, new_phases, recalc_upper_bound(self.employee)),
+			}
 
-		# Collect new date ranges
-		new_dates = set()
-		self._add_all_ranges(new_dates, self)
-		if new_dates:
-			jobs.setdefault(self.employee, set()).update(new_dates)
+		self._maternity_recalc_jobs = {emp: dates for emp, dates in jobs.items() if emp and dates}
 
-		if jobs:
-			self._maternity_recalc_jobs = {emp: sorted(dates) for emp, dates in jobs.items()}
 
-	def _add_all_ranges(self, date_set, doc):
-		"""Thu thập dates từ cả 3 giai đoạn của doc"""
-		pairs = [
-			("pregnant_from_date", "pregnant_to_date"),
-			("maternity_from_date", "maternity_to_date"),
-			("youg_child_from_date", "youg_child_to_date"),
-		]
-		for from_field, to_field in pairs:
-			from_date = doc.get(from_field)
-			to_date = doc.get(to_field)
-			if from_date and to_date:
-				self._add_date_range(date_set, from_date, to_date, doc.employee)
+# =============================================================================
+# Attendance Recalc Scope
+# =============================================================================
 
-	def _add_date_range(self, date_set, from_date, to_date, employee):
-		"""Thêm date range vào set, giới hạn đến today và relieving_date"""
-		current_date = getdate(from_date)
-		end_date = getdate(to_date)
+def maternity_phases(doc):
+	"""Các giai đoạn của một record theo ĐÚNG cách engine đọc nó:
+	[(type, from_date, to_date, hour_reduction)].
 
-		today_date = getdate(today())
-		if end_date > today_date:
-			end_date = today_date
+	🔴 Mirror `preload_reference_data` mục 6 trong overrides/shift_type/shift_type_optimized.py.
+	Sửa một bên thì sửa cả bên kia, nếu không phạm vi recalc lệch với cái engine thực sự tính
+	(vd. engine dùng `estimated_due_date` khi `pregnant_to_date` trống — bản cũ của hook bỏ qua
+	cả giai đoạn Mang thai trong trường hợp đó).
+	"""
+	if not doc:
+		return []
+	phases = []
+	if doc.get("pregnant_from_date"):
+		pregnant_to = doc.get("pregnant_to_date") or doc.get("estimated_due_date")
+		if pregnant_to:
+			phases.append(("Pregnant", getdate(doc.pregnant_from_date), getdate(pregnant_to),
+				bool(cint(doc.get("apply_hour_reduction")))))
+	if doc.get("maternity_from_date") and doc.get("maternity_to_date"):
+		phases.append(("Maternity Leave", getdate(doc.maternity_from_date),
+			getdate(doc.maternity_to_date), True))
+	if doc.get("youg_child_from_date") and doc.get("youg_child_to_date"):
+		phases.append(("Young Child", getdate(doc.youg_child_from_date),
+			getdate(doc.youg_child_to_date), True))
+	return phases
 
-		relieving_date = frappe.db.get_value("Employee", employee, "relieving_date")
-		if relieving_date:
-			last_working_day = add_days(getdate(relieving_date), -1)
-			if end_date > last_working_day:
-				end_date = last_working_day
 
-		while current_date <= end_date:
-			date_set.add(str(current_date))
-			current_date = add_days(current_date, 1)
+def phase_effect(phases, day):
+	"""(type, hour_reduction) của giai đoạn ĐẦU TIÊN chứa `day`, như
+	`check_maternity_status_cached`; None nếu không giai đoạn nào."""
+	for kind, start, end, hour_reduction in phases:
+		if start <= day <= end:
+			return (kind, hour_reduction)
+	return None
+
+
+def recalc_upper_bound(employee, on_date=None, relieving_date=False):
+	"""Ngày cuối được tính lại: hôm nay, hoặc ngày làm cuối (relieving_date - 1) nếu sớm hơn.
+	`relieving_date=False` = tự tra Employee; truyền giá trị (kể cả None) để test không cần DB."""
+	end = getdate(on_date or today())
+	if relieving_date is False:
+		relieving_date = frappe.db.get_value("Employee", employee, "relieving_date") if employee else None
+	if relieving_date:
+		end = min(end, add_days(getdate(relieving_date), -1))
+	return end
+
+
+def changed_dates(old_phases, new_phases, upper):
+	"""Các ngày ≤ upper mà phase_effect của bản cũ khác bản mới, tăng dần.
+	Record mới: old_phases=[]; xoá record / NV cũ khi đổi employee: new_phases=[]."""
+	all_phases = list(old_phases) + list(new_phases)
+	if not all_phases:
+		return []
+	day = min(p[1] for p in all_phases)
+	end = min(max(p[2] for p in all_phases), getdate(upper))
+	dates = []
+	while day <= end:
+		if phase_effect(old_phases, day) != phase_effect(new_phases, day):
+			dates.append(day)
+		day = add_days(day, 1)
+	return dates
+
+
+def contiguous_segments(dates):
+	"""[d1, d2, ...] → [(from, to), ...] gồm các đoạn ngày liên tục.
+
+	Engine lấy check-in theo cả khoảng from→to chứ không theo danh sách `days`, nên hai
+	cụm ngày rời nhau (vd. hai đầu một giai đoạn bị dịch) phải chạy riêng — gộp thành một
+	khoảng là tính lại luôn toàn bộ phần giữa.
+	"""
+	segments = []
+	for day in sorted(getdate(d) for d in dates):
+		if segments and add_days(segments[-1][1], 1) == day:
+			segments[-1][1] = day
+		else:
+			segments.append([day, day])
+	return [(start, end) for start, end in segments]
 
 
 # =============================================================================
@@ -519,11 +552,10 @@ def _sync_maternity_flag_on_save(doc):
 
 
 def on_maternity_delete(doc, method):
-	affected_dates = set()
-	doc._add_all_ranges(affected_dates, doc)
+	affected_dates = changed_dates(maternity_phases(doc), [], recalc_upper_bound(doc.employee))
 
 	if affected_dates:
-		doc._maternity_recalc_jobs = {doc.employee: sorted(affected_dates)}
+		doc._maternity_recalc_jobs = {doc.employee: affected_dates}
 		_queue_attendance_recalculation(doc, "on_trash")
 
 	from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_status_sync import (
@@ -603,8 +635,9 @@ def _queue_attendance_recalculation(doc, trigger):
 def background_update_attendance_for_maternity(employee, affected_dates_json, from_date, to_date):
 	"""Background job: recalculate attendance cho đúng những ngày bị ảnh hưởng.
 
-	Gọi _core_process_attendance_logic_optimized với list ngày cụ thể
-	(không xử lý toàn bộ range from_date→to_date) và fore_get_logs=True.
+	Mỗi đoạn ngày liên tục (contiguous_segments) là một lần gọi
+	_core_process_attendance_logic_optimized(fore_get_logs=True). `from_date`/`to_date`
+	chỉ để log — giữ trong chữ ký cho các job đã nằm sẵn trong queue.
 	"""
 	import time
 	from datetime import date as _date
@@ -615,12 +648,18 @@ def background_update_attendance_for_maternity(employee, affected_dates_json, fr
 		from customize_erpnext.overrides.shift_type.shift_type_optimized import (
 			_core_process_attendance_logic_optimized,
 		)
-		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import is_peak_time
+		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import peak_window_end
 
-		# Skip during check-in/out peak windows — next full run catches up
-		if is_peak_time():
-			frappe.logger().info(f"[Maternity] Peak time — skipped recalc for {employee}")
-			return
+		# Giờ cao điểm: CHỜ hết khung chứ không bỏ qua. Ngày thuộc kỳ đã chốt (trước
+		# process_attendance_after) vẫn được tính lại (user chốt 30/10/2026) mà không lượt
+		# full nào quay lại những ngày đó — bỏ qua ở đây là mất hẳn.
+		waited = 0
+		while (peak_end := peak_window_end()) is not None:
+			pause = max(1, int((peak_end - frappe.utils.now_datetime()).total_seconds()) + 1)
+			time.sleep(pause)
+			waited += pause
+		if waited:
+			frappe.logger().info(f"[Maternity] Peak time — waited {waited}s before recalc for {employee}")
 
 		# Parse và lọc ngày <= today
 		raw_dates   = json.loads(affected_dates_json)
@@ -631,19 +670,23 @@ def background_update_attendance_for_maternity(employee, affected_dates_json, fr
 			frappe.logger().info(f"[Maternity] No past/today dates for {employee} — skip.")
 			return
 
+		segments = contiguous_segments(days_list)
 		total_days = len(days_list)
 		frappe.logger().info(
 			f"[Maternity] Background job started — {employee}: "
-			f"{total_days} days ({from_date} → {to_date})"
+			f"{total_days} days in {len(segments)} segment(s) ({from_date} → {to_date})"
 		)
 
-		stats = _core_process_attendance_logic_optimized(
-			employees=[employee],
-			days=days_list,
-			from_date=from_date,
-			to_date=to_date,
-			fore_get_logs=True,
-		)
+		stats = []
+		for seg_from, seg_to in segments:
+			seg_days = [d for d in days_list if seg_from <= d <= seg_to]
+			stats.append(_core_process_attendance_logic_optimized(
+				employees=[employee],
+				days=seg_days,
+				from_date=str(seg_from),
+				to_date=str(seg_to),
+				fore_get_logs=True,
+			))
 
 		processing_time = round(time.time() - start_time, 2)
 		frappe.logger().info(

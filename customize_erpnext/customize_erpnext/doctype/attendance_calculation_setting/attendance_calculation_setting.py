@@ -155,14 +155,9 @@ def parse_peak_times(raw) -> list:
 	return times
 
 
-def is_peak_time(check_dt=None) -> bool:
-	"""
-	True when check_dt (default: now) falls inside one of the configured daily
-	peak windows [peak_time, peak_time + peak_window_minutes).
-
-	Automatic attendance calculation (hourly hook + auto-recalc background
-	jobs) is skipped during peaks — changes are caught up by the next full run.
-	Manual Bulk Update from the UI is intentionally NOT gated by this.
+def peak_window_end(check_dt=None):
+	"""End datetime of the peak window [peak_time, peak_time + peak_window_minutes)
+	that check_dt (default: now) falls inside, or None when not in a peak.
 	Never raises (bad config → not peak).
 	"""
 	import datetime as _dt
@@ -171,17 +166,33 @@ def is_peak_time(check_dt=None) -> bool:
 	try:
 		peaks = parse_peak_times(settings.peak_times)
 	except Exception:
-		return False
+		return None
 	if not peaks:
-		return False
+		return None
 
 	window = int(settings.peak_window_minutes or DEFAULTS["peak_window_minutes"])
 	now_dt = check_dt or frappe.utils.now_datetime()
 	for peak in peaks:
 		start = _dt.datetime.combine(now_dt.date(), peak)
-		if start <= now_dt < start + _dt.timedelta(minutes=window):
-			return True
-	return False
+		end = start + _dt.timedelta(minutes=window)
+		if start <= now_dt < end:
+			return end
+	return None
+
+
+def is_peak_time(check_dt=None) -> bool:
+	"""
+	True when check_dt (default: now) falls inside one of the configured daily
+	peak windows [peak_time, peak_time + peak_window_minutes).
+
+	Automatic attendance calculation (hourly hook + per-checkin recalc jobs) is
+	skipped during peaks — changes are caught up by the next full run.
+	Exception: the Employee Maternity recalc job WAITS for the window to end
+	instead (it may touch dates before process_attendance_after, which no full
+	run ever revisits). Manual Bulk Update from the UI is NOT gated by this.
+	Never raises (bad config → not peak).
+	"""
+	return peak_window_end(check_dt) is not None
 
 
 def _legacy_exclude_text() -> str:
