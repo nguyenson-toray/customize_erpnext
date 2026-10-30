@@ -1,97 +1,30 @@
-frappe.listview_settings['Employee Checkin'] = {
-	onload: function (listview) {
-		listview.page.add_inner_button(__('Bulk Update Employee Checkin Fields'), function () {
-			show_bulk_update_dialog(listview);
-		});
-	}
-};
+// File này nạp SAU employee_checkin_list.js của HRMS (hook doctype_list_js), nên phải
+// dựng tiếp từ cấu hình của HRMS chứ không gán đè — bản cũ gán đè làm mất cả nhãn
+// Off-Shift lẫn "Fetch Shifts".
+//
+// Cố ý KHÔNG gọi onload/primary_action/before_render của HRMS (từ v16.51, PR #5089):
+// chúng thêm nút "Add Checkin for Another Employee" và nút tự Check In/Out. Bổ sung giờ
+// phải đi qua Attendance Request (có duyệt, có lý do, tự tính lại công); HRMS cũng đã
+// đặt in_create = 1 nên nút Add gốc không hiện.
+//
+// Nút "Bulk Update Employee Checkin Fields" đã bỏ (30/10/2026): engine tính công gọi
+// bulk_update_employee_checkin ở STEP 2 mỗi lần chạy, nút chỉ làm lại việc đó mà không
+// tính lại công.
+(() => {
+	const hrms_settings = frappe.listview_settings['Employee Checkin'] || {};
 
-function show_bulk_update_dialog(listview) {
-	let d = new frappe.ui.Dialog({
-		title: __('Bulk Update Employee Checkin Fields'),
-		fields: [
-			{
-				label: __('Date Range'),
-				fieldname: 'date_range_section',
-				fieldtype: 'Section Break'
-			},
-			{
-				label: __('From Date'),
-				fieldname: 'from_date',
-				fieldtype: 'Date',
-				default: frappe.datetime.add_days(frappe.datetime.get_today(), -30),
-				reqd: 1
-			},
-			{
-				fieldname: 'col_break_1',
-				fieldtype: 'Column Break'
-			},
-			{
-				label: __('To Date'),
-				fieldname: 'to_date',
-				fieldtype: 'Date',
-				default: frappe.datetime.get_today(),
-				reqd: 1
-			},
-			{
-				fieldname: 'info_section',
-				fieldtype: 'Section Break'
-			},
-			{
-				fieldname: 'info',
-				fieldtype: 'HTML',
-				options: `<div class="alert alert-info" style="margin:4px 0">
-					<p class="mb-1"><strong>${__('This will update')}:</strong></p>
-					<ul class="mb-1">
-						<li>${__('Shift field (using fetch_shift)')}</li>
-						<li>${__('Log Type (IN/OUT based on time)')}</li>
-						<li>${__('Offshift flag')}</li>
-					</ul>
-					<p class="mb-0"><small class="text-muted">${__('Only checkins with missing shift or log_type will be updated.')}</small></p>
-				</div>`
-			}
-		],
-		size: 'small',
-		primary_action_label: __('Update'),
-		primary_action(values) {
-			if (values.from_date > values.to_date) {
-				frappe.msgprint({
-					title: __('Invalid Date Range'),
-					message: __('From Date cannot be greater than To Date'),
-					indicator: 'red'
+	frappe.listview_settings['Employee Checkin'] = {
+		add_fields: hrms_settings.add_fields,
+		get_indicator: hrms_settings.get_indicator,
+		onload: function (listview) {
+			listview.page.add_action_item(__('Fetch Shifts'), () => {
+				const checkins = listview.get_checked_items().map((checkin) => checkin.name);
+				frappe.call({
+					method: 'hrms.hr.doctype.employee_checkin.employee_checkin.bulk_fetch_shift',
+					freeze: true,
+					args: { checkins },
 				});
-				return;
-			}
-
-			frappe.call({
-				method: 'customize_erpnext.overrides.employee_checkin.employee_checkin.bulk_update_employee_checkin',
-				args: {
-					from_date: values.from_date,
-					to_date: values.to_date
-				},
-				freeze: true,
-				freeze_message: __('Updating Employee Checkins...'),
-				callback: function (r) {
-					if (r.message !== undefined) {
-						frappe.msgprint({
-							title: __('Bulk Update Complete'),
-							message: __('Successfully updated {0} employee checkin(s)', [r.message]),
-							indicator: 'green'
-						});
-						d.hide();
-						if (listview) listview.refresh();
-					}
-				},
-				error: function () {
-					frappe.msgprint({
-						title: __('Update Failed'),
-						message: __('An error occurred while updating checkins. Please check the error log.'),
-						indicator: 'red'
-					});
-				}
 			});
 		}
-	});
-
-	d.show();
-}
+	};
+})();
