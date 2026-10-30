@@ -3,6 +3,8 @@ import os
 from frappe.utils import get_site_path
 from frappe import _
 
+from customize_erpnext.api.employee.employee_photo_thumbs import fresh_thumb_url, photo_disk_path
+
 
 @frappe.whitelist(allow_guest=False)
 def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
@@ -43,12 +45,25 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
             url = emp.get('image', '')
             filename = url.split('/')[-1] if url else ''
 
+            # mtime file = version trong URL ảnh (trình duyệt cache được, đổi file là đổi URL);
+            # thumb chỉ trả khi mới hơn ảnh gốc
+            modified, thumb_url = 0, ''
+            disk_path = photo_disk_path(url)
+            if disk_path:
+                try:
+                    mtime = os.stat(disk_path).st_mtime
+                    modified = int(mtime)
+                    thumb_url = fresh_thumb_url(url, mtime)
+                except OSError:
+                    pass
+
             photos.append({
                 'filename': filename,
                 'display_name': display_name,
                 'url': url,
                 'size': 0, # Don't need real size for DB fetch unless we stat the file
-                'modified': 0,
+                'modified': modified,
+                'thumb_url': thumb_url,
                 'employee_id': employee_id,
                 'employee_name': employee_name,
                 'status': emp.get('status', ''),
@@ -62,10 +77,18 @@ def get_employee_photos(show_active_only=1, sort_order='asc', custom_group=''):
         reverse = (sort_order == 'desc')
         photos.sort(key=lambda x: x['display_name'].lower(), reverse=reverse)
 
+        # Chip thống kê trên trang đếm TOÀN BỘ nhân viên (mọi trạng thái) kể cả khi chỉ tải NV Active
+        total_all, has_photo_all = frappe.db.sql("""
+            SELECT COUNT(*),
+                   COALESCE(SUM(IFNULL(image, '') NOT IN ('', '/assets/erpnext/images/default-avatar.png')), 0)
+            FROM `tabEmployee`
+        """)[0]
+
         return {
             'status': 'success',
             'photos': photos,
-            'total': len(photos)
+            'total': len(photos),
+            'stats': {'total': int(total_all), 'has_photo': int(has_photo_all)},
         }
 
     except Exception as e:

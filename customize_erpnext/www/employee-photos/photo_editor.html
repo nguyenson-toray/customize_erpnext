@@ -1206,6 +1206,40 @@
         width: calc(100vw - 48px);
       }
     }
+
+    /* Icon Lucide (sprite /assets/frappe/icons/lucide.svg) */
+    .ic {
+      width: 1.1em;
+      height: 1.1em;
+      flex-shrink: 0;
+      vertical-align: -0.2em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .ic.spin {
+      animation: ic-spin 1s linear infinite;
+    }
+
+    @keyframes ic-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .toast .ic {
+      margin-right: 6px;
+    }
+
+    .sl-name .ic,
+    .sec-t .ic {
+      color: var(--t2);
+      margin-right: 2px;
+    }
+
   </style>
 </head>
 
@@ -1214,7 +1248,7 @@
   <!-- TOP BAR -->
   <div class="bar">
     <div class="logo">
-      <div class="logo-dot">📷</div>TIQN Studio
+      <div class="logo-dot"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-camera"></use></svg></div>TIQN Studio
     </div>
     <div class="bar-sep"></div>
     <span class="chip chip-teal">ERPNext · Ảnh Thẻ</span>
@@ -1232,27 +1266,27 @@
 
       <!-- Toolbar -->
       <div class="toolbar">
-        <button class="tb on" id="tbView" onclick="setMode('view',this)">🖼 Xem</button>
+        <button class="tb on" id="tbView" onclick="setMode('view',this)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-image"></use></svg> Xem</button>
         <button class="tb" id="tbAuto" onclick="runAutoPipeline()" disabled
-          title="Tự động: nhận diện mặt → crop 3:4 → xóa nền → thay nền → làm đẹp">🤖 Tạo ảnh thẻ nhanh</button>
+          title="Tự động: nhận diện mặt → crop 3:4 → xóa nền → thay nền → làm đẹp"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> Tạo ảnh thẻ nhanh</button>
         <div class="tb-sep"></div>
-        <button class="tb" id="tbCrop" onclick="setMode('crop',this)" disabled>✂️ Cắt ảnh</button>
+        <button class="tb" id="tbCrop" onclick="setMode('crop',this)" disabled><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-crop"></use></svg> Cắt ảnh</button>
         <div class="tb-sep"></div>
-        <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled>🪄 Xóa nền AI</button>
+        <button class="tb" id="tbBg" onclick="doRemoveBg()" disabled><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-wand-sparkles"></use></svg> Xóa nền AI</button>
         <select id="bgEngineSelect" onchange="setEditorBgEngine(this.value)" disabled
             title="u2net: nhanh ~0.3s, tóc thường — đủ cho ảnh thẻ đồng phục&#10;birefnet: tóc đẹp nhất, chậm ~10s, lần đầu chờ load model&#10;@imgly: chạy trên máy bạn, không tốn server"
             style="background:var(--s3);color:var(--text);border:1px solid var(--border);
                    border-radius:6px;padding:3px 6px;font-size:11px;cursor:pointer;">
-            <option value="rembg-birefnet" selected>birefnet · ✨ nét tóc, chậm</option>
-            <option value="rembg-u2net">u2net · ⚡ nhanh</option>
+            <option value="rembg-birefnet" selected>birefnet · nét tóc, chậm</option>
+            <option value="rembg-u2net">u2net · nhanh</option>
             <option value="imgly">@imgly (JS) · trên máy bạn</option>
         </select>
         <div class="tb-sep"></div>
         <!-- Compare toggle -->
-        <button class="tb" id="tbSplit" onclick="toggleSplitMode()" disabled title="Kéo thanh giữa để so sánh">⇔ So
+        <button class="tb" id="tbSplit" onclick="toggleSplitMode()" disabled title="Kéo thanh giữa để so sánh"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-columns-2"></use></svg> So
           sánh</button>
         <div class="tb-sep"></div>
-        <button class="tb" id="tbReset" onclick="resetAll()" disabled style="margin-left:auto;color:var(--red);">🗑
+        <button class="tb" id="tbReset" onclick="resetAll()" disabled style="margin-left:auto;color:var(--red);"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-rotate-ccw"></use></svg>
           Reset</button>
       </div>
 
@@ -1262,17 +1296,17 @@
         <!-- Drop screen -->
         <div class="drop-screen" id="dropScreen">
           <div class="drop-box" id="dropBox" onclick="document.getElementById('fi').click()">
-            <div class="di">🖼</div>
+            <div class="di"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-image-plus"></use></svg></div>
             <div class="dt">Chọn ảnh nhân viên</div>
             <div class="ds">Kéo thả · Nhấn để chọn · Ctrl+V để dán<br><span>JPG · PNG · WEBP · tối đa 20MB</span></div>
-            <button class="dbtn" type="button">📁 Chọn ảnh</button>
+            <button class="dbtn" type="button"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-folder-open"></use></svg> Chọn ảnh</button>
           </div>
         </div>
         <input type="file" id="fi" accept="image/*">
 
         <!-- Progress -->
         <div class="prog-screen" id="progScreen">
-          <div class="prog-icon" id="progIcon">🪄</div>
+          <div class="prog-icon" id="progIcon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-wand-sparkles"></use></svg></div>
           <div class="prog-lbl" id="progLbl">Đang xử lý...</div>
           <div class="prog-track">
             <div class="prog-fill" id="progFill" style="width:0%"></div>
@@ -1332,7 +1366,7 @@
         <!-- Beautify CTA -->
         <div class="bfy-box">
           <button class="bfy-btn" id="bfyBtn" onclick="smartBeautify()" disabled>
-            ✨ Làm Đẹp Tự Động
+            <svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> Làm Đẹp Tự Động
           </button>
           <div class="bfy-sub">Phân tích · Cân sáng · Mịn da · Sắc nét · Cân màu</div>
           <div class="stats-row" id="bfyStats" style="display:none;"></div>
@@ -1348,9 +1382,9 @@
         </div>
 
         <div class="sec">
-          <div class="sec-t">✂️ Tỉ lệ cắt</div>
+          <div class="sec-t"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-crop"></use></svg> Tỉ lệ cắt</div>
           <div class="pills">
-            <button class="pill on" onclick="setRatio(3/4,this)">3:4 📛</button>
+            <button class="pill on" onclick="setRatio(3/4,this)" title="Ảnh thẻ">3:4</button>
             <button class="pill" onclick="setRatio(1,this)">1:1</button>
             <button class="pill" onclick="setRatio(2/3,this)">2:3</button>
             <button class="pill" onclick="setRatio(NaN,this)">Tự do</button>
@@ -1359,7 +1393,7 @@
 
         <!-- BG color -->
         <div class="sec" id="bgSec" style="display:none;">
-          <div class="sec-t">🎨 Nền ảnh thẻ</div>
+          <div class="sec-t"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-palette"></use></svg> Nền ảnh thẻ</div>
           <div class="swatches">
             <div class="sw on" style="background:#f0f0f0;border:1px solid #ddd;" onclick="setBg('#f0f0f0',this)"
               title="Xám nhạt (mặc định)"></div>
@@ -1380,48 +1414,48 @@
         <!-- Manual sliders -->
         <div id="panelAdjustSection">
           <div class="sec">
-            <div class="sec-t">🎛 Chỉnh thủ công</div>
+            <div class="sec-t"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sliders-horizontal"></use></svg> Chỉnh thủ công</div>
             <div class="pills" style="margin-bottom:10px;">
-              <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên">🌿 Tự
+              <button class="pill" onclick="applyFilterPreset('Tự nhiên')" title="Nhẹ nhàng, tự nhiên"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-leaf"></use></svg> Tự
                 nhiên</button>
-              <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp">💼 Chuyên
+              <button class="pill" onclick="applyFilterPreset('Chuyên nghiệp')" title="Sắc nét, chuyên nghiệp"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-briefcase"></use></svg> Chuyên
                 nghiệp</button>
-              <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ">☀️ Tươi sáng</button>
+              <button class="pill" onclick="applyFilterPreset('Tươi sáng')" title="Sáng, tươi trẻ"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sun"></use></svg> Tươi sáng</button>
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">☀️ Độ sáng</span><span class="sl-val" id="vB">0</span></div>
-              <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sun"></use></svg> Độ sáng</span><span class="sl-val" id="vB">0</span></div>
+              <input type="range" id="sB" min="-100" max="100" value="0" oninput="sv('B'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">◑ Tương phản</span><span class="sl-val" id="vC">0</span></div>
-              <input type="range" id="sC" min="-100" max="100" value="0" oninput="sv('C')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-contrast"></use></svg> Tương phản</span><span class="sl-val" id="vC">0</span></div>
+              <input type="range" id="sC" min="-100" max="100" value="0" oninput="sv('C'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">🌈 Bão hòa màu</span><span class="sl-val" id="vS">0</span></div>
-              <input type="range" id="sS" min="-100" max="100" value="0" oninput="sv('S')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-droplet"></use></svg> Bão hòa màu</span><span class="sl-val" id="vS">0</span></div>
+              <input type="range" id="sS" min="-100" max="100" value="0" oninput="sv('S'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">✨ Mịn da</span><span class="sl-val" id="vSm">0</span></div>
-              <input type="range" id="sSm" min="0" max="12" value="0" oninput="sv('Sm')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkle"></use></svg> Mịn da</span><span class="sl-val" id="vSm">0</span></div>
+              <input type="range" id="sSm" min="0" max="12" value="0" oninput="sv('Sm'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">🔆 Sắc nét</span><span class="sl-val" id="vSh">0</span></div>
-              <input type="range" id="sSh" min="0" max="10" value="0" oninput="sv('Sh')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-focus"></use></svg> Sắc nét</span><span class="sl-val" id="vSh">0</span></div>
+              <input type="range" id="sSh" min="0" max="10" value="0" oninput="sv('Sh'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">🌡️ Tông ấm/lạnh</span><span class="sl-val" id="vW">0</span>
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-thermometer"></use></svg> Tông ấm/lạnh</span><span class="sl-val" id="vW">0</span>
               </div>
-              <input type="range" id="sW" min="-60" max="60" value="0" oninput="sv('W')" onchange="applyFilters()">
+              <input type="range" id="sW" min="-60" max="60" value="0" oninput="sv('W'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">💡 Vùng sáng</span><span class="sl-val" id="vHi">0</span></div>
-              <input type="range" id="sHi" min="-50" max="50" value="0" oninput="sv('Hi')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sun-medium"></use></svg> Vùng sáng</span><span class="sl-val" id="vHi">0</span></div>
+              <input type="range" id="sHi" min="-50" max="50" value="0" oninput="sv('Hi'); scheduleFilters()" onchange="applyFilters()">
             </div>
             <div class="sl-row">
-              <div class="sl-top"><span class="sl-name">🌑 Vùng tối</span><span class="sl-val" id="vSh2">0</span></div>
-              <input type="range" id="sSh2" min="-50" max="50" value="0" oninput="sv('Sh2')" onchange="applyFilters()">
+              <div class="sl-top"><span class="sl-name"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-moon"></use></svg> Vùng tối</span><span class="sl-val" id="vSh2">0</span></div>
+              <input type="range" id="sSh2" min="-50" max="50" value="0" oninput="sv('Sh2'); scheduleFilters()" onchange="applyFilters()">
             </div>
-            <button class="btn btn-g" style="width:100%;margin-top:4px;font-size:11px;" onclick="resetSliders()">↺ Reset
+            <button class="btn btn-g" style="width:100%;margin-top:4px;font-size:11px;" onclick="resetSliders()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-rotate-ccw"></use></svg> Reset
               bộ lọc</button>
           </div>
         </div>
@@ -1431,10 +1465,10 @@
       <!-- Actions: sticky footer, luôn hiển thị dù panel-body scroll -->
       <div class="actions">
         <div class="btn-row">
-          <button class="btn btn-g" id="btnCropApply" onclick="applyCrop()" disabled>✅ Áp dụng cắt</button>
-          <button class="btn btn-g" id="btnUndo" onclick="undoBeautify()" disabled>↩️ Hoàn tác</button>
+          <button class="btn btn-g" id="btnCropApply" onclick="applyCrop()" disabled><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-check"></use></svg> Áp dụng cắt</button>
+          <button class="btn btn-g" id="btnUndo" onclick="undoBeautify()" disabled><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-undo-2"></use></svg> Hoàn tác</button>
         </div>
-        <button class="btn btn-ok" id="btnSave" onclick="saveAction()" disabled style="padding:11px;font-size:13px;">💾
+        <button class="btn btn-ok" id="btnSave" onclick="saveAction()" disabled style="padding:11px;font-size:13px;"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-save"></use></svg>
           Lưu PNG</button>
       </div>
 
@@ -1507,6 +1541,12 @@
       _cropSuggest: null,   // { x,y,width,height } gợi ý từ face detection
       sourcePng: false,     // true khi ảnh nguồn là PNG (có thể có alpha)
     };
+
+    // Icon Lucide từ sprite có sẵn của Frappe (thay emoji)
+    const ICON_SPRITE = '/assets/frappe/icons/lucide.svg';
+    function ic(name, cls = '') {
+      return `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="${ICON_SPRITE}#icon-${name}"></use></svg>`;
+    }
 
     let _editorBgEngine = 'rembg';          // 'rembg' | 'imgly'
     let _editorBgModel  = 'birefnet-portrait';  // mặc định birefnet — chất lượng tóc tốt nhất
@@ -1613,7 +1653,7 @@
         enableUI();
         updateMini();
         document.getElementById('barInfo').textContent = `${w} × ${h}`;
-        toast('Đã tải ảnh ✓', 'ok');
+        toast('Đã tải ảnh', 'ok');
       };
       img.src = src;
     }
@@ -1724,7 +1764,7 @@
       setMode('view', document.getElementById('tbView'));
       document.getElementById('barInfo').textContent = `${w} × ${h}`;
       updateMini();
-      toast('✅ Đã cắt ảnh', 'ok');
+      toast('Đã cắt ảnh', 'ok');
       // Nếu đang ở giữa auto pipeline → tiếp tục phase 2
       if (G.autoPending) { G.autoPending = false; continueAutoPipeline(); }
     }
@@ -1765,11 +1805,11 @@
     }
 
     async function _removeBgImgly(pctStart, pctEnd) {
-      showProg('🤖', 'Tải model @imgly...', pctStart, 'client-side · lần đầu ~30s');
+      showProg('sparkles', 'Tải model @imgly...', pctStart, 'client-side · lần đầu ~30s');
       const { removeBackground } = await _ensureImgly();
       workCv.width = G.base.width; workCv.height = G.base.height;
       workCtx.putImageData(G.base, 0, 0);
-      showProg('🤖', 'Xóa nền @imgly...', Math.round((pctStart + pctEnd) / 2), 'đang xử lý');
+      showProg('sparkles', 'Xóa nền @imgly...', Math.round((pctStart + pctEnd) / 2), 'đang xử lý');
       const inputBlob = await new Promise(r => workCv.toBlob(r, 'image/jpeg', 0.92));
       const resultBlob = await removeBackground(inputBlob, {
         publicPath: location.origin + '/assets/customize_erpnext/bg_removal/',
@@ -1802,7 +1842,7 @@
 
     // Core rembg logic — dùng chung cho doRemoveBg() và continueAutoPipeline()
     async function _removeBgCore(pctStart, pctEnd) {
-      showProg('🖥', 'Xóa nền rembg...', pctStart, `${_editorBgModel} · đang gửi lên server`);
+      showProg('server', 'Xóa nền rembg...', pctStart, `${_editorBgModel} · đang gửi lên server`);
 
       workCv.width = G.base.width; workCv.height = G.base.height;
       workCtx.putImageData(G.base, 0, 0);
@@ -1821,11 +1861,27 @@
       }
       const imageData = sendCv.toDataURL('image/jpeg', 0.92);
 
-      showProg('⏳', 'Đang xử lý trên server...', Math.round((pctStart + pctEnd) / 2), _editorBgModel);
-      const resultDataUrl = await _callFrappe(
-        'customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
-        { image_data: imageData, model_name: _editorBgModel }
-      );
+      // Đo 30/10/2026 (CPU 16 lõi): birefnet ~10 s/ảnh, u2net ~0,5 s; lần đầu nạp model thêm 1–8 s
+      const estSec = _editorBgModel === 'birefnet-portrait' ? 11 : 2;
+      const pctMid = Math.round((pctStart + pctEnd) / 2), t0 = Date.now();
+      const tick = () => {
+        const el = (Date.now() - t0) / 1000;
+        const left = Math.ceil(estSec - el);
+        showProg('loader-circle', 'Đang xử lý trên server...',
+          Math.round(pctMid + (pctEnd - pctMid) * Math.min(0.95, el / estSec)),
+          left > 0 ? `${_editorBgModel} · còn khoảng ${left} giây` : `${_editorBgModel} · sắp xong (lần đầu phải chờ nạp model)`);
+      };
+      tick();
+      const etaTimer = setInterval(tick, 500);
+      let resultDataUrl;
+      try {
+        resultDataUrl = await _callFrappe(
+          'customize_erpnext.api.employee.employee_utils.remove_bg_rembg',
+          { image_data: imageData, model_name: _editorBgModel }
+        );
+      } finally {
+        clearInterval(etaTimer);
+      }
 
       const img = new Image(); img.src = resultDataUrl;
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
@@ -1850,11 +1906,11 @@
         applyBgColor(G.bgColor);
         hideProg();
         document.getElementById('bgSec').style.display = 'block';
-        toast('🪄 Xóa nền thành công!', 'ok');
+        toast('Xóa nền thành công!', 'ok');
       } catch (e) {
         console.error('[doRemoveBg]', e);
         hideProg();
-        toast('⚠️ Lỗi AI, thử phương pháp dự phòng...', '');
+        toast('Lỗi AI, thử phương pháp dự phòng...', '');
         fallbackBg();
       }
       document.getElementById('tbBg').disabled = false;
@@ -1882,7 +1938,7 @@
 
     // Trả về { box:{x,y,width,height}, score } hoặc null nếu không tìm thấy mặt
     async function detectFace() {
-      showProg('👤', 'Tải model nhận diện mặt...', 18, 'SSD MobileNet v1 (~5.4MB, cache sau lần đầu)');
+      showProg('scan-face', 'Tải model nhận diện mặt...', 18, 'SSD MobileNet v1 (~5.4MB, cache sau lần đầu)');
       await _ensureFaceApi();
       workCv.width = G.base.width; workCv.height = G.base.height;
       workCtx.putImageData(G.base, 0, 0);
@@ -1998,10 +2054,10 @@
       document.getElementById('btnUndo').disabled = false;
 
       try {
-        showProg('🔄', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px', 'detect');
+        showProg('refresh-cw', 'Tiền xử lý ảnh...', 5, 'Resize về max 1600px', 'detect');
         preprocessResize();
 
-        showProg('👤', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet', 'detect');
+        showProg('scan-face', 'Nhận diện khuôn mặt...', 30, 'face-api SSD MobileNet', 'detect');
         let faceResult = null;
         try { faceResult = await detectFace(); }
         catch (fe) { console.warn('[runAutoPipeline] face detect failed:', fe); }
@@ -2033,14 +2089,14 @@
         setMode('crop', document.getElementById('tbCrop'));
         G.autoPending = true;
         const msg = faceResult
-          ? `✂️ Đã tìm thấy mặt (${Math.round(faceResult.score * 100)}%). Điều chỉnh crop rồi bấm ✅ Áp dụng cắt`
-          : '✂️ Không tìm thấy mặt — crop trung tâm. Điều chỉnh nếu cần rồi bấm ✅ Áp dụng cắt';
+          ? `Đã tìm thấy mặt (${Math.round(faceResult.score * 100)}%). Điều chỉnh vùng cắt rồi bấm Áp dụng cắt`
+          : 'Không tìm thấy mặt — cắt giữa ảnh. Điều chỉnh nếu cần rồi bấm Áp dụng cắt';
         toast(msg, faceResult ? 'ok' : '');
 
       } catch (e) {
         console.error('[runAutoPipeline phase1]', e);
         hideProg();
-        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
+        toast('Lỗi: ' + (e.message || e), 'er');
       }
 
       // Nhả lock để user tương tác với Cropper
@@ -2059,7 +2115,7 @@
         // Check if bg removal can be skipped (PNG or white background)
         const skipBgRemoval = G.sourcePng || PhotoProcessingUtils.isWhiteBackground(G.base);
         if (skipBgRemoval) {
-          showProg('⏩', 'Bỏ qua xóa nền (PNG/nền trắng)...', 70, '', 'bg');
+          showProg('skip-forward', 'Bỏ qua xóa nền (PNG/nền trắng)...', 70, '', 'bg');
           if (G.sourcePng) {
             // PNG có alpha → set bgRemoved từ G.base để composite lên bgColor
             G.bgRemoved = new ImageData(new Uint8ClampedArray(G.base.data), G.base.width, G.base.height);
@@ -2071,39 +2127,26 @@
           if (_editorBgEngine === 'imgly') {
             await _removeBgImgly(42, 85);
           } else {
-            showProg('🖥', 'Xóa nền rembg...', 42, _editorBgModel, 'bg');
+            showProg('server', 'Xóa nền rembg...', 42, _editorBgModel, 'bg');
             await _removeBgCore(42, 85);
           }
 
-          showProg('🎨', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor, 'bg');
+          showProg('palette', 'Thay nền...', 87, G.bgColor.startsWith('gradient:') ? 'Gradient' : G.bgColor, 'bg');
           applyBgColor(G.bgColor);
           document.getElementById('bgSec').style.display = 'block';
         }
 
-        showProg('✨', 'Làm đẹp tự động...', 93, 'Phân tích ảnh', 'beautify');
+        showProg('sparkles', 'Làm đẹp tự động...', 93, 'Phân tích ảnh', 'beautify');
         const p = analyzeDeep(G.base);
         applySliders(p);
-        applyFilters(); // filter áp dụng lên toàn ảnh (kể cả nền)
-
-        // Khôi phục màu nền sạch:
-        // lấy pixel người từ ảnh đã filter (màu đã enhance),
-        // giữ nguyên alpha gốc từ G.bgRemoved → composite lại lên nền gốc
-        if (G.bgRemoved && G.hasBg) {
-          const filtered = ctxA.getImageData(0, 0, cvAfter.width, cvAfter.height);
-          const newFg = new ImageData(new Uint8ClampedArray(filtered.data), filtered.width, filtered.height);
-          for (let i = 3; i < newFg.data.length; i += 4) {
-            newFg.data[i] = G.bgRemoved.data[i]; // restore alpha gốc
-          }
-          G.bgRemoved = newFg;
-          applyBgColor(G.bgColor); // re-composite: người enhanced + nền sạch
-        }
+        applyFilters(); // tự ghép người đã lọc lên nền sạch khi đã xóa nền
 
         hideProg();
-        toast('✅ Tạo ảnh thẻ hoàn tất!', 'ok');
+        toast('Tạo ảnh thẻ hoàn tất!', 'ok');
       } catch (e) {
         console.error('[continueAutoPipeline]', e);
         hideProg();
-        toast('⚠️ Lỗi: ' + (e.message || e), 'er');
+        toast('Lỗi: ' + (e.message || e), 'er');
       }
 
       G.segLoading = false;
@@ -2137,7 +2180,7 @@
       document.getElementById('btnUndo').disabled = false;
       applySliders(p);
       applyFilters();
-      toast(`✨ Filter: ${name}`, 'ok');
+      toast(`Filter: ${name}`, 'ok');
     }
 
     function fallbackBg() {
@@ -2155,7 +2198,7 @@
       G.bgRemoved = new ImageData(out, w, h); G.hasBg = true;
       applyBgColor(G.bgColor);
       document.getElementById('bgSec').style.display = 'block';
-      toast('🪄 Xóa nền (chế độ thông minh)', 'ok');
+      toast('Xóa nền (chế độ thông minh)', 'ok');
     }
 
     function applyBgColor(color) {
@@ -2170,23 +2213,31 @@
         cvAfter.classList.add('checker');
       } else {
         cvAfter.classList.remove('checker');
-        workCtx.clearRect(0, 0, w, h);
-        // Hỗ trợ gradient format: 'gradient:#c1,#c2'
-        if (color.startsWith('gradient:')) {
-          const [c1, c2] = color.slice(9).split(',');
-          const grad = workCtx.createLinearGradient(0, 0, 0, h);
-          grad.addColorStop(0, c1); grad.addColorStop(1, c2);
-          workCtx.fillStyle = grad;
-        } else {
-          workCtx.fillStyle = color;
-        }
-        workCtx.fillRect(0, 0, w, h);
-        const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
-        tc.getContext('2d').putImageData(G.bgRemoved, 0, 0);
-        workCtx.drawImage(tc, 0, 0);
+        _compositeOnBg(G.bgRemoved, color);
       }
       G.base = workCtx.getImageData(0, 0, w, h);
       applyFilters();
+    }
+
+    // Ghép ảnh có alpha (người đã xóa nền) lên nền màu/gradient, kết quả nằm trên workCv.
+    // Hỗ trợ gradient format: 'gradient:#c1,#c2'
+    function _compositeOnBg(fg, color) {
+      const w = fg.width, h = fg.height;
+      workCv.width = w; workCv.height = h;
+      workCtx.clearRect(0, 0, w, h);
+      if (color.startsWith('gradient:')) {
+        const [c1, c2] = color.slice(9).split(',');
+        const grad = workCtx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, c1); grad.addColorStop(1, c2);
+        workCtx.fillStyle = grad;
+      } else {
+        workCtx.fillStyle = color;
+      }
+      workCtx.fillRect(0, 0, w, h);
+      const tc = document.createElement('canvas'); tc.width = w; tc.height = h;
+      tc.getContext('2d').putImageData(fg, 0, 0);
+      workCtx.drawImage(tc, 0, 0);
+      return workCtx.getImageData(0, 0, w, h);
     }
 
     function setBg(color, btn) {
@@ -2223,9 +2274,9 @@
           `<span class="stat-badge sb-teal">Da ${p._lum}</span>` +
           `<span class="stat-badge sb-amber">Vùng ${p._faceLum || '—'}</span>`;
 
-        btn.innerHTML = '✨ Làm Đẹp Thông Minh';
+        btn.innerHTML = ic('sparkles') + ' Làm Đẹp Tự Động';
         btn.disabled = false;
-        toast(`✨ Phân tích xong · Da lum=${p._lum} (${p._skin}%) · Sáng ${p.brightness > 0 ? '+' : ''}${p.brightness}`, 'ok');
+        toast(`Phân tích xong · Da lum=${p._lum} (${p._skin}%) · Sáng ${p.brightness > 0 ? '+' : ''}${p.brightness}`, 'ok');
       }, 40);
     }
 
@@ -2261,6 +2312,14 @@
       let id = PhotoProcessingUtils.applyFilters(copyID(G.base), params);
       // Subtle vignette for portrait feel (very light)
       id = vignette(id, 0.08);
+      // Đã xóa nền + có màu nền: filter/vignette chỉ được đổi màu NGƯỜI — ảnh thẻ cần nền đều.
+      // Gắn lại alpha của ảnh đã xóa nền rồi ghép lên nền sạch (giống applyBatchPreset ở index.html).
+      // Khác kích thước (vd. hoàn tác về ảnh trước khi resize) → giữ hành vi cũ.
+      const fg = G.hasBg ? G.bgRemoved : null;
+      if (fg && G.bgColor !== 'transparent' && fg.width === id.width && fg.height === id.height) {
+        for (let i = 3; i < id.data.length; i += 4) id.data[i] = fg.data[i];
+        id = _compositeOnBg(id, G.bgColor);
+      }
       ctxA.putImageData(id, 0, 0);
       updateMini();
     }
@@ -2299,6 +2358,12 @@
     //  SLIDERS
     // ═══════════════════════════════════
     const KEYS = ['B', 'C', 'S', 'Sm', 'Sh', 'W', 'Hi', 'Sh2'];
+    let _filterRaf = 0;
+    function scheduleFilters() {
+      if (_filterRaf) return;
+      _filterRaf = requestAnimationFrame(() => { _filterRaf = 0; applyFilters(); });
+    }
+
     function sv(k) { document.getElementById('v' + k).textContent = document.getElementById('s' + k).value; }
     function applySliders(p) {
       setKV('B', p.brightness); setKV('C', p.contrast); setKV('S', p.saturation);
@@ -2356,7 +2421,7 @@
       link.download = `${base}.png`;
       link.href = cvAfter.toDataURL('image/png');
       link.click();
-      toast('💾 Đã lưu PNG!', 'ok');
+      toast('Đã lưu PNG!', 'ok');
     }
 
     // ═══════════════════════════════════
@@ -2365,7 +2430,7 @@
     function showProg(icon, lbl, pct, sub, stepId = '') {
       const ps = document.getElementById('progScreen');
       ps.classList.add('on');
-      document.getElementById('progIcon').textContent = icon;
+      document.getElementById('progIcon').innerHTML = ic(icon, icon === 'loader-circle' ? 'spin' : '');
       document.getElementById('progLbl').textContent = lbl;
       document.getElementById('progFill').style.width = pct + '%';
       document.getElementById('progSub').textContent = sub;
@@ -2411,9 +2476,15 @@
       }
     }
 
+    // Icon theo loại thông báo; nội dung gán bằng textContent
+    const TOAST_ICONS = { ok: 'circle-check', er: 'triangle-alert', '': 'info' };
     function toast(msg, type = '') {
       const el = document.getElementById('toast');
-      el.textContent = msg; el.className = 'toast on' + (type ? ' ' + type : '');
+      el.innerHTML = ic(TOAST_ICONS[type] || 'info');
+      const text = document.createElement('span');
+      text.textContent = msg;
+      el.appendChild(text);
+      el.className = 'toast on' + (type ? ' ' + type : '');
       clearTimeout(el._t); el._t = setTimeout(() => el.className = 'toast', 3200);
     }
 
@@ -2443,7 +2514,7 @@
         // Update UI
         const btn = document.getElementById('btnSave');
         if (btn) {
-          btn.innerHTML = '📤 Lưu vào hệ thống';
+          btn.innerHTML = ic('upload') + ' Lưu vào hệ thống';
           btn.style.background = 'linear-gradient(135deg,#22c97a,#15a85e)';
         }
         const barInfo = document.getElementById('barInfo');
@@ -2476,7 +2547,7 @@
         _erpEmployeeName = null;
         const btn = document.getElementById('btnSave');
         if (btn) {
-          btn.innerHTML = '💾 Lưu PNG';
+          btn.innerHTML = ic('save') + ' Lưu PNG';
           btn.style.background = '';
         }
       }
@@ -2505,7 +2576,7 @@
         document.getElementById('barInfo').textContent =
           (document.getElementById('barInfo').textContent || '') +
           '  |  ' + w + ' × ' + h;
-        toast('Đã tải ảnh ✓', 'ok');
+        toast('Đã tải ảnh', 'ok');
       };
       img.onerror = () => {
         // Fallback: try without crossOrigin
@@ -2520,9 +2591,9 @@
           G.cropSrc = tc.toDataURL(); G.origSrc = G.cropSrc; _origImgEl = null;
           G.hasImage = true; G.hasBg = false;
           resetSliders(); showSplit(); enableUI(); updateMini();
-          toast('Đã tải ảnh ✓', 'ok');
+          toast('Đã tải ảnh', 'ok');
         };
-        img2.onerror = () => toast('⚠️ Không tải được ảnh', 'er');
+        img2.onerror = () => toast('Không tải được ảnh', 'er');
         img2.src = url;
       };
       img.src = url;
@@ -2538,7 +2609,7 @@
           dataUrl: dataUrl,
           employeeId: _erpEmployeeId
         }, '*');
-        toast('📤 Đang lưu vào hệ thống...', 'ok');
+        toast('Đang lưu vào hệ thống...', '');
       } else {
         // Standalone mode: download PNG
         savePNG();

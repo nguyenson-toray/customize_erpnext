@@ -35,6 +35,76 @@
             --radius: 10px;
             --shadow-1: 0 1px 3px rgba(28, 39, 51, 0.08);
             --shadow-2: 0 6px 18px rgba(28, 39, 51, 0.12);
+            /* Nền chữ trắng (nút, ô chọn) — tách khỏi --primary vì ở theme tối --primary sáng hơn, chữ trắng không đủ tương phản */
+            --primary-fill: #2f5da8;
+            --surface-2: #f8f9fa;
+            --img-wrap: #e9ecef;
+            --line-soft: #e9ecef;
+            --line-strong: #d1d8dd;
+            --line-hover: #c1c8cd;
+            --input-bg: #ffffff;
+            --ink-strong: #2e3842;
+            --ink-soft: #495057;
+            --ink-3: #5f6871;
+            --danger-text: #c82333;
+            --badge-danger: #dc3545;
+            --chip-ok-ink: #1a8a53;
+            --chip-warn-ink: #a36f1c;
+            --group-bg: #eef3f8;
+            --group-ink: #666677;
+            --slider-off: #cccccc;
+            --knob: #ffffff;
+            --skeleton-a: #f0f0f0;
+            --skeleton-b: #f8f8f8;
+            --spinner-track: #f3f3f3;
+            --select-overlay-bg: rgba(255, 255, 255, 0.9);
+            --select-overlay-border: #aaaaaa;
+        }
+
+        /* Theme tối theo trình duyệt / hệ điều hành. Chỉ trang chính — các hộp thoại sửa ảnh,
+           xử lý hàng loạt, tải ảnh vốn đã tối, giữ nguyên. Mọi cặp chữ/nền đo bằng check_contrast.py. */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                color-scheme: dark;
+                --bg: #1a1d24;
+                --surface: #22262e;
+                --ink: #dde3f0;
+                --ink-2: #97a1ba;
+                --line: #363d4a;
+                --primary: #6a9fff;
+                --primary-strong: #2858b8;
+                --primary-fill: #2f6bd8;
+                --primary-tint: rgba(79, 142, 255, 0.12);
+                --ok: #22c97a;
+                --ok-tint: rgba(34, 201, 122, 0.12);
+                --warn: #f0a830;
+                --warn-tint: rgba(240, 168, 48, 0.14);
+                --danger: #ff5a5a;
+                --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.5);
+                --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.55);
+                --surface-2: #2a2f38;
+                --img-wrap: #313742;
+                --line-soft: #363d4a;
+                --line-strong: #414a5a;
+                --line-hover: #4d5668;
+                --input-bg: #2a2f38;
+                --ink-strong: #dde3f0;
+                --ink-soft: #aab3c5;
+                --ink-3: #97a1ba;
+                --danger-text: #ff7a7a;
+                --badge-danger: #b93a3a;
+                --chip-ok-ink: #22c97a;
+                --chip-warn-ink: #f0a830;
+                --group-bg: #283043;
+                --group-ink: #97a1ba;
+                --slider-off: #414a5a;
+                --knob: #dde3f0;
+                --skeleton-a: #2a2f38;
+                --skeleton-b: #313742;
+                --spinner-track: #313742;
+                --select-overlay-bg: rgba(34, 38, 46, 0.9);
+                --select-overlay-border: #5a6478;
+            }
         }
 
         body {
@@ -101,8 +171,39 @@
             }
         }
 
+        /* Icon Lucide (sprite /assets/frappe/icons/lucide.svg) — cỡ theo chữ, màu theo currentColor */
+        .ic {
+            width: 1.1em;
+            height: 1.1em;
+            flex-shrink: 0;
+            vertical-align: -0.2em;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .ic.spin {
+            animation: ic-spin 1s linear infinite;
+        }
+
+        @keyframes ic-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .ctrl-icon .ic {
+            color: var(--ink-3);
+        }
+
+        .editor-toast .ic {
+            margin-right: 6px;
+        }
+
         .stats {
-            color: #6c757d;
+            color: var(--ink-3);
             font-size: 14px;
             margin-bottom: 20px;
         }
@@ -116,31 +217,31 @@
         }
 
         .chip-stat {
-            background: #f8f9fa;
+            background: var(--surface-2);
             padding: 6px 14px;
             border-radius: 50px;
             font-size: 13px;
-            color: #495057;
+            color: var(--ink-soft);
             display: flex;
             align-items: center;
             gap: 8px;
-            border: 1px solid #e9ecef;
+            border: 1px solid var(--line-soft);
             transition: all 0.2s;
         }
 
         .chip-stat b {
-            color: #2e3842;
+            color: var(--ink-strong);
         }
 
         .chip-stat.ok {
             background: rgba(34, 201, 122, 0.1);
-            color: #1a8a53;
+            color: var(--chip-ok-ink);
             border-color: rgba(34, 201, 122, 0.2);
         }
 
         .chip-stat.warn {
             background: rgba(240, 168, 48, 0.1);
-            color: #a36f1c;
+            color: var(--chip-warn-ink);
             border-color: rgba(240, 168, 48, 0.2);
         }
 
@@ -155,7 +256,9 @@
             padding: 10px;
             flex: 1;
             min-width: 250px;
-            border: 1px solid #d1d8dd;
+            border: 1px solid var(--line-strong);
+            background: var(--input-bg);
+            color: var(--ink);
             border-radius: 4px;
             font-size: 14px;
         }
@@ -183,13 +286,19 @@
             white-space: nowrap;
         }
 
+        .control-group input[type="date"] {
+            background-color: var(--input-bg);
+            color: var(--ink);
+        }
+
         .control-group select {
             padding: 6px 10px;
-            border: 1px solid #d1d8dd;
+            border: 1px solid var(--line-strong);
             border-radius: 4px;
             font-size: 14px;
             cursor: pointer;
-            background-color: white;
+            background-color: var(--input-bg);
+            color: var(--ink);
         }
 
         .control-group input[type="checkbox"] {
@@ -219,7 +328,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #ccc;
+            background-color: var(--slider-off);
             transition: .3s;
             border-radius: 18px;
         }
@@ -231,7 +340,7 @@
             width: 14px;
             left: 2px;
             bottom: 2px;
-            background-color: white;
+            background-color: var(--knob);
             transition: .3s;
             border-radius: 50%;
         }
@@ -246,12 +355,12 @@
 
         .control-group button {
             padding: 8px 16px;
-            border: 1px solid #d1d8dd;
+            border: 1px solid var(--line-strong);
             border-radius: 6px;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            background-color: white;
+            background-color: var(--input-bg);
             transition: all 0.2s;
             display: flex;
             align-items: center;
@@ -259,7 +368,7 @@
         }
 
         .control-group button#btnGlobalUpload {
-            background-color: var(--primary);
+            background-color: var(--primary-fill);
             color: white;
             border-color: var(--primary-strong);
         }
@@ -270,23 +379,23 @@
         }
 
         .control-group button#refreshBtn {
-            color: #6c757d;
+            color: var(--ink-3);
             background: transparent;
         }
 
         .control-group button#refreshBtn:hover {
-            background-color: #f8f9fa;
-            border-color: #c1c8cd;
+            background-color: var(--surface-2);
+            border-color: var(--line-hover);
         }
 
         .loading {
             text-align: center;
             padding: 60px 20px;
-            color: #6c757d;
+            color: var(--ink-3);
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
+            border: 3px solid var(--spinner-track);
             border-top: 3px solid var(--primary);
             border-radius: 50%;
             width: 40px;
@@ -320,13 +429,125 @@
             flex-wrap: wrap;
         }
 
-        /* Hàng filter: luôn 1 hàng — tràn thì cuộn ngang, không xuống dòng */
+        /* Panel "Bộ lọc": thu gọn mặc định, mở bằng nút Bộ lọc */
         .filters-row {
-            flex-wrap: nowrap;
-            gap: 12px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            scrollbar-width: thin;
+            display: none;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            align-items: center;
+            margin-top: 12px;
+            padding: 12px 14px;
+            background: var(--surface-2);
+            border: 1px solid var(--line-soft);
+            border-radius: 8px;
+        }
+
+        .filters-row.open {
+            display: flex;
+        }
+
+        .toolbar-main {
+            margin-bottom: 0;
+        }
+
+        .toolbar-actions {
+            margin-left: auto;
+        }
+
+        .search-wrap {
+            position: relative;
+            flex: 1 1 240px;
+            max-width: 340px;
+            min-width: 180px;
+        }
+
+        .search-wrap .search-box {
+            width: 100%;
+            margin: 0;
+            padding-left: 36px;
+        }
+
+        .search-ic {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            color: var(--ink-3);
+            pointer-events: none;
+        }
+
+        .control-group input[type="date"] {
+            padding: 5px 8px;
+            border: 1px solid var(--line-strong);
+            border-radius: 4px;
+        }
+
+        #btnFilterToggle {
+            position: relative;
+        }
+
+        #btnFilterToggle.active {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .filter-count:not(:empty) {
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: var(--primary-fill);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 18px;
+            text-align: center;
+        }
+
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .active-filters[hidden] {
+            display: none;
+        }
+
+        .af-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px 4px 12px;
+            border: 1px solid var(--primary);
+            border-radius: 999px;
+            background: var(--primary-tint);
+            color: var(--primary);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .af-chip:hover {
+            background: var(--primary-fill);
+            border-color: var(--primary-fill);
+            color: #fff;
+        }
+
+        .af-clear {
+            padding: 4px 8px;
+            border: none;
+            background: none;
+            color: var(--ink-3);
+            font-size: 13px;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .af-clear:hover {
+            color: var(--ink);
         }
 
         .filters-row .control-group {
@@ -365,12 +586,12 @@
         .photo-card {
             position: relative;
             /* needed for .edit-btn and .card-save-flash */
-            background: #f8f9fa;
+            background: var(--surface-2);
             border-radius: 8px;
             overflow: hidden;
             transition: transform 0.2s, box-shadow 0.2s;
             cursor: pointer;
-            border: 1px solid #e9ecef;
+            border: 1px solid var(--line-soft);
         }
 
         .photo-card:hover {
@@ -381,7 +602,7 @@
         .photo-card .photo-img-wrap {
             aspect-ratio: 3 / 4;
             overflow: hidden;
-            background-color: #e9ecef;
+            background-color: var(--img-wrap);
             position: relative;
         }
 
@@ -399,7 +620,7 @@
 
         /* Skeleton Animation */
         .skeleton {
-            background: linear-gradient(90deg, #f0f0f0 25%, #f8f8f8 50%, #f0f0f0 75%);
+            background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 50%, var(--skeleton-a) 75%);
             background-size: 200% 100%;
             animation: shimmer 1.5s infinite;
         }
@@ -420,7 +641,7 @@
 
         .employee-id {
             font-weight: 600;
-            color: #2e3842;
+            color: var(--ink-strong);
             font-size: 13px;
             margin-bottom: 4px;
             word-wrap: break-word;
@@ -437,12 +658,12 @@
         }
 
         .employee-id.inactive-employee {
-            color: #dc3545;
+            color: var(--danger-text);
         }
 
         .status-badge {
             display: inline-block;
-            background-color: #dc3545;
+            background-color: var(--badge-danger);
             color: white;
             font-size: 10px;
             padding: 2px 6px;
@@ -451,20 +672,20 @@
         }
 
         .group-info {
-            color: #495057;
+            color: var(--ink-soft);
             font-size: 11px;
             margin-bottom: 4px;
             font-style: italic;
         }
 
         .file-info {
-            color: #6c757d;
+            color: var(--ink-3);
             font-size: 11px;
         }
 
         .phone-info,
         .address-info {
-            color: #495057;
+            color: var(--ink-soft);
             font-size: 11px;
             margin-top: 4px;
             word-wrap: break-word;
@@ -477,8 +698,8 @@
         .error {
             text-align: center;
             padding: 40px 20px;
-            color: #dc3545;
-            background: white;
+            color: var(--danger-text);
+            background: var(--surface);
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
@@ -531,7 +752,7 @@
         .no-results {
             text-align: center;
             padding: 40px 20px;
-            color: #6c757d;
+            color: var(--ink-3);
         }
 
         /* ── Edit button on photo card ── */
@@ -593,8 +814,8 @@
             line-height: 1;
         }
 
-        /* ── Delete button on photo card ── */
-        .delete-btn {
+        /* ── Nút "⋯" (menu tải về / mở hồ sơ / xoá) trên thẻ ── */
+        .more-btn {
             position: absolute;
             top: 8px;
             left: 8px;
@@ -617,13 +838,13 @@
             line-height: 1;
         }
 
-        .photo-card:hover .delete-btn {
+        .photo-card:hover .more-btn {
             opacity: 1;
             transform: scale(1);
         }
 
-        .delete-btn:hover {
-            background: rgba(220, 53, 69, 0.9);
+        .more-btn:hover {
+            background: rgba(47, 93, 168, 0.9);
             transform: scale(1.1);
         }
 
@@ -1064,26 +1285,26 @@
                 font-size: 12px;
             }
 
-            #btnFilterToggle {
-                display: flex !important;
+            .filters-row input[type="date"] {
+                flex: 1 1 120px;
+                min-width: 0;
             }
 
-            .filters-row {
-                display: none;
-                /* Hidden by default on mobile */
+            .filters-row.open {
                 flex-direction: column;
                 align-items: stretch !important;
-                background: #f8f9fa;
+                background: var(--surface-2);
                 padding: 15px;
                 border-radius: 8px;
                 margin-top: 10px;
-                border: 1px solid #e9ecef;
+                border: 1px solid var(--line-soft);
             }
 
             .filters-row .control-group {
+                flex-wrap: wrap;
                 justify-content: space-between;
                 padding: 8px 0;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid var(--line-soft);
             }
 
             .filters-row .control-group:last-child {
@@ -1124,7 +1345,7 @@
 
             .photo-card .edit-btn,
             .photo-card .upload-btn,
-            .photo-card .delete-btn {
+            .photo-card .more-btn {
                 opacity: 0;
                 transform: translateY(15px);
                 transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -1133,7 +1354,7 @@
 
             .photo-card:active .edit-btn,
             .photo-card:active .upload-btn,
-            .photo-card:active .delete-btn {
+            .photo-card:active .more-btn {
                 opacity: 1;
                 transform: translateY(0);
             }
@@ -1196,7 +1417,7 @@
             right: 30px;
             width: 50px;
             height: 50px;
-            background: var(--primary);
+            background: var(--primary-fill);
             color: white;
             border: none;
             border-radius: 50%;
@@ -1249,7 +1470,7 @@
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            background-color: white;
+            background-color: var(--input-bg);
             color: var(--primary);
             transition: all 0.2s;
             display: flex;
@@ -1259,7 +1480,7 @@
 
         .btn-multi-select:hover,
         .btn-multi-select.active {
-            background-color: var(--primary);
+            background-color: var(--primary-fill);
             color: white;
         }
 
@@ -1286,8 +1507,8 @@
             left: 8px;
             width: 22px;
             height: 22px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 2px solid #aaa;
+            background: var(--select-overlay-bg);
+            border: 2px solid var(--select-overlay-border);
             border-radius: 5px;
             z-index: 10;
             pointer-events: none;
@@ -1304,13 +1525,13 @@
 
         .gallery.multi-select-active .edit-btn,
         .gallery.multi-select-active .upload-btn,
-        .gallery.multi-select-active .delete-btn {
+        .gallery.multi-select-active .more-btn {
             display: none !important;
         }
 
         .photo-card.selected .card-select-overlay {
-            background: var(--primary);
-            border-color: var(--primary);
+            background: var(--primary-fill);
+            border-color: var(--primary-fill);
             color: white;
         }
 
@@ -1386,13 +1607,15 @@
             cursor: not-allowed;
         }
 
-        .btn-bulk-download {
+        .btn-bulk-download,
+        .btn-bulk-card {
             background: #1e2229;
             color: var(--primary);
             border: 1px solid var(--primary);
         }
 
-        .btn-bulk-download:not(:disabled):hover {
+        .btn-bulk-download:not(:disabled):hover,
+        .btn-bulk-card:not(:disabled):hover {
             background: rgba(79, 142, 255, 0.15);
         }
 
@@ -2125,7 +2348,7 @@
             gap: 10px;
             padding: 8px 12px;
             margin: 4px -4px 0;
-            background: #eef3f8;
+            background: var(--group-bg);
             border-left: 4px solid var(--primary);
             border-radius: 6px;
             font-weight: 600;
@@ -2134,7 +2357,7 @@
 
         .group-header .gh-count {
             font-weight: 400;
-            color: #667;
+            color: var(--group-ink);
             font-size: 12px;
         }
 
@@ -2142,16 +2365,16 @@
             margin-left: auto;
             font-size: 12px;
             padding: 3px 10px;
-            border: 1px solid #b9c6d3;
+            border: 1px solid var(--line-strong);
             border-radius: 5px;
-            background: #fff;
+            background: var(--input-bg);
             cursor: pointer;
         }
 
         .group-header .gh-select:hover {
-            background: var(--primary);
+            background: var(--primary-fill);
             color: #fff;
-            border-color: var(--primary);
+            border-color: var(--primary-fill);
         }
 
         /* Mobile: header không sticky → group header dính sát đỉnh viewport */
@@ -2164,18 +2387,18 @@
         /* ── Card size segmented control ── */
         .card-size-seg {
             display: inline-flex;
-            border: 1px solid #d1d8dd;
+            border: 1px solid var(--line-strong);
             border-radius: 5px;
             overflow: hidden;
         }
 
         .card-size-seg button {
             border: none;
-            background: #fff;
+            background: var(--input-bg);
             padding: 4px 10px;
             cursor: pointer;
             font-size: 12px;
-            border-right: 1px solid #d1d8dd;
+            border-right: 1px solid var(--line-strong);
         }
 
         .card-size-seg button:last-child {
@@ -2183,7 +2406,7 @@
         }
 
         .card-size-seg button.on {
-            background: var(--primary);
+            background: var(--primary-fill);
             color: #fff;
         }
 
@@ -2249,6 +2472,364 @@
                 font-size: 22px;
             }
         }
+
+        /* ── Ô thay ảnh: NV chưa có ảnh / file ảnh bị mất ── */
+        .photo-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: var(--img-wrap);
+        }
+
+        .ph-initials {
+            width: 38%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface);
+            color: var(--ink-3);
+            font-size: clamp(16px, 3vw, 30px);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        .ph-add {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--primary-fill);
+            background: var(--primary-fill);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .ph-add:hover {
+            background: var(--primary-strong);
+        }
+
+        .ph-note {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--ink-3);
+        }
+
+        .gallery.multi-select-active .ph-add {
+            display: none;
+        }
+
+        /* ── Menu "⋯" của thẻ ── */
+        .card-menu {
+            position: fixed;
+            display: none;
+            min-width: 200px;
+            padding: 6px;
+            background: var(--surface);
+            border: 1px solid var(--line-soft);
+            border-radius: 10px;
+            box-shadow: var(--shadow-2);
+            z-index: 9000;
+        }
+
+        .card-menu button,
+        .card-menu a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 10px;
+            border: none;
+            border-radius: 6px;
+            background: none;
+            color: var(--ink);
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .card-menu button:hover,
+        .card-menu a:hover,
+        .card-menu button:focus-visible,
+        .card-menu a:focus-visible {
+            background: var(--surface-2);
+            outline: none;
+        }
+
+        .card-menu .danger {
+            color: var(--danger-text);
+        }
+
+        .card-menu-sep {
+            height: 1px;
+            margin: 4px 2px;
+            background: var(--line-soft);
+        }
+
+        /* ── Hộp thoại chung ── */
+        .ui-dialog-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 10050;
+        }
+
+        .ui-dialog {
+            width: min(420px, 100%);
+            padding: 20px 22px 18px;
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid var(--line-soft);
+            border-top: 3px solid var(--primary);
+            border-radius: 12px;
+            box-shadow: var(--shadow-2);
+        }
+
+        .ui-dialog.danger {
+            border-top-color: var(--danger);
+        }
+
+        .ui-dialog h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .ui-dialog h3 .ic {
+            color: var(--primary);
+        }
+
+        .ui-dialog.danger h3 .ic {
+            color: var(--danger-text);
+        }
+
+        .ui-dialog-msg {
+            margin: 0 0 14px;
+            color: var(--ink-soft);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .ui-dialog-msg:empty {
+            display: none;
+        }
+
+        .ui-dialog-input {
+            width: 100%;
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            border: 1px solid var(--line-strong);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--ink);
+            font-size: 14px;
+        }
+
+        .ui-dialog-error {
+            display: none;
+            margin: -4px 0 12px;
+            color: var(--danger-text);
+            font-size: 13px;
+        }
+
+        .ui-dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .ui-dialog-actions button {
+            padding: 7px 16px;
+            border: 1px solid var(--line-strong);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--ink);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .ui-dialog-actions button.primary {
+            background: var(--primary-fill);
+            border-color: var(--primary-fill);
+            color: #fff;
+        }
+
+        .ui-dialog-actions button.danger {
+            background: var(--badge-danger);
+            border-color: var(--badge-danger);
+            color: #fff;
+        }
+
+        /* Máy cảm ứng (không rê chuột được): nút thao tác trên thẻ luôn hiện */
+        @media (hover: none) {
+            .photo-card .edit-btn,
+            .photo-card .upload-btn,
+            .photo-card .more-btn {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        /* ── Lớp thay style viết thẳng trong HTML ── */
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header-top h1 {
+            margin-bottom: 0;
+        }
+
+        .chip-stat-muted {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .bf-sep {
+            width: 1px;
+            height: 20px;
+            background: #323a48;
+            flex-shrink: 0;
+        }
+
+        .bf-label {
+            color: #8a95b0;
+            font-size: 11px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .modal-hint {
+            margin: 10px 0 4px;
+            color: #8a95b0;
+            font-size: 12px;
+        }
+
+        .upload-modal-box h3.delete-title {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 10px;
+            color: #ff5a5a;
+            font-size: 16px;
+        }
+
+        .delete-desc {
+            margin-bottom: 16px;
+            color: #8a95b0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .delete-label {
+            display: block;
+            color: #8a95b0;
+            font-size: 12px;
+        }
+
+        .delete-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        /* Hộp "In thẻ nhân viên" */
+        .ui-dialog.wide {
+            width: min(560px, 100%);
+        }
+
+        .cp-names {
+            margin: -6px 0 14px;
+            padding: 8px 10px;
+            max-height: 72px;
+            overflow: auto;
+            background: var(--surface-2);
+            border: 1px solid var(--line-soft);
+            border-radius: 6px;
+            color: var(--ink-3);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .cp-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 16px;
+            margin-bottom: 16px;
+        }
+
+        .cp-grid label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            color: var(--ink-soft);
+            font-size: 12px;
+        }
+
+        .cp-grid select,
+        .cp-grid input[type="number"] {
+            padding: 6px 8px;
+            border: 1px solid var(--line-strong);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--ink);
+            font-size: 14px;
+        }
+
+        .cp-colors {
+            display: flex;
+            gap: 8px;
+        }
+
+        .cp-colors input[type="color"] {
+            width: 44px;
+            height: 32px;
+            padding: 2px;
+            border: 1px solid var(--line-strong);
+            border-radius: 6px;
+            background: var(--input-bg);
+            cursor: pointer;
+        }
+
+        .cp-grid .cp-check {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            color: var(--ink);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 480px) {
+            .cp-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <!-- Cropper.js for crop step (same as employee.js) -->
     <link rel="stylesheet" href="/assets/customize_erpnext/cropperjs/cropper.min.css">
@@ -2257,6 +2838,7 @@
     <script src="/assets/customize_erpnext/js/photo_crop_shared.js"></script>
     <!-- Shared photo processing utilities (filters, analysis, bg detection) -->
     <script src="/assets/customize_erpnext/js/photo_processing_utils.js"></script>
+    <script src="/assets/customize_erpnext/js/employee_cards_preview.js"></script>
     <!-- face-api.js for batch crop face detection -->
     <script type="module">
         import * as faceapi from '/assets/customize_erpnext/face_api/face-api.esm.js';
@@ -2280,109 +2862,97 @@
     <div class="container">
         <div class="header" id="pageHeader">
             <div
-                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-                <h1 style="margin-bottom: 0;">📸 Thư viện ảnh nhân viên</h1>
+                class="header-top">
+                <h1 style="margin-bottom: 0;"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-images"></use></svg> Thư viện ảnh nhân viên</h1>
                 <div class="stat-chips" id="statChips">
-                    <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span>👤</span> <b
+                    <div class="chip-stat info clickable" id="chipTotal" title="Xóa hết bộ lọc"><span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-users"></use></svg></span> <b
                             id="statTotal">--</b> nhân viên</div>
                     <div class="chip-stat ok clickable" id="chipHasPhoto" title="Chỉ hiện nhân viên đã có ảnh">
-                        <span>📸</span> <b id="statHasPhoto">--</b> có ảnh
+                        <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-image"></use></svg></span> <b id="statHasPhoto">--</b> có ảnh
                     </div>
                     <div class="chip-stat warn clickable" id="chipNoPhoto" title="Chỉ hiện nhân viên chưa có ảnh">
-                        <span>⚠️</span> <b id="statNoPhoto">--</b> chưa có
+                        <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-image-off"></use></svg></span> <b id="statNoPhoto">--</b> chưa có
                     </div>
-                    <div class="chip-stat" id="statUpdate" style="font-size: 11px; opacity: 0.7;">Đang tải...</div>
+                    <div class="chip-stat chip-stat-muted" id="statUpdate">Đang tải...</div>
                 </div>
             </div>
 
             <div class="controls-container">
-                <!-- Row 1: Search + Actions -->
-                <div class="controls-row" style="margin-bottom: 12px;">
-                    <div style="position: relative; flex: 0 1 320px; min-width: 200px;">
-                        <span
-                            style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
-                        <input type="text" class="search-box" id="searchBox" placeholder="Tìm theo mã hoặc tên..."
-                            style="width: 100%; margin: 0; padding-left: 36px;">
+                <!-- Hàng chính: tìm kiếm + 2 lọc hay dùng + Bộ lọc + thao tác -->
+                <div class="controls-row toolbar-main">
+                    <div class="search-wrap">
+                        <span class="search-ic"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-search"></use></svg></span>
+                        <input type="text" class="search-box" id="searchBox" placeholder="Tìm theo mã hoặc tên...">
                     </div>
 
                     <div class="control-group" title="Trạng thái làm việc">
-                        <span class="ctrl-icon">👔</span>
-                        <select id="statusFilterSelect" title="Trạng thái làm việc"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                        <span class="ctrl-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-briefcase"></use></svg></span>
+                        <select id="statusFilterSelect" title="Trạng thái làm việc">
                             <option value="active" selected>Đang làm việc</option>
                             <option value="left">Đã nghỉ việc</option>
                             <option value="all">Tất cả</option>
                         </select>
                     </div>
 
-                    <div class="control-group" title="Cỡ thẻ ảnh">
-                        <span class="ctrl-icon">🔳</span>
-                        <div class="card-size-seg" id="cardSizeSeg">
-                            <button data-size="140">S</button>
-                            <button data-size="200" class="on">M</button>
-                            <button data-size="260">L</button>
-                        </div>
-                    </div>
-
-                    <div class="control-group" title="Lọc theo tiền tố mã nhân viên">
-                        <span class="ctrl-icon">🏢</span>
-                        <select id="prefixFilterSelect" title="Tiền tố mã nhân viên"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
-                            <option value="TIQN-" selected>TIQN</option>
-                            <option value="all">All</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group" style="margin-left: auto;">
-                        <button id="btnFilterToggle" class="mobile-only" style="display: none;">🎚️ Bộ lọc</button>
-                        <button id="btnGlobalUpload"
-                            title='Tên file bắt đầu bằng mã nhân viên:&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.jpg"&#10;Hoặc "TIQN-0148.jpg" &#10;Hoặc "0148.jpg"'>📤
-                            <span class="ctrl-text">Tải ảnh lên</span></button>
-                        <input type="file" id="globalPhotoInput" accept="image/*" multiple style="display:none;">
-                        <button id="btnMultiSelect" class="btn-multi-select">☑️ <span class="ctrl-text">Chọn
-                                nhiều</span></button>
-                        <button id="refreshBtn">🔄 <span class="ctrl-text">Làm mới</span></button>
-                    </div>
-                </div>
-
-                <!-- Row 2: Filters -->
-                <div class="controls-row filters-row" id="filtersRow">
                     <div class="control-group">
-                        <label class="toggle-switch-label" title="Chỉ hiển thị nhân viên chưa có ảnh">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="showNoPhotoOnlyCheckbox">
-                                <span class="slider"></span>
-                            </label>
-                            <span class="ctrl-text"> Chưa có ảnh</span>
-                        </label>
-                    </div>
-
-                    <div class="control-group" title="Lọc theo ngày vào làm">
-                        <span class="ctrl-icon">📅</span>
-                        <input type="date" id="dateFilterFrom" title="Từ ngày" class="date-input"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
-                        <span>-</span>
-                        <input type="date" id="dateFilterTo" title="Đến ngày" class="date-input"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
-                    </div>
-
-                    <div class="control-group">
-                        <span class="ctrl-icon" title="Lọc theo nhóm">🏷️</span>
-                        <select id="groupSelect" title="Lọc theo nhóm"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
+                        <span class="ctrl-icon" title="Lọc theo nhóm"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-tag"></use></svg></span>
+                        <select id="groupSelect" title="Lọc theo nhóm">
                             <option value="">Tất cả nhóm</option>
                         </select>
                     </div>
 
                     <div class="control-group">
-                        <span class="ctrl-icon" title="Sắp xếp mã nhân viên">🔤</span>
-                        <select id="sortOrderSelect" title="Sắp xếp"
-                            style="padding: 4px 8px; border: 1px solid #d1d8dd; border-radius: 4px;">
-                            <option value="desc">Z-A</option>
-                            <option value="asc">A-Z</option>
+                        <button id="btnFilterToggle" aria-expanded="false" aria-controls="filtersRow"
+                            title="Ngày vào làm, mã, sắp xếp, cỡ thẻ, cách hiển thị"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sliders-horizontal"></use></svg>
+                            <span class="ctrl-text">Bộ lọc</span><span class="filter-count" id="filterCount"></span></button>
+                    </div>
+
+                    <div class="control-group toolbar-actions">
+                        <button id="btnGlobalUpload"
+                            title='Tên file bắt đầu bằng mã nhân viên:&#10;VD: "TIQN-0148 Nguyễn Thái Sơn.jpg"&#10;Hoặc "TIQN-0148.jpg" &#10;Hoặc "0148.jpg"'><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-upload"></use></svg>
+                            <span class="ctrl-text">Tải ảnh lên</span></button>
+                        <input type="file" id="globalPhotoInput" accept="image/*" multiple hidden>
+                        <button id="btnMultiSelect" class="btn-multi-select"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-square-check"></use></svg> <span class="ctrl-text">Chọn
+                                nhiều</span></button>
+                        <button id="refreshBtn"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-refresh-cw"></use></svg> <span class="ctrl-text">Làm mới</span></button>
+                    </div>
+                </div>
+
+                <!-- Panel "Bộ lọc" (thu gọn mặc định) -->
+                <div class="filters-row" id="filtersRow">
+                    <div class="control-group" title="Lọc theo ngày vào làm">
+                        <span class="ctrl-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-calendar"></use></svg></span>
+                        <span class="ctrl-text">Vào làm</span>
+                        <input type="date" id="dateFilterFrom" title="Từ ngày" class="date-input">
+                        <span>–</span>
+                        <input type="date" id="dateFilterTo" title="Đến ngày" class="date-input">
+                    </div>
+
+                    <div class="control-group" title="Lọc theo tiền tố mã nhân viên">
+                        <span class="ctrl-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-building-2"></use></svg></span>
+                        <select id="prefixFilterSelect" title="Tiền tố mã nhân viên">
+                            <option value="TIQN-" selected>Mã TIQN</option>
+                            <option value="all">Mọi mã</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <span class="ctrl-icon" title="Sắp xếp"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-arrow-down-a-z"></use></svg></span>
+                        <select id="sortOrderSelect" title="Sắp xếp">
+                            <option value="desc">Mã Z-A</option>
+                            <option value="asc">Mã A-Z</option>
                             <option value="joining_desc">Mới vào trước</option>
                             <option value="nophoto_first">Thiếu ảnh trước</option>
                         </select>
+                    </div>
+
+                    <div class="control-group" title="Cỡ thẻ ảnh">
+                        <span class="ctrl-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-layout-grid"></use></svg></span>
+                        <div class="card-size-seg" id="cardSizeSeg">
+                            <button data-size="140">S</button>
+                            <button data-size="200" class="on">M</button>
+                            <button data-size="260">L</button>
+                        </div>
                     </div>
 
                     <div class="control-group">
@@ -2404,7 +2974,13 @@
                             <span class="ctrl-text"> Hiện SĐT/ Địa chỉ hiện tại</span>
                         </label>
                     </div>
+
+                    <!-- "Chưa có ảnh" bật/tắt bằng chip thống kê; giữ ô ẩn làm trạng thái (URL ?nophoto=1) -->
+                    <input type="checkbox" id="showNoPhotoOnlyCheckbox" hidden>
                 </div>
+
+                <!-- Lọc đang bật: mỗi chip có × ; "Xoá lọc" về mặc định -->
+                <div class="active-filters" id="activeFilters" hidden></div>
             </div>
         </div>
 
@@ -2422,10 +2998,10 @@
     <div class="editor-modal-overlay" id="editorModal">
         <div class="editor-modal-header">
             <div class="editor-modal-title">
-                <span>📷 Chỉnh ảnh thẻ</span>
+                <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-image"></use></svg> Chỉnh ảnh thẻ</span>
                 <span class="emp-name" id="editorEmpName"></span>
             </div>
-            <button class="editor-modal-close" onclick="closePhotoEditor()" title="Đóng (ESC)">✕</button>
+            <button class="editor-modal-close" onclick="closePhotoEditor()" title="Đóng (ESC)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
         </div>
         <div class="editor-iframe-wrap">
             <iframe id="photoEditorFrame" src="/employee-photos/photo_editor.html" allow="camera" title="Photo Editor">
@@ -2440,16 +3016,16 @@
     <div class="upload-modal" id="uploadChoiceModal">
         <div class="upload-modal-box">
             <h3>
-                <span>📷 Cập nhật ảnh <span class="emp-label" id="choiceEmpLabel"></span></span>
-                <button class="upload-modal-close" onclick="closeUploadModals()">✕</button>
+                <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-camera"></use></svg> Cập nhật ảnh <span class="emp-label" id="choiceEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeUploadModals()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
             </h3>
             <div class="upload-choice-btns">
                 <button class="upload-choice-btn" id="btnChoiceCamera" onclick="startCameraModal()">
-                    <span class="choice-icon">📸</span>
+                    <span class="choice-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-camera"></use></svg></span>
                     Chụp ảnh
                 </button>
                 <button class="upload-choice-btn" id="btnChoiceFile" onclick="triggerFileInput()">
-                    <span class="choice-icon">📁</span>
+                    <span class="choice-icon"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-folder-open"></use></svg></span>
                     Chọn file
                 </button>
             </div>
@@ -2460,14 +3036,14 @@
     <div class="upload-modal" id="cameraModal">
         <div class="upload-modal-box">
             <h3>
-                <span>📸 Chụp ảnh — <span class="emp-label" id="cameraEmpLabel"></span></span>
-                <button class="upload-modal-close" onclick="stopCameraAndClose()">✕</button>
+                <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-camera"></use></svg> Chụp ảnh — <span class="emp-label" id="cameraEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="stopCameraAndClose()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
             </h3>
             <video id="cameraPreview" autoplay playsinline></video>
             <div id="cameraError"></div>
             <div class="camera-actions">
                 <button class="btn-cancel-modal" onclick="stopCameraAndClose()">Huỷ</button>
-                <button class="btn-capture" id="btnCapture" onclick="captureFrame()">📸 Chụp</button>
+                <button class="btn-capture" id="btnCapture" onclick="captureFrame()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-camera"></use></svg> Chụp</button>
             </div>
         </div>
     </div>
@@ -2476,8 +3052,8 @@
     <div class="upload-modal" id="cropModal">
         <div class="upload-modal-box">
             <h3>
-                <span>✂️ Cắt ảnh (3:4) — <span class="emp-label" id="cropEmpLabel"></span></span>
-                <button class="upload-modal-close" onclick="closeCropModal()">✕</button>
+                <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-crop"></use></svg> Cắt ảnh (3:4) — <span class="emp-label" id="cropEmpLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeCropModal()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
             </h3>
             <div id="cropContainer">
                 <img id="imageToCrop" src="" alt="crop">
@@ -2486,16 +3062,16 @@
             <div id="www-crop-bg-row" style="display:none; margin-top:10px; padding:10px 12px;
                 background:#fff8e1; border:1px solid #ffe082; border-radius:5px;
                 align-items:center; gap:10px; flex-wrap:wrap;">
-                <span style="font-size:13px; color:#5d4037;">⚠️ Ảnh PNG có nền trong suốt. Chọn màu nền thay thế:</span>
+                <span style="font-size:13px; color:#5d4037;"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-triangle-alert"></use></svg> Ảnh PNG có nền trong suốt. Chọn màu nền thay thế:</span>
                 <input type="color" id="www-crop-bg" value="#ffffff"
                     style="width:36px; height:28px; padding:2px; border:1px solid #ccc; border-radius:3px; cursor:pointer;">
                 <span style="font-size:12px; color:#888;">(mặc định: trắng)</span>
             </div>
-            <p style="margin:10px 0 4px; color:#8a95b0; font-size:12px;">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố
+            <p class="modal-hint">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố
                 định 3:4</p>
             <div class="crop-actions">
                 <button class="btn-cancel-modal" onclick="closeCropModal()">Huỷ</button>
-                <button class="btn-save-crop" onclick="saveCrop()">💾 Lưu ảnh</button>
+                <button class="btn-save-crop" onclick="saveCrop()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-save"></use></svg> Lưu ảnh</button>
             </div>
         </div>
     </div>
@@ -2506,31 +3082,31 @@
     <!-- ── Delete confirmation modal ── -->
     <div id="deleteModal" class="upload-modal" style="display:none;">
         <div class="upload-modal-box" style="max-width:420px;">
-            <h3 style="color:#ff5a5a;margin:0 0 10px;font-size:16px;">🗑 Xóa ảnh nhân viên</h3>
-            <p id="deleteModalDesc" style="font-size:13px;color:#8a95b0;margin-bottom:16px;line-height:1.5;"></p>
-            <label style="font-size:12px;color:#8a95b0;display:block;">
+            <h3 class="delete-title"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-trash-2"></use></svg> Xóa ảnh nhân viên</h3>
+            <p id="deleteModalDesc" class="delete-desc"></p>
+            <label class="delete-label">
                 Nhập mã nhân viên để xác nhận:
             </label>
             <input type="text" id="deleteConfirmInput" autocomplete="off" spellcheck="false" placeholder="VD: TIQN-1874"
                 oninput="checkDeleteInput()"
                 onkeydown="if(event.key==='Enter'&&!document.getElementById('deleteConfirmBtn').disabled)confirmDelete()">
-            <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;align-items:center;">
+            <div class="delete-actions">
                 <button class="btn-cancel-modal" onclick="closeDeleteModal()">Hủy</button>
-                <button id="deleteConfirmBtn" onclick="confirmDelete()" disabled>🗑 Xóa ảnh</button>
+                <button id="deleteConfirmBtn" onclick="confirmDelete()" disabled><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-trash-2"></use></svg> Xóa ảnh</button>
             </div>
         </div>
     </div>
 
     <div id="modal" class="modal">
         <span class="close">&times;</span>
-        <button class="modal-nav prev" id="modalPrev" title="Ảnh trước (←)">‹</button>
-        <button class="modal-nav next" id="modalNext" title="Ảnh sau (→)">›</button>
+        <button class="modal-nav prev" id="modalPrev" title="Ảnh trước (←)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-chevron-left"></use></svg></button>
+        <button class="modal-nav next" id="modalNext" title="Ảnh sau (→)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-chevron-right"></use></svg></button>
         <img class="modal-content" id="modalImg">
         <div class="modal-caption" id="modalCaption"></div>
         <div class="modal-actions" id="modalActions">
-            <button id="modalBtnEdit" title="Chỉnh sửa ảnh">✏️ Sửa</button>
-            <button id="modalBtnDownload" title="Tải ảnh về">⬇️ Tải</button>
-            <button id="modalBtnDelete" title="Xóa ảnh">🗑 Xóa</button>
+            <button id="modalBtnEdit" title="Chỉnh sửa ảnh"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-pencil"></use></svg> Sửa</button>
+            <button id="modalBtnDownload" title="Tải ảnh về"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-download"></use></svg> Tải</button>
+            <button id="modalBtnDelete" title="Xóa ảnh"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-trash-2"></use></svg> Xóa</button>
         </div>
     </div>
 
@@ -2538,6 +3114,51 @@
         let allPhotos = [];
         let filteredPhotos = [];
         const sessionTimestamp = Date.now(); // Global timestamp for this session
+
+        // Icon Lucide từ sprite có sẵn của Frappe (thay emoji: hiển thị giống nhau mọi máy, theo màu chữ/theme)
+        const ICON_SPRITE = '/assets/frappe/icons/lucide.svg';
+        function ic(name, cls = '') {
+            return `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="${ICON_SPRITE}#icon-${name}"></use></svg>`;
+        }
+
+        // URL ảnh gốc gắn version = mtime file (server trả `modified`) → trình duyệt cache được
+        // giữa các lần mở trang; file đổi thì mtime đổi → URL mới. Dữ liệu cache cũ chưa có
+        // `modified` → rơi về sessionTimestamp như trước.
+        function photoSrc(photo) {
+            const base = (photo.url || '').split('?')[0];
+            return base + '?v=' + (photo.modified || sessionTimestamp);
+        }
+
+        // Ảnh cho lưới: thumbnail nếu server xác nhận còn mới (thumb_url chỉ có khi thumb mới hơn ảnh gốc),
+        // không thì ảnh gốc. Xem/sửa/tải luôn dùng photoSrc().
+        function gridSrc(photo) {
+            if (!photo.thumb_url) return photoSrc(photo);
+            return photo.thumb_url + '?v=' + (photo.modified || sessionTimestamp);
+        }
+
+        // Card nhúng bản sao JSON của photo lúc render → lấy object hiện tại trong allPhotos (đã cập nhật sau khi lưu)
+        function currentPhoto(photo) {
+            return allPhotos.find(x => x.employee_id === photo.employee_id) || photo;
+        }
+
+        // Phạm vi danh sách đang tải: 'active' (chỉ NV Active — mặc định, nhẹ) | 'all' (mọi trạng thái).
+        // Cần NV đã nghỉ (đổi bộ lọc trạng thái, upload theo tên file) → ensureAllPhotos() nâng lên 'all'.
+        let _photosScope = 'active';
+        // Số NV / số có ảnh NGOÀI phạm vi đang tải (server đếm) — chip thống kê vẫn đếm toàn bộ như trước
+        let _outOfScopeStats = { total: 0, hasPhoto: 0 };
+
+        function photosApiUrl(scope) {
+            return '/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos'
+                + '?show_active_only=' + (scope === 'active' ? 1 : 0) + '&sort_order=asc&custom_group=';
+        }
+
+        function photosCacheKey(scope) {
+            return scope === 'active' ? CACHE_CONFIG.PHOTOS_KEY + '_active' : CACHE_CONFIG.PHOTOS_KEY;
+        }
+
+        function hasRealPhoto(p) {
+            return !!p.url && p.url !== '/assets/erpnext/images/default-avatar.png';
+        }
 
         // Cache configuration
         const CACHE_CONFIG = {
@@ -2555,7 +3176,8 @@
                 data: data,
                 expiry: now + expiryMs
             };
-            localStorage.setItem(key, JSON.stringify(item));
+            // Hết quota / chế độ riêng tư → bỏ qua cache, không làm hỏng luồng lưu ảnh
+            try { localStorage.setItem(key, JSON.stringify(item)); } catch (e) { console.warn('[setCache]', key, e); }
         }
 
         function getCache(key) {
@@ -2581,6 +3203,7 @@
         function clearCache() {
             localStorage.removeItem(CACHE_CONFIG.GROUPS_KEY);
             localStorage.removeItem(CACHE_CONFIG.PHOTOS_KEY);
+            localStorage.removeItem(photosCacheKey('active'));
             localStorage.removeItem(CACHE_CONFIG.TIMESTAMP_KEY);
         }
 
@@ -2622,7 +3245,7 @@
             const loading = document.getElementById('loading');
             loading.style.display = 'block';
             document.getElementById('gallery').style.display = 'none';
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang làm mới...'; }
+            if (btn) { btn.disabled = true; btn.innerHTML = ic('loader-circle', 'spin') + ' Đang làm mới...'; }
 
             // Giải phóng RAM rembg trên tất cả workers đồng thời với reload data
             const evictPromise = _evictAllRembgWorkers();
@@ -2634,7 +3257,7 @@
             ]);
 
             loading.style.display = 'none';
-            if (btn) { btn.disabled = false; btn.innerHTML = '🔄 <span class="ctrl-text">Làm mới</span>'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = ic('refresh-cw') + ' <span class="ctrl-text">Làm mới</span>'; }
         }
 
         // Load photos on page load
@@ -2680,7 +3303,11 @@
             });
 
             // Setup event listeners
-            document.getElementById('statusFilterSelect').addEventListener('change', function () {
+            document.getElementById('statusFilterSelect').addEventListener('change', async function () {
+                if (this.value !== 'active' && _photosScope !== 'all') {
+                    showSkeleton();
+                    await ensureAllPhotos();
+                }
                 applyFilters();
             });
 
@@ -2690,12 +3317,20 @@
                     const now = new Date();
                     const pad = n => String(n).padStart(2, '0');
                     const expected = pad(now.getDate()) + pad(now.getMonth() + 1);
-                    const password = prompt('Nhập mật khẩu để xem số điện thoại và địa chỉ:');
-                    if (password !== expected) {
-                        alert('Mật khẩu không đúng!');
-                        e.target.checked = false;
-                        return;
-                    }
+                    e.target.checked = false;
+                    uiDialog({
+                        title: 'Xem số điện thoại và địa chỉ',
+                        message: 'Nhập mật khẩu để hiện thông tin liên hệ của nhân viên.',
+                        icon: 'shield-check',
+                        input: { type: 'password', placeholder: 'Mật khẩu' },
+                        okText: 'Xem',
+                        validate: v => v === expected ? '' : 'Mật khẩu không đúng.',
+                    }).then(v => {
+                        if (v === null) return;
+                        e.target.checked = true;
+                        displayPhotos();
+                    });
+                    return;
                 }
                 displayPhotos();
             });
@@ -2728,13 +3363,11 @@
                 refreshData();
             });
 
-            // Filter toggle for mobile
+            // Panel "Bộ lọc": thu gọn mặc định, nhớ trạng thái mở theo máy
             document.getElementById('btnFilterToggle').addEventListener('click', function () {
-                const filtersRow = document.getElementById('filtersRow');
-                const isHidden = window.getComputedStyle(filtersRow).display === 'none';
-                filtersRow.style.display = isHidden ? 'flex' : 'none';
-                this.classList.toggle('active', isHidden);
+                setFilterPanelOpen(!document.getElementById('filtersRow').classList.contains('open'));
             });
+            try { if (localStorage.getItem('ep_filter_panel') === '1') setFilterPanelOpen(true); } catch (e) { }
 
             // Back to Top button visibility + sticky header state
             window.addEventListener('scroll', function () {
@@ -2823,31 +3456,26 @@
 
         async function loadPhotos(forceRefresh = false) {
             try {
-                let photos = null;
+                // Bộ lọc trạng thái (kể cả khôi phục từ URL) cần NV đã nghỉ → tải đủ ngay từ đầu
+                if (document.getElementById('statusFilterSelect').value !== 'active') _photosScope = 'all';
 
                 // Try to get from cache first
+                let list = null;
+                let fromCache = false;
                 if (!forceRefresh) {
-                    photos = getCache(CACHE_CONFIG.PHOTOS_KEY);
+                    list = unpackPhotosCache(getCache(photosCacheKey(_photosScope)));
+                    fromCache = !!list;
                 }
 
                 // If no cache, fetch from API
-                if (!photos) {
+                if (!list) {
                     showSkeleton();
-                    const response = await fetch('/api/method/customize_erpnext.api.employee_photos_viewer.api.get_employee_photos?show_active_only=0&sort_order=asc&custom_group=');
-                    const data = await response.json();
-
-                    if (data.message && data.message.status === 'success') {
-                        photos = data.message.photos;
-                        // Cache all photos
-                        setCache(CACHE_CONFIG.PHOTOS_KEY, photos, CACHE_CONFIG.PHOTOS_EXPIRY);
-                        updateTimestamp();
-                    } else {
-                        showError('Không thể tải danh sách ảnh: ' + (data.message.message || 'Lỗi không xác định'));
-                        return;
-                    }
+                    list = await fetchPhotos(_photosScope);
+                    if (!list) return;
                 }
 
-                allPhotos = photos;
+                setPhotos(list);
+                if (!fromCache) { savePhotosCache(); updateTimestamp(); }
 
                 // Debug: Log status distribution
                 const statusCount = {};
@@ -2858,8 +3486,77 @@
                 console.log('Employee status distribution:', statusCount);
 
                 applyFilters();
+                if (fromCache) revalidatePhotos();
             } catch (error) {
                 showError('Lỗi khi tải ảnh: ' + error.message);
+            }
+        }
+
+        // Gọi API theo phạm vi; trả { photos, outOfScope } hoặc null (đã hiện lỗi)
+        async function fetchPhotos(scope, silent = false) {
+            const data = await (await fetch(photosApiUrl(scope))).json();
+            if (!(data.message && data.message.status === 'success')) {
+                if (!silent) showError('Không thể tải danh sách ảnh: ' + ((data.message && data.message.message) || 'Lỗi không xác định'));
+                return null;
+            }
+            const photos = data.message.photos;
+            const stats = data.message.stats;
+            // Server cũ chưa trả stats → không đếm được phần ngoài phạm vi → tải đủ cho chip đúng số
+            if (scope === 'active' && !stats) {
+                _photosScope = 'all';
+                return fetchPhotos('all', silent);
+            }
+            const outOfScope = { total: 0, hasPhoto: 0 };
+            if (scope === 'active' && stats) {
+                outOfScope.total = stats.total - photos.length;
+                outOfScope.hasPhoto = stats.has_photo - photos.filter(hasRealPhoto).length;
+            }
+            return { photos, outOfScope };
+        }
+
+        function setPhotos(list) {
+            allPhotos = list.photos;
+            _outOfScopeStats = list.outOfScope;
+        }
+
+        // Cache cũ (trước 30/10) là mảng photos của phạm vi 'all'
+        function unpackPhotosCache(data) {
+            if (!data) return null;
+            if (Array.isArray(data)) return { photos: data, outOfScope: { total: 0, hasPhoto: 0 } };
+            return data.photos ? data : null;
+        }
+
+        function savePhotosCache() {
+            setCache(photosCacheKey(_photosScope), { photos: allPhotos, outOfScope: _outOfScopeStats }, CACHE_CONFIG.PHOTOS_EXPIRY);
+        }
+
+        // Nâng danh sách lên đủ mọi trạng thái (xem NV đã nghỉ, upload ảnh theo tên file)
+        async function ensureAllPhotos() {
+            if (_photosScope === 'all') return true;
+            const list = await fetchPhotos('all');
+            if (!list) return false;
+            _photosScope = 'all';
+            setPhotos(list);
+            savePhotosCache();
+            updateTimestamp();
+            return true;
+        }
+
+        // Danh sách trong localStorage (≤ 1 giờ) có thể cũ: người khác vừa thay ảnh → `modified` cũ
+        // → URL cũ → trình duyệt hiện ảnh cũ từ cache. Tải lại ngầm, khác thì cập nhật và render lại.
+        async function revalidatePhotos() {
+            try {
+                const scope = _photosScope;
+                const fresh = await fetchPhotos(scope, true);
+                if (!fresh || scope !== _photosScope) return;
+                if (JSON.stringify(fresh.photos) === JSON.stringify(allPhotos)
+                    && JSON.stringify(fresh.outOfScope) === JSON.stringify(_outOfScopeStats)) return;
+                setPhotos(fresh);
+                savePhotosCache();
+                updateTimestamp();
+                applyFilters();
+            } catch (e) {
+                console.warn('[revalidatePhotos]', e);
             }
         }
 
@@ -2958,6 +3655,68 @@
             displayPhotos();
             updateStats();
             syncFiltersToUrl();
+            renderActiveFilters();
+        }
+
+        function setFilterPanelOpen(open) {
+            const panel = document.getElementById('filtersRow');
+            const btn = document.getElementById('btnFilterToggle');
+            panel.classList.toggle('open', open);
+            btn.classList.toggle('active', open);
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            try { localStorage.setItem('ep_filter_panel', open ? '1' : '0'); } catch (e) { }
+        }
+
+        // Chip cho từng lọc khác mặc định; bấm × bỏ riêng lọc đó. Số trên nút "Bộ lọc" = lọc đang bật trong panel.
+        function renderActiveFilters() {
+            const box = document.getElementById('activeFilters');
+            if (!box) return;
+            const $ = id => document.getElementById(id);
+            const fmt = d => d ? d.split('-').reverse().join('/') : '…';
+            const chips = [];
+            const q = $('searchBox').value.trim();
+            if (q) chips.push(['Tìm: ' + q, () => { $('searchBox').value = ''; }]);
+            const st = $('statusFilterSelect');
+            if (st.value !== 'active') chips.push([st.options[st.selectedIndex].text, () => { st.value = 'active'; }]);
+            if ($('groupSelect').value) chips.push(['Nhóm: ' + $('groupSelect').value, () => { $('groupSelect').value = ''; }]);
+            if ($('showNoPhotoOnlyCheckbox').checked) chips.push(['Chưa có ảnh', () => { $('showNoPhotoOnlyCheckbox').checked = false; }]);
+            if (_hasPhotoOnly) chips.push(['Có ảnh', () => { _hasPhotoOnly = false; }]);
+            let inPanel = 0;
+            if ($('dateFilterFrom').value || $('dateFilterTo').value) {
+                inPanel++;
+                chips.push([`Vào làm: ${fmt($('dateFilterFrom').value)} – ${fmt($('dateFilterTo').value)}`,
+                    () => { $('dateFilterFrom').value = ''; $('dateFilterTo').value = ''; }]);
+            }
+            if ($('prefixFilterSelect').value !== 'TIQN-') {
+                inPanel++;
+                chips.push(['Mọi mã nhân viên', () => { $('prefixFilterSelect').value = 'TIQN-'; }]);
+            }
+            $('filterCount').textContent = inPanel ? inPanel : '';
+            box.hidden = !chips.length;
+            box.innerHTML = '';
+            chips.forEach(([label, clear]) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'af-chip';
+                chip.title = 'Bỏ lọc này';
+                chip.append(label);
+                chip.insertAdjacentHTML('beforeend', ic('x'));
+                chip.addEventListener('click', async () => {
+                    clear();
+                    // Bỏ lọc trạng thái "đã nghỉ / tất cả" không cần tải lại; các lọc khác chỉ lọc phía client
+                    updateChipStates();
+                    applyFilters();
+                });
+                box.appendChild(chip);
+            });
+            if (chips.length) {
+                const all = document.createElement('button');
+                all.type = 'button';
+                all.className = 'af-clear';
+                all.textContent = 'Xoá lọc';
+                all.addEventListener('click', resetAllFilters);
+                box.appendChild(all);
+            }
         }
 
         // ══════════════════════════════════════════════════
@@ -3042,20 +3801,22 @@
                 updateChipStates();
                 applyFilters();
             });
-            document.getElementById('chipTotal').addEventListener('click', () => {
-                // Reset toàn bộ bộ lọc
-                document.getElementById('searchBox').value = '';
-                document.getElementById('statusFilterSelect').value = 'active';
-                document.getElementById('showNoPhotoOnlyCheckbox').checked = false;
-                _hasPhotoOnly = false;
-                document.getElementById('dateFilterFrom').value = '';
-                document.getElementById('dateFilterTo').value = '';
-                document.getElementById('groupSelect').value = '';
-                document.getElementById('sortOrderSelect').value = 'desc';
-                document.getElementById('prefixFilterSelect').value = 'TIQN-';
-                updateChipStates();
-                applyFilters();
-            });
+            document.getElementById('chipTotal').addEventListener('click', resetAllFilters);
+        }
+
+        // Về bộ lọc mặc định (chip "nhân viên" + nút "Xoá lọc")
+        function resetAllFilters() {
+            document.getElementById('searchBox').value = '';
+            document.getElementById('statusFilterSelect').value = 'active';
+            document.getElementById('showNoPhotoOnlyCheckbox').checked = false;
+            _hasPhotoOnly = false;
+            document.getElementById('dateFilterFrom').value = '';
+            document.getElementById('dateFilterTo').value = '';
+            document.getElementById('groupSelect').value = '';
+            document.getElementById('sortOrderSelect').value = 'desc';
+            document.getElementById('prefixFilterSelect').value = 'TIQN-';
+            updateChipStates();
+            applyFilters();
         }
 
         // ══════════════════════════════════════════════════
@@ -3102,8 +3863,8 @@
                     const list = groups.get(g);
                     const gEsc = g.replace(/"/g, '&quot;');
                     items.push(`
-                        <div class="group-header">📁 ${g} <span class="gh-count">(${list.length})</span>
-                            <button class="gh-select" onclick="selectGroup(&quot;${gEsc}&quot;)">☑️ Chọn nhóm</button>
+                        <div class="group-header">${ic('folder')} ${g} <span class="gh-count">(${list.length})</span>
+                            <button class="gh-select" onclick="selectGroup(&quot;${gEsc}&quot;)">${ic('square-check')} Chọn nhóm</button>
                         </div>`);
                     list.forEach(p => items.push(buildCardHtml(p, showExtraInfo)));
                 });
@@ -3129,23 +3890,113 @@
 
         let _renderToken = 0;
 
+        // "Nguyễn Văn Cao" → "NC" (chữ đầu của họ + tên) cho ô thay ảnh
+        function nameInitials(name) {
+            const w = (name || '').trim().split(/\s+/).filter(Boolean);
+            if (!w.length) return '?';
+            return (w.length === 1 ? w[0][0] : w[0][0] + w[w.length - 1][0]).toUpperCase();
+        }
+
+        // Ảnh lưới lỗi: thumb hỏng → thử ảnh gốc; ảnh gốc cũng mất file → ô chữ cái đầu
+        function photoImgFallback(img) {
+            const full = img.dataset.full;
+            if (full && img.src.includes('/_thumbs/')) {
+                delete img.dataset.full;
+                img.src = full;
+                return;
+            }
+            img.onerror = null;
+            const card = img.closest('.photo-card');
+            const p = card ? allPhotos.find(x => x.employee_id === card.dataset.empId) : null;
+            const ph = document.createElement('div');
+            ph.className = 'photo-placeholder missing';
+            ph.innerHTML = `<span class="ph-initials">${nameInitials(p && p.employee_name)}</span>`
+                + `<span class="ph-note">${ic('image-off')} Không tìm thấy file ảnh</span>`;
+            img.replaceWith(ph);
+        }
+
+        // Dựng lại 1 thẻ từ allPhotos sau khi lưu / xoá ảnh (đổi giữa ảnh ↔ ô chữ cái đầu, đúng bộ nút)
+        function rerenderCard(employeeId, flash = false) {
+            const p = allPhotos.find(x => x.employee_id === employeeId);
+            const card = document.querySelector(`.photo-card[data-emp-id="${CSS.escape(employeeId)}"]`);
+            if (!p || !card) return false;
+            const tpl = document.createElement('template');
+            tpl.innerHTML = buildCardHtml(p, document.getElementById('showExtraInfoCheckbox').checked).trim();
+            const fresh = tpl.content.firstElementChild;
+            card.replaceWith(fresh);
+            if (flash) {
+                const f = fresh.querySelector('.card-save-flash');
+                if (f) { f.classList.add('show'); setTimeout(() => f.classList.remove('show'), 1500); }
+            }
+            return true;
+        }
+
+        // ── Menu "⋯" trên thẻ: tải về / mở hồ sơ / xoá (xoá không nằm sát nút sửa nữa) ──
+        let _cardMenuEl = null;
+        function closeCardMenu() {
+            if (!_cardMenuEl || _cardMenuEl.style.display !== 'block') return false;
+            _cardMenuEl.style.display = 'none';
+            return true;
+        }
+        function openCardMenu(photo, btn, event) {
+            event.stopPropagation();
+            if (!_cardMenuEl) {
+                _cardMenuEl = document.createElement('div');
+                _cardMenuEl.className = 'card-menu';
+                _cardMenuEl.setAttribute('role', 'menu');
+                document.body.appendChild(_cardMenuEl);
+                document.addEventListener('click', e => { if (!_cardMenuEl.contains(e.target)) closeCardMenu(); });
+                window.addEventListener('scroll', closeCardMenu, { passive: true });
+            }
+            const p = currentPhoto(photo);
+            _cardMenuEl.innerHTML = `
+                <button role="menuitem" data-act="download">${ic('download')} Tải ảnh về</button>
+                <a role="menuitem" data-act="open" href="/app/employee/${encodeURIComponent(p.employee_id)}" target="_blank">${ic('external-link')} Mở hồ sơ nhân viên</a>
+                <div class="card-menu-sep"></div>
+                <button role="menuitem" data-act="delete" class="danger">${ic('trash-2')} Xóa ảnh</button>`;
+            _cardMenuEl.onclick = async e => {
+                const act = e.target.closest('[data-act]')?.dataset.act;
+                if (!act) return;
+                closeCardMenu();
+                if (act === 'download') {
+                    try {
+                        await downloadOnePhoto(p);
+                        showEditorToast(`Đã tải ảnh: ${p.display_name}`, 'ok');
+                    } catch (err) {
+                        showEditorToast(`Lỗi tải ảnh: ${err.message}`, 'err');
+                    }
+                } else if (act === 'delete') {
+                    openDeleteDialog(p, e);
+                }
+            };
+            _cardMenuEl.style.display = 'block';
+            const r = btn.getBoundingClientRect();
+            const mw = _cardMenuEl.offsetWidth, mh = _cardMenuEl.offsetHeight;
+            let left = Math.min(r.left, window.innerWidth - mw - 8);
+            let top = r.bottom + 6;
+            if (top + mh > window.innerHeight - 8) top = r.top - mh - 6;
+            _cardMenuEl.style.left = Math.max(8, left) + 'px';
+            _cardMenuEl.style.top = Math.max(8, top) + 'px';
+            _cardMenuEl.querySelector('[data-act]').focus();
+        }
+
         function buildCardHtml(photo, showExtraInfo) {
             const isInactive = photo.status === 'Left' || photo.status === 'Inactive';
             const nameClass = isInactive ? 'employee-id inactive-employee' : 'employee-id';
             const statusBadge = isInactive ? `<span class="status-badge">${photo.status}</span>` : '';
-            const groupInfo = photo.custom_group ? `<div class="group-info">📁 ${photo.custom_group}</div>` : '';
+            const groupInfo = photo.custom_group ? `<div class="group-info">${ic('folder')} ${photo.custom_group}</div>` : '';
             const employeeLink = photo.employee_id ? `/app/employee/${encodeURIComponent(photo.employee_id)}` : '#';
 
             // Extra info (Phone & Address)
             let extraInfoHtml = '';
             if (showExtraInfo) {
-                if (photo.cell_number) extraInfoHtml += `<div class="phone-info">📱 ${photo.cell_number}</div>`;
-                if (photo.custom_current_address_full) extraInfoHtml += `<div class="address-info">📍 ${photo.custom_current_address_full}</div>`;
+                if (photo.cell_number) extraInfoHtml += `<div class="phone-info">${ic('phone')} ${photo.cell_number}</div>`;
+                if (photo.custom_current_address_full) extraInfoHtml += `<div class="address-info">${ic('map-pin')} ${photo.custom_current_address_full}</div>`;
             }
 
             const basePhotoUrl = photo.url || '/assets/erpnext/images/default-avatar.png';
-            // Add session timestamp to force fresh load if it's a real photo
-            const photoUrl = photo.url ? (basePhotoUrl + (basePhotoUrl.includes('?') ? '&' : '?') + 't=' + sessionTimestamp) : basePhotoUrl;
+            const photoUrl = photo.url ? photoSrc(photo) : basePhotoUrl;
+            const imgUrl = photo.url ? gridSrc(photo) : basePhotoUrl;
             const fileInfoStr = photo.size ? formatFileSize(photo.size) : '';
             const dateOfJoiningStr = photo.date_of_joining ? `<div class="file-info" style="margin-top:4px;">Nhận việc: ${photo.date_of_joining.split('-').reverse().join('/')}</div>` : '';
             const selectedClass = selectedEmpIds.has(photo.employee_id) ? ' selected' : '';
@@ -3154,13 +4005,18 @@
             return `
                 <div class="photo-card${selectedClass}" data-emp-id="${photo.employee_id}" onclick="onCardClick(${photoJson}, '${photoUrl}', event)">
                     <div class="photo-img-wrap">
-                        <div class="card-select-overlay">✓</div>
-                        <img src="${photoUrl}" alt="${photo.display_name}" loading="lazy">
-                        ${photo.url ? `<button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">✏️</button>` : ''}
-                        <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh">📷</button>
-                        ${photo.url ? `<button class="delete-btn" onclick="openDeleteDialog(${photoJson}, event)" title="Xóa ảnh">🗑</button>` : ''}
+                        <div class="card-select-overlay">${ic('check')}</div>
+                        ${photo.url
+                            ? `<img src="${imgUrl}" alt="${photo.display_name}" loading="lazy" data-full="${photoUrl}" onerror="photoImgFallback(this)">
+                        <button class="edit-btn" onclick="openPhotoEditor(${photoJson}, event)" title="Chỉnh sửa ảnh">${ic('pencil')}</button>
+                        <button class="upload-btn" onclick="openUploadDialog(${photoJson}, event)" title="Tải lên/Chụp ảnh mới">${ic('camera')}</button>
+                        <button class="more-btn" onclick="openCardMenu(${photoJson}, this, event)" title="Thêm thao tác">${ic('ellipsis')}</button>`
+                            : `<div class="photo-placeholder">
+                            <span class="ph-initials">${nameInitials(photo.employee_name)}</span>
+                            <button class="ph-add" onclick="openUploadDialog(${photoJson}, event)">${ic('camera')} Thêm ảnh</button>
+                        </div>`}
                     </div>
-                    <div class="card-save-flash">✓</div>
+                    <div class="card-save-flash">${ic('check')}</div>
                     <div class="photo-info">
                         <a href="${employeeLink}" class="${nameClass} employee-link" onclick="event.stopPropagation()" target="_blank">
                             ${photo.display_name}
@@ -3210,11 +4066,12 @@
             const statNoPhoto = document.getElementById('statNoPhoto');
             const statUpdate = document.getElementById('statUpdate');
 
-            statTotal.textContent = allPhotos.length;
+            const total = allPhotos.length + _outOfScopeStats.total;
+            statTotal.textContent = total;
 
-            const hasPhotoCount = allPhotos.filter(p => p.url && p.url !== '/assets/erpnext/images/default-avatar.png').length;
+            const hasPhotoCount = allPhotos.filter(hasRealPhoto).length + _outOfScopeStats.hasPhoto;
             statHasPhoto.textContent = hasPhotoCount;
-            statNoPhoto.textContent = allPhotos.length - hasPhotoCount;
+            statNoPhoto.textContent = total - hasPhotoCount;
 
             const timestamp = localStorage.getItem(CACHE_CONFIG.TIMESTAMP_KEY);
             if (timestamp) {
@@ -3275,8 +4132,7 @@
             if (idx < 0 || idx >= _modalList.length) return;
             _modalIdx = idx;
             const p = _modalList[idx];
-            const url = p.url + (p.url.includes('?') ? '&' : '?') + 't=' + sessionTimestamp;
-            modalImg.src = url;
+            modalImg.src = photoSrc(p);
             modalCaption.textContent = `${p.display_name}  (${idx + 1}/${_modalList.length})`;
             document.getElementById('modalPrev').style.display = idx > 0 ? 'flex' : 'none';
             document.getElementById('modalNext').style.display = idx < _modalList.length - 1 ? 'flex' : 'none';
@@ -3321,9 +4177,9 @@
             if (!p) return;
             try {
                 await downloadOnePhoto(p);
-                showEditorToast(`✅ Đã tải ảnh: ${p.display_name}`, 'ok');
+                showEditorToast(`Đã tải ảnh: ${p.display_name}`, 'ok');
             } catch (err) {
-                showEditorToast(`⚠️ Lỗi tải ảnh: ${err.message}`, 'err');
+                showEditorToast(`Lỗi tải ảnh: ${err.message}`, 'err');
             }
         });
         document.getElementById('modalBtnDelete').addEventListener('click', function (e) {
@@ -3403,11 +4259,12 @@
 
         function sendToEditor() {
             const frame = document.getElementById('photoEditorFrame');
-            const photo = _editorCurrentPhoto;
-            if (!photo) return;
+            if (!_editorCurrentPhoto) return;
+            const photo = currentPhoto(_editorCurrentPhoto);
+            const src = photoSrc(photo);
             const msg = {
                 type: 'INIT_EDITOR',
-                imageUrl: photo.url.startsWith('http') ? photo.url : (location.origin + photo.url),
+                imageUrl: src.startsWith('http') ? src : (location.origin + src),
                 employeeId: photo.employee_id,
                 employeeName: photo.employee_name
             };
@@ -3437,7 +4294,7 @@
         async function uploadToFrappe(employeeId, dataUrl) {
             const photo = _editorCurrentPhoto;
             const empName = photo ? (photo.employee_name || photo.display_name) : 'Employee';
-            showEditorToast('⏳ Đang lưu ảnh...', '');
+            showEditorToast('Đang lưu ảnh...', '');
             try {
                 const r = await callFrappeMethod(
                     'customize_erpnext.api.employee.employee_utils.process_employee_photo',
@@ -3447,16 +4304,16 @@
                     if (photo) { photo.url = r.file_url; }
                     refreshPhotoCardImage(employeeId, r.file_url);
                     // Cập nhật cache để reload page vẫn hiển thị ảnh mới
-                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+                    savePhotosCache();
                     closePhotoEditor();
-                    showEditorToast(`✅ Đã cập nhật ảnh: ${empName}`, 'ok');
+                    showEditorToast(`Đã cập nhật ảnh: ${empName}`, 'ok');
                 } else {
                     const detail = r ? JSON.stringify(r) : 'No response';
                     console.error('[uploadToFrappe] unexpected response:', r);
-                    showEditorToast(`⚠️ Lỗi server: ${detail}`, 'err');
+                    showEditorToast(`Lỗi server: ${detail}`, 'err');
                 }
             } catch (err) {
-                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                showEditorToast(`Lỗi: ${err.message}`, 'err');
                 console.error('[uploadToFrappe] error:', err);
             }
         }
@@ -3468,9 +4325,16 @@
             // Thêm timestamp vào URL ngay từ đây để persist vào data model
             const bustedUrl = newUrl + (newUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
 
-            // Cập nhật allPhotos để photo object có url mới (kèm cache-buster)
+            // Cập nhật allPhotos: url mới + version mới; bỏ thumbnail tới lần tải danh sách sau
+            // (server mới biết thumb đã sinh lại chưa)
             const photoObj = typeof allPhotos !== 'undefined' ? allPhotos.find(x => x.employee_id === employeeId) : null;
-            if (photoObj) photoObj.url = bustedUrl;
+            if (photoObj) {
+                photoObj.url = newUrl.split('?')[0];
+                photoObj.modified = Date.now();
+                photoObj.thumb_url = '';
+            }
+
+            if (photoObj && rerenderCard(employeeId, true)) return;
 
             gallery.querySelectorAll('.photo-card').forEach(card => {
                 const link = card.querySelector('.employee-link');
@@ -3484,16 +4348,16 @@
                     const editBtn = document.createElement('button');
                     editBtn.className = 'edit-btn';
                     editBtn.title = 'Chỉnh sửa ảnh';
-                    editBtn.textContent = '✏️';
+                    editBtn.innerHTML = ic('pencil');
                     editBtn.addEventListener('click', e => { e.stopPropagation(); openPhotoEditor(photoObj, e); });
                     img.parentNode.insertBefore(editBtn, img.nextSibling);
 
-                    const delBtn = document.createElement('button');
-                    delBtn.className = 'delete-btn';
-                    delBtn.title = 'Xóa ảnh';
-                    delBtn.textContent = '🗑';
-                    delBtn.addEventListener('click', e => { e.stopPropagation(); openDeleteDialog(photoObj, e); });
-                    img.parentNode.insertBefore(delBtn, editBtn.nextSibling);
+                    const moreBtn = document.createElement('button');
+                    moreBtn.className = 'more-btn';
+                    moreBtn.title = 'Thêm thao tác';
+                    moreBtn.innerHTML = ic('ellipsis');
+                    moreBtn.addEventListener('click', e => openCardMenu(photoObj, moreBtn, e));
+                    img.parentNode.insertBefore(moreBtn, editBtn.nextSibling);
                 }
 
                 const flash = card.querySelector('.card-save-flash');
@@ -3510,9 +4374,177 @@
             return new Blob([arr], { type: mime });
         }
 
+        // ── Hộp thoại chung (thay prompt/alert/confirm của trình duyệt) — theo theme trang ──
+        // Trả Promise: giá trị ô nhập (có input) / true (đồng ý) / null (huỷ)
+        // form: HTML các trường có name="..." → trả về object {name: value | checked}
+        function uiDialog({ title, message = '', icon = 'info', tone = 'primary', input = null, form = '', cls = '',
+                            okText = 'Đồng ý', cancelText = 'Hủy', validate = null }) {
+            return new Promise(resolve => {
+                const ov = document.createElement('div');
+                ov.className = 'ui-dialog-overlay';
+                ov.innerHTML = `
+                    <div class="ui-dialog ${tone} ${cls}" role="dialog" aria-modal="true">
+                        <h3>${ic(icon)}<span></span></h3>
+                        <p class="ui-dialog-msg"></p>
+                        ${input ? `<input class="ui-dialog-input" type="${input.type || 'text'}" autocomplete="off">` : ''}
+                        ${form ? `<form class="ui-dialog-form" onsubmit="return false">${form}</form>` : ''}
+                        <div class="ui-dialog-error"></div>
+                        <div class="ui-dialog-actions">
+                            ${cancelText ? `<button type="button" data-act="cancel">${cancelText}</button>` : ''}
+                            <button type="button" data-act="ok" class="${tone}">${okText}</button>
+                        </div>
+                    </div>`;
+                ov.querySelector('h3 span').textContent = title;
+                ov.querySelector('.ui-dialog-msg').textContent = message;
+                const inp = ov.querySelector('.ui-dialog-input');
+                if (inp && input.placeholder) inp.placeholder = input.placeholder;
+                const err = ov.querySelector('.ui-dialog-error');
+                const prevFocus = document.activeElement;
+                const done = val => {
+                    ov.remove();
+                    if (prevFocus && prevFocus.focus) prevFocus.focus();
+                    resolve(val);
+                };
+                const formEl = ov.querySelector('.ui-dialog-form');
+                const ok = () => {
+                    let val = inp ? inp.value : true;
+                    if (formEl) {
+                        val = {};
+                        formEl.querySelectorAll('[name]').forEach(el => {
+                            val[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+                        });
+                    }
+                    const msg = validate ? validate(val) : '';
+                    if (msg) {
+                        err.textContent = msg;
+                        err.style.display = 'block';
+                        if (inp) { inp.select(); inp.focus(); }
+                        return;
+                    }
+                    done(val);
+                };
+                ov.addEventListener('click', e => {
+                    const act = e.target.closest('[data-act]')?.dataset.act;
+                    if (act === 'ok') ok();
+                    else if (act === 'cancel' || e.target === ov) done(null);
+                });
+                // Phím trong hộp thoại không lọt ra các phím tắt của trang (Esc đóng modal, Enter lưu batch…)
+                ov.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Escape') { e.preventDefault(); done(null); }
+                    else if (e.key === 'Enter') { e.preventDefault(); ok(); }
+                    else if (e.key === 'Tab') {
+                        const f = [...ov.querySelectorAll('input, button')];
+                        const i = f.indexOf(document.activeElement);
+                        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+                        else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+                    }
+                });
+                document.body.appendChild(ov);
+                (inp || ov.querySelector('[data-act="ok"]')).focus();
+            });
+        }
+
+        // ── In thẻ nhân viên (cùng API với Employee list > "Generate Employee Cards") ──
+        const CARD_PRINT_DEFAULTS = {
+            page_size: 'A4', with_barcode: false, rounded: true,
+            bg_color: '#ffffff', border_color: '#000000', max_length_font_20: 20, name_font_size: '18',
+        };
+        const CARD_PRINT_MAX = 50;  // giới hạn như Desk (server dựng HTML + ảnh từng người)
+
+        function loadCardPrintSettings() {
+            try {
+                return { ...CARD_PRINT_DEFAULTS, ...JSON.parse(localStorage.getItem('ep_card_print') || '{}') };
+            } catch (e) {
+                return { ...CARD_PRINT_DEFAULTS };
+            }
+        }
+
+        // Mã NV đã chọn theo đúng thứ tự đang hiển thị (người bị lọc khỏi lưới xếp cuối)
+        function selectedIdsInDisplayOrder() {
+            const shown = getDisplayOrderIds().filter(id => selectedEmpIds.has(id));
+            const rest = [...selectedEmpIds].filter(id => !shown.includes(id));
+            return shown.concat(rest);
+        }
+
+        async function openCardPrintDialog() {
+            const ids = selectedIdsInDisplayOrder();
+            if (!ids.length) return;
+            if (ids.length > CARD_PRINT_MAX) {
+                uiDialog({
+                    title: `Chọn tối đa ${CARD_PRINT_MAX} nhân viên mỗi lần`,
+                    message: `Đang chọn ${ids.length} nhân viên — bỏ chọn bớt rồi in theo từng đợt.`,
+                    icon: 'triangle-alert', okText: 'Đã hiểu', cancelText: '',
+                });
+                return;
+            }
+            const byId = new Map(allPhotos.map(p => [p.employee_id, p]));
+            const noPhoto = ids.filter(id => !hasRealPhoto(byId.get(id) || {})).length;
+            const st = loadCardPrintSettings();
+            const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const names = ids.slice(0, 8).map(id => esc((byId.get(id) || {}).display_name || id)).join(', ')
+                + (ids.length > 8 ? ` … và ${ids.length - 8} người khác` : '');
+            const opt = (vals, cur) => vals.map(v => `<option value="${v}"${String(v) === String(cur) ? ' selected' : ''}>${v}</option>`).join('');
+            const form = `
+                <div class="cp-names">${names}</div>
+                <div class="cp-grid">
+                    <label>Khổ giấy<select name="page_size">${opt(['A4', 'A5'], st.page_size)}</select></label>
+                    <label>Cỡ chữ tên dài (pt)<select name="name_font_size">${opt(['19', '18', '17', '16'], st.name_font_size)}</select></label>
+                    <label>Tên ngắn hơn (ký tự) dùng chữ 20pt<input type="number" name="max_length_font_20" min="10" max="50" value="${esc(st.max_length_font_20)}"></label>
+                    <label>Màu nền / màu viền
+                        <span class="cp-colors"><input type="color" name="bg_color" value="${esc(st.bg_color)}" title="Màu nền">
+                        <input type="color" name="border_color" value="${esc(st.border_color)}" title="Màu viền"></span></label>
+                    <label class="cp-check"><input type="checkbox" name="with_barcode"${st.with_barcode ? ' checked' : ''}> Barcode dưới ảnh</label>
+                    <label class="cp-check"><input type="checkbox" name="rounded"${st.rounded ? ' checked' : ''}> Bo góc thẻ</label>
+                </div>`;
+            const v = await uiDialog({
+                title: 'In thẻ nhân viên',
+                message: `${ids.length} nhân viên` + (noPhoto ? ` · ${noPhoto} người chưa có ảnh (thẻ để trống ô ảnh)` : ''),
+                icon: 'id-card', form, cls: 'wide', okText: 'Tạo thẻ',
+                validate: val => {
+                    const n = parseInt(val.max_length_font_20, 10);
+                    return n >= 10 && n <= 50 ? '' : 'Ngưỡng độ dài tên phải từ 10 đến 50 ký tự.';
+                },
+            });
+            if (!v) return;
+            try { localStorage.setItem('ep_card_print', JSON.stringify(v)); } catch (e) { }
+
+            // Mở tab ngay trong lúc còn "user activation" — chờ server xong mới mở thì trình duyệt chặn popup
+            const tab = window.EmployeeCardsPreview.open();
+            if (!tab) {
+                showEditorToast('Trình duyệt chặn cửa sổ mới — cho phép popup cho trang này rồi thử lại', 'err');
+                return;
+            }
+            showEditorToast(`Đang tạo thẻ cho ${ids.length} nhân viên...`, '');
+            try {
+                const r = await callFrappeMethod('customize_erpnext.api.employee.employee_utils.generate_employee_cards_html_api', {
+                    employee_ids: JSON.stringify(ids),
+                    with_barcode: v.with_barcode ? 1 : 0,
+                    page_size: v.page_size,
+                    name_font_size: v.name_font_size,
+                    max_length_font_20: v.max_length_font_20,
+                    card_border_radius: v.rounded ? 1 : 0,
+                    bg_color: v.bg_color,
+                    border_color: v.border_color,
+                });
+                if (!r || !r.html) throw new Error('Server không trả về HTML');
+                window.EmployeeCardsPreview.write(tab, r.html);
+                showEditorToast(`Đã tạo thẻ cho ${ids.length} nhân viên — xem ở tab mới`, 'ok');
+            } catch (err) {
+                tab.close();
+                showEditorToast(`Lỗi tạo thẻ: ${err.message}`, 'err');
+            }
+        }
+
+        // Icon theo loại thông báo; nội dung luôn gán bằng textContent (có thể chứa tên NV / message lỗi)
+        const TOAST_ICONS = { ok: ['circle-check', ''], err: ['triangle-alert', ''], '': ['loader-circle', 'spin'] };
         function showEditorToast(msg, type = '') {
             const el = document.getElementById('editorToast');
-            el.textContent = msg;
+            const [icName, icCls] = TOAST_ICONS[type] || TOAST_ICONS[''];
+            el.innerHTML = ic(icName, icCls);
+            const text = document.createElement('span');
+            text.textContent = msg;
+            el.appendChild(text);
             el.className = 'editor-toast show' + (type ? ' ' + type : '');
             clearTimeout(el._tid);
             el._tid = setTimeout(() => el.className = 'editor-toast', 3500);
@@ -3560,7 +4592,7 @@
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 document.getElementById('cameraError').innerHTML =
-                    '⚠️ Camera không khả dụng. Trang cần truy cập qua HTTPS hoặc dùng trình duyệt hiện đại.<br>' +
+                    ic('triangle-alert') + ' Camera không khả dụng. Trang cần truy cập qua HTTPS hoặc dùng trình duyệt hiện đại.<br>' +
                     'Vui lòng dùng chức năng <strong>Chọn file</strong>.';
                 document.getElementById('cameraError').style.display = 'block';
                 document.getElementById('cameraPreview').style.display = 'none';
@@ -3581,7 +4613,9 @@
                 if (err.name === 'NotAllowedError') msg = 'Quyền truy cập camera bị từ chối. Vui lòng cho phép trong cài đặt trình duyệt.';
                 if (err.name === 'NotFoundError') msg = 'Không tìm thấy camera trên thiết bị này.';
                 if (err.name === 'NotReadableError') msg = 'Camera đang được dùng bởi ứng dụng khác.';
-                document.getElementById('cameraError').textContent = '⚠️ ' + msg;
+                const camErr = document.getElementById('cameraError');
+                camErr.innerHTML = ic('triangle-alert') + ' ';
+                camErr.append(msg);
                 document.getElementById('cameraError').style.display = 'block';
                 document.getElementById('cameraPreview').style.display = 'none';
                 document.getElementById('btnCapture').style.display = 'none';
@@ -3623,7 +4657,7 @@
                 const file = inp.files[0];
                 if (!file) return;
                 if (file.size > 10 * 1024 * 1024) {
-                    showEditorToast('⚠️ File quá lớn (>10MB)', 'err');
+                    showEditorToast('File quá lớn (>10MB)', 'err');
                     return;
                 }
                 const reader = new FileReader();
@@ -3658,7 +4692,7 @@
             // Wait for image to load before init Cropper
             img.onload = function () {
                 if (typeof Cropper === 'undefined') {
-                    showEditorToast('⚠️ Cropper.js chưa tải, vui lòng thử lại', 'err');
+                    showEditorToast('Cropper.js chưa tải, vui lòng thử lại', 'err');
                     document.getElementById('cropModal').classList.remove('open');
                     return;
                 }
@@ -3768,7 +4802,7 @@
             if (!_deleteCurrentPhoto) return;
             const photo = _deleteCurrentPhoto;
             closeDeleteModal();
-            showEditorToast(`⏳ Đang xóa ảnh ${photo.employee_id}...`, '');
+            showEditorToast(`Đang xóa ảnh ${photo.employee_id}...`, '');
             try {
                 const r = await callFrappeMethod(
                     'customize_erpnext.api.employee.employee_utils.delete_employee_photo',
@@ -3777,35 +4811,35 @@
                 if (r && r.status === 'success') {
                     // Update in-memory data
                     const p = allPhotos.find(x => x.employee_id === photo.employee_id);
-                    if (p) p.url = '';
+                    if (p) { p.url = ''; p.thumb_url = ''; }
                     // Update cache
-                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
-                    // Update card: default avatar + remove edit/delete buttons
+                    savePhotosCache();
+                    // Update card: ô chữ cái đầu + nút "Thêm ảnh"
                     const gallery = document.querySelector('.gallery');
-                    if (gallery) {
+                    if (!rerenderCard(photo.employee_id) && gallery) {
                         gallery.querySelectorAll('.photo-card').forEach(card => {
                             const link = card.querySelector('.employee-link');
                             if (link && link.href && link.href.includes(encodeURIComponent(photo.employee_id))) {
                                 const img = card.querySelector('img');
                                 if (img) img.src = '/assets/erpnext/images/default-avatar.png';
                                 card.querySelector('.edit-btn')?.remove();
-                                card.querySelector('.delete-btn')?.remove();
+                                card.querySelector('.more-btn')?.remove();
                             }
                         });
                     }
-                    showEditorToast(`✅ Đã xóa ảnh: ${photo.display_name}`, 'ok');
+                    showEditorToast(`Đã xóa ảnh: ${photo.display_name}`, 'ok');
                 } else {
-                    showEditorToast(`⚠️ Lỗi: ${r ? JSON.stringify(r) : 'No response'}`, 'err');
+                    showEditorToast(`Lỗi: ${r ? JSON.stringify(r) : 'No response'}`, 'err');
                 }
             } catch (err) {
-                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                showEditorToast(`Lỗi: ${err.message}`, 'err');
                 console.error('[confirmDelete] error:', err);
             }
         }
 
         // ── Core upload — dùng chung với uploadToFrappe (editor) ──
         async function uploadEmployeePhoto(employeeId, employeeName, imageDataUrl) {
-            showEditorToast(`⏳ Đang lưu ảnh cho ${employeeId}...`, '');
+            showEditorToast(`Đang lưu ảnh cho ${employeeId}...`, '');
             try {
                 const r = await callFrappeMethod(
                     'customize_erpnext.api.employee.employee_utils.process_employee_photo',
@@ -3816,15 +4850,15 @@
                     const p = allPhotos.find(x => x.employee_id === employeeId);
                     if (p) p.url = r.file_url;
                     // Cập nhật cache để reload page vẫn hiển thị ảnh mới
-                    setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
-                    showEditorToast(`✅ Đã cập nhật ảnh: ${employeeName || employeeId}`, 'ok');
+                    savePhotosCache();
+                    showEditorToast(`Đã cập nhật ảnh: ${employeeName || employeeId}`, 'ok');
                 } else {
                     const detail = r ? JSON.stringify(r) : 'No response';
                     console.error('[uploadEmployeePhoto] unexpected response:', r);
-                    showEditorToast(`⚠️ Lỗi server: ${detail}`, 'err');
+                    showEditorToast(`Lỗi server: ${detail}`, 'err');
                 }
             } catch (err) {
-                showEditorToast(`⚠️ Lỗi: ${err.message}`, 'err');
+                showEditorToast(`Lỗi: ${err.message}`, 'err');
                 console.error('[uploadEmployeePhoto] error:', err);
             }
         }
@@ -3833,6 +4867,11 @@
         async function handleGlobalPhotoUpload(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
+            // Tên file có thể là mã NV đã nghỉ → cần danh sách đủ mọi trạng thái để dò mã
+            if (_photosScope !== 'all') {
+                showEditorToast('Đang tải danh sách nhân viên...', '');
+                if (!await ensureAllPhotos()) { e.target.value = ''; return; }
+            }
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
@@ -3929,7 +4968,8 @@
             } else {
                 // Original behavior: open modal if clicking on img area
                 if (event.target.tagName === 'IMG') {
-                    openModal(photoUrl, photo.display_name, photo.employee_id);
+                    const p = currentPhoto(photo);
+                    openModal(p.url ? photoSrc(p) : photoUrl, photo.display_name, photo.employee_id);
                 }
             }
         }
@@ -4006,13 +5046,14 @@
             const hasAny = withPhoto > 0;
 
             document.getElementById('btnBulkDownload').disabled = !hasAny;
+            document.getElementById('btnBulkCards').disabled = count === 0;
             document.getElementById('btnBulkId').disabled = !hasAny;
 
             // Toggle select-all button label
             const selectAllBtn = document.getElementById('btnBulkSelectAll');
             const allSelected = filteredPhotos.length > 0 &&
                 filteredPhotos.every(p => selectedEmpIds.has(p.employee_id));
-            selectAllBtn.textContent = allSelected ? '✕ Bỏ chọn tất' : '☑️ Chọn tất cả';
+            selectAllBtn.innerHTML = allSelected ? ic('x') + ' Bỏ chọn tất' : ic('square-check') + ' Chọn tất cả';
         }
 
         function getSelectedPhotosWithPhoto() {
@@ -4126,7 +5167,7 @@
         async function downloadSelectedPhotos() {
             const photos = getSelectedPhotosWithPhoto();
             if (photos.length === 0) {
-                showEditorToast('⚠️ Không có ảnh nào để tải (nhân viên chưa có ảnh sẽ bị bỏ qua)', 'err');
+                showEditorToast('Không có ảnh nào để tải (nhân viên chưa có ảnh sẽ bị bỏ qua)', 'err');
                 return;
             }
 
@@ -4134,9 +5175,9 @@
             if (photos.length === 1) {
                 try {
                     await downloadOnePhoto(photos[0]);
-                    showEditorToast(`✅ Đã tải ảnh: ${photos[0].display_name}`, 'ok');
+                    showEditorToast(`Đã tải ảnh: ${photos[0].display_name}`, 'ok');
                 } catch (err) {
-                    showEditorToast(`⚠️ Lỗi tải ảnh: ${err.message}`, 'err');
+                    showEditorToast(`Lỗi tải ảnh: ${err.message}`, 'err');
                 }
                 return;
             }
@@ -4172,7 +5213,7 @@
             const entries = results.filter(Boolean);
             if (entries.length === 0) {
                 toast.classList.remove('show');
-                showEditorToast('⚠️ Không tải được ảnh nào', 'err');
+                showEditorToast('Không tải được ảnh nào', 'err');
                 return;
             }
 
@@ -4187,11 +5228,11 @@
                 triggerBlobDownload(zipBlob, zipName);
                 toast.classList.remove('show');
                 showEditorToast(failed > 0
-                    ? `✅ Đã nén ${entries.length} ảnh vào 1 file zip (${failed} lỗi)`
-                    : `✅ Đã tải ${entries.length} ảnh trong 1 file zip`, 'ok');
+                    ? `Đã nén ${entries.length} ảnh vào 1 file zip (${failed} lỗi)`
+                    : `Đã tải ${entries.length} ảnh trong 1 file zip`, 'ok');
             } catch (err) {
                 toast.classList.remove('show');
-                showEditorToast(`⚠️ Lỗi nén zip: ${err.message}`, 'err');
+                showEditorToast(`Lỗi nén zip: ${err.message}`, 'err');
                 console.error('[downloadSelectedPhotos] zip error:', err);
             }
         }
@@ -4227,13 +5268,13 @@
         function startBatchIdPhoto() {
             let photos = getSelectedPhotosWithPhoto();
             if (photos.length === 0) {
-                showEditorToast('⚠️ Không có nhân viên nào có ảnh trong danh sách đã chọn', 'err');
+                showEditorToast('Không có nhân viên nào có ảnh trong danh sách đã chọn', 'err');
                 return;
             }
             // Cap 20: u2net (0.3s/ảnh, 10 luồng) xử lý 20 ảnh trong ~10-20s;
             // RAM client ~60MB và layout 10 cột vẫn thoải mái. birefnet >10 ảnh sẽ được gợi ý đổi engine.
             if (photos.length > 20) {
-                showEditorToast('⚠️ Đang chọn ' + photos.length + ' ảnh — vui lòng bỏ chọn bớt, tối đa 20 ảnh mỗi lần', 'err');
+                showEditorToast('Đang chọn ' + photos.length + ' ảnh — vui lòng bỏ chọn bớt, tối đa 20 ảnh mỗi lần', 'err');
                 return;
             }
             _batchCropData = {};
@@ -4278,7 +5319,7 @@
                         'customize_erpnext.api.employee.employee_utils.batch_rembg_acquire_lock',
                         { session_id: sid });
                     if (!lockRes || !lockRes.acquired) {
-                        if (chip) { chip.style.display = ''; chip.textContent = '⏳ Máy chủ AI đang bận — sẽ thử lại khi bắt đầu xử lý'; }
+                        if (chip) { chip.style.display = ''; chip.innerHTML = ic('loader-circle', 'spin') + ' Máy chủ AI đang bận — sẽ thử lại khi bắt đầu xử lý'; }
                         return;
                     }
                     _batchSessionId = sid;
@@ -4295,7 +5336,7 @@
             if (_rembgWarmupPromise && _rembgWarmupKey === key) return; // đã/đang warm model này
             _rembgWarmupKey = key;
             const chip = document.getElementById('batchAiStatus');
-            if (chip) { chip.style.display = ''; chip.textContent = '🔥 Đang khởi động AI nền...'; }
+            if (chip) { chip.style.display = ''; chip.innerHTML = ic('loader-circle', 'spin') + ' Đang khởi động AI nền...'; }
             // Ảnh 32×32 trắng — đủ để worker load model, xử lý tức thì
             const c = document.createElement('canvas'); c.width = 32; c.height = 32;
             const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, 32, 32);
@@ -4309,7 +5350,7 @@
                 if (_rembgWarmupKey !== key) return;
                 const ok = rs.some(r => r.status === 'fulfilled');
                 if (chip && document.getElementById('batchIdModal').classList.contains('open')) {
-                    chip.textContent = ok ? '✅ AI nền sẵn sàng' : '⚠️ AI nền lỗi khởi động';
+                    chip.innerHTML = ok ? ic('circle-check') + ' AI nền sẵn sàng' : ic('triangle-alert') + ' AI nền lỗi khởi động';
                 }
             });
         }
@@ -4342,7 +5383,7 @@
                             <div class="s1-card-name">${p.display_name}</div>
                             <div class="s1-card-id">${p.employee_id}</div>
                         </div>
-                        <button class="s1-adjust-btn" onclick="openBatchCropAdjust('${p.employee_id}')">✂️ Chỉnh</button>
+                        <button class="s1-adjust-btn" onclick="openBatchCropAdjust('${p.employee_id}')">${ic('crop')} Chỉnh</button>
                     </div>
                 </div>`;
             }).join('');
@@ -4593,8 +5634,8 @@
         }
 
         const _REMBG_MODEL_HINTS = {
-            'u2net': '⚡ nhanh ~0.3s/ảnh · tóc thường',
-            'birefnet-portrait': '✨ tóc đẹp nhất · chậm ~10s/ảnh',
+            'u2net': 'nhanh ~0.3s/ảnh · tóc thường',
+            'birefnet-portrait': 'tóc đẹp nhất · chậm ~10s/ảnh',
         };
 
         function setRembgModel(model) {
@@ -4765,19 +5806,19 @@
             };
 
             if (hasTrans) {
-                if (onProgress) onProgress('⏩ PNG có nền trong, composite trực tiếp...');
+                if (onProgress) onProgress('PNG có nền trong, composite trực tiếp...');
                 bgRemovedImageData = imageData;
                 bgRemovedDataUrl = _captureBgRemoved(imageData);
                 imageData = _compositeOnBg(imageData, _batchBgColor);
                 bgMethod = 'PNG-alpha';
             } else if (isPng || hasWhiteBg || !_removeBgEnabled) {
                 if (onProgress) onProgress(!_removeBgEnabled && !isPng && !hasWhiteBg
-                    ? '⏩ Bỏ qua xóa nền (đã tắt)...'
-                    : '⏩ Bỏ qua xóa nền (PNG / nền trắng)...');
+                    ? 'Bỏ qua xóa nền (đã tắt)...'
+                    : 'Bỏ qua xóa nền (PNG / nền trắng)...');
                 bgMethod = !_removeBgEnabled && !isPng && !hasWhiteBg ? 'manual-skip' : (isPng ? 'PNG-skip' : 'white-skip');
             } else {
                 // JPEG: remove bg via selected engine
-                if (onProgress) onProgress(_bgEngine === 'rembg' ? '🖥 Xóa nền rembg...' : '🤖 Xóa nền AI...');
+                if (onProgress) onProgress(_bgEngine === 'rembg' ? 'Xóa nền rembg...' : 'Xóa nền AI...');
                 const bgRemoved = _bgEngine === 'rembg'
                     ? await batchRemoveBgRembg(imageData)
                     : await batchRemoveBg(imageData, 'medium');
@@ -4795,7 +5836,7 @@
             const rawDataUrl = rawC.toDataURL('image/jpeg', 0.95);
 
             // 4. Analyze + beautify (auto params)
-            if (onProgress) onProgress('✨ Làm đẹp...');
+            if (onProgress) onProgress('Làm đẹp...');
             const params = PhotoProcessingUtils.analyzeDeep(imageData);
             imageData = PhotoProcessingUtils.applyFilters(imageData, params);
             // Re-composite with clean bg to undo filter distortion on background pixels
@@ -5002,14 +6043,18 @@
         // ── Confirm step 1 → run step 2 ──
         async function confirmCropZones() {
             const entries = Object.values(_batchCropData).filter(d => d.sx !== null);
-            if (entries.length === 0) { showEditorToast('⚠️ Ảnh chưa tải xong, vui lòng chờ', 'err'); return; }
+            if (entries.length === 0) { showEditorToast('Ảnh chưa tải xong, vui lòng chờ', 'err'); return; }
 
             // Batch lớn + birefnet (2 luồng, chậm trên CPU) → gợi ý u2net, không ép
             if (entries.length > 10 && _bgEngine === 'rembg' && _rembgModel === 'birefnet-portrait') {
                 const estMin = Math.ceil(entries.length * 10 / 2 / 60);
-                if (!confirm(`${entries.length} ảnh với birefnet sẽ mất ~${estMin} phút.\n` +
-                    `💡 Model u2net nhanh hơn ~5 lần (tóc kém hơn một chút) — đổi ở mục ⚙️ engine.\n\n` +
-                    `Vẫn tiếp tục với birefnet?`)) return;
+                const go = await uiDialog({
+                    title: `${entries.length} ảnh với birefnet sẽ mất khoảng ${estMin} phút`,
+                    message: 'Model u2net nhanh hơn khoảng 5 lần (viền tóc kém hơn một chút) — đổi ở mục engine.',
+                    icon: 'clock',
+                    okText: 'Vẫn dùng birefnet',
+                });
+                if (!go) return;
             }
 
             // Acquire rembg lock (only when using rembg engine)
@@ -5024,7 +6069,7 @@
                     if (!lockRes || !lockRes.acquired) {
                         const h = lockRes && lockRes.holder;
                         const who = h ? `${h.user} (lúc ${h.started_at})` : 'người dùng khác';
-                        showEditorToast(`⚠️ ${who} đang xử lý ảnh hàng loạt. Vui lòng chờ hoàn tất rồi thử lại.`, 'err');
+                        showEditorToast(`${who} đang xử lý ảnh hàng loạt. Vui lòng chờ hoàn tất rồi thử lại.`, 'err');
                         _batchSessionId = null;
                         return;
                     }
@@ -5065,16 +6110,16 @@
                                     onmouseup="batchCompare('${p.employee_id}',0)"
                                     onmouseleave="batchCompare('${p.employee_id}',0)"
                                     ontouchstart="event.stopPropagation();event.preventDefault();batchCompare('${p.employee_id}',1)"
-                                    ontouchend="batchCompare('${p.employee_id}',0)">👁 Gốc</button>
-                                <button class="btn-batch-approve" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'approved')">✓ Duyệt</button>
-                                <button class="btn-batch-skip" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'skipped')">✗ Bỏ qua</button>
+                                    ontouchend="batchCompare('${p.employee_id}',0)">${ic('eye')} Gốc</button>
+                                <button class="btn-batch-approve" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'approved')">${ic('check')} Duyệt</button>
+                                <button class="btn-batch-skip" onclick="event.stopPropagation();setBatchStatus('${p.employee_id}', 'skipped')">${ic('x')} Bỏ qua</button>
                             </div>
                         </div>
                         <div class="batch-card-side" id="bcpresets_${p.employee_id}" style="display:none;">
                             <button class="bcpreset-btn active" data-preset="auto" onclick="applyBatchPreset('${p.employee_id}','auto')">Auto</button>
-                            <button class="bcpreset-btn" data-preset="Tự nhiên" onclick="applyBatchPreset('${p.employee_id}','Tự nhiên')">🌿</button>
-                            <button class="bcpreset-btn" data-preset="Chuyên nghiệp" onclick="applyBatchPreset('${p.employee_id}','Chuyên nghiệp')">💼</button>
-                            <button class="bcpreset-btn" data-preset="Tươi sáng" onclick="applyBatchPreset('${p.employee_id}','Tươi sáng')">☀️</button>
+                            <button class="bcpreset-btn" data-preset="Tự nhiên" onclick="applyBatchPreset('${p.employee_id}','Tự nhiên')" title="Tự nhiên">${ic('leaf')}</button>
+                            <button class="bcpreset-btn" data-preset="Chuyên nghiệp" onclick="applyBatchPreset('${p.employee_id}','Chuyên nghiệp')" title="Chuyên nghiệp">${ic('briefcase')}</button>
+                            <button class="bcpreset-btn" data-preset="Tươi sáng" onclick="applyBatchPreset('${p.employee_id}','Tươi sáng')" title="Tươi sáng">${ic('sun')}</button>
                         </div>
                     </div>
                     <div class="batch-card-bottom">
@@ -5124,7 +6169,7 @@
                     const presetsEl = document.getElementById(`bcpresets_${photo.employee_id}`);
                     if (presetsEl) presetsEl.style.display = 'flex';
                     if (badge) {
-                        badge.textContent = '✓';
+                        badge.innerHTML = ic('check');
                         if (timing) {
                             badge.title = `load:${timing.load}ms | bg(${timing.bgMethod}):${timing.bg}ms | beautify:${timing.beautify}ms | encode:${timing.encode}ms | tổng:${timing.total}ms`;
                         }
@@ -5150,7 +6195,7 @@
                             if (attempt > 0) {
                                 await new Promise(r => setTimeout(r, 1500)); // chờ GC trên server
                                 document.getElementById('batchProgressLabel').textContent =
-                                    `${photo.display_name}: 🔄 Thử lại...`;
+                                    `${photo.display_name}: Thử lại...`;
                             }
                             // Step A: client-side crop to 600×800 (canvas thô, không encode trung gian)
                             const cropped = await applyCropToPhoto(photo.url, sx, sy, sw, sh);
@@ -5177,7 +6222,7 @@
 
             _batchProcessing = false;
             const totalSec = ((performance.now() - _t0) / 1000).toFixed(1);
-            document.getElementById('batchProgressLabel').textContent = `✅ Xử lý xong ${total} ảnh trong ${totalSec}s — Duyệt ảnh rồi nhấn Lưu`;
+            document.getElementById('batchProgressLabel').innerHTML = `${ic('circle-check')} Xử lý xong ${total} ảnh trong ${totalSec}s — Duyệt ảnh rồi nhấn Lưu`;
             document.getElementById('batchProgressBar').style.width = '100%';
             // Release rembg lock after processing completes
             if (_batchSessionId) {
@@ -5228,7 +6273,7 @@
             if (!card) return;
             card.classList.remove('approved', 'skipped');
             card.classList.add(status);
-            if (badge) badge.textContent = status === 'approved' ? '✓' : '✕';
+            if (badge) badge.innerHTML = status === 'approved' ? ic('check') : ic('x');
             if (_batchResults[empId]) _batchResults[empId].approved = (status === 'approved');
             updateBatchFooter();
         }
@@ -5326,7 +6371,7 @@
             const saveBtn = document.getElementById('btnBatchSave');
             if (saveBtn) saveBtn.disabled = true;
             const info = document.getElementById('batchFooterInfo');
-            if (info) info.innerHTML = '⏳ Đang lưu ảnh...';
+            if (info) info.innerHTML = ic('loader-circle', 'spin') + ' Đang lưu ảnh...';
 
             let saved = 0, failed = 0;
             // Lưu song song 4 ảnh một lúc — server chỉ resize PIL, rất nhẹ
@@ -5338,7 +6383,7 @@
                     let saveOk = false;
                     for (let attempt = 0; attempt < 3; attempt++) {
                         if (attempt > 0) {
-                            if (info) info.innerHTML = `⏳ Chờ server khởi động lại... (thử ${attempt + 1}/3)`;
+                            if (info) info.innerHTML = `${ic('loader-circle', 'spin')} Chờ server khởi động lại... (thử ${attempt + 1}/3)`;
                             await new Promise(r => setTimeout(r, 3000 * attempt));
                         }
                         try {
@@ -5364,18 +6409,18 @@
                         }
                     }
                     if (!saveOk) failed++;
-                    if (info) info.innerHTML = `⏳ Đang lưu... ${saved + failed} / ${toSave.length}`;
+                    if (info) info.innerHTML = `${ic('loader-circle', 'spin')} Đang lưu... ${saved + failed} / ${toSave.length}`;
                 }
             }
             await Promise.all(Array.from(
                 { length: Math.min(SAVE_CONCURRENCY, toSave.length) }, saveWorker));
 
-            setCache(CACHE_CONFIG.PHOTOS_KEY, allPhotos, CACHE_CONFIG.PHOTOS_EXPIRY);
+            savePhotosCache();
             closeBatchModal();
             exitMultiSelect();
             const msg = failed > 0
-                ? `✅ Đã lưu ${saved} ảnh · ⚠️ Thất bại ${failed}`
-                : `✅ Đã cập nhật ${saved} ảnh thẻ vào thư viện!`;
+                ? `Đã lưu ${saved} ảnh · Thất bại ${failed}`
+                : `Đã cập nhật ${saved} ảnh thẻ vào thư viện!`;
             showEditorToast(msg, failed > 0 ? 'err' : 'ok');
         }
 
@@ -5421,12 +6466,23 @@
                 }
                 return;
             }
+            if (e.key === 'Escape' && closeCardMenu()) return;
             if (e.key === 'Escape') {
                 const editorModal = document.getElementById('editorModal');
                 if (document.getElementById('batchCropAdjustModal').classList.contains('open')) {
                     closeBatchCropAdjust();
                 } else if (document.getElementById('batchIdModal').classList.contains('open')) {
-                    if (_batchProcessing && !confirm('Đang xử lý ảnh — thoát sẽ hủy kết quả. Tiếp tục thoát?')) return;
+                    if (_batchProcessing) {
+                        uiDialog({
+                            title: 'Đang xử lý ảnh',
+                            message: 'Thoát bây giờ sẽ hủy kết quả đang xử lý.',
+                            icon: 'triangle-alert',
+                            tone: 'danger',
+                            okText: 'Thoát',
+                            cancelText: 'Ở lại',
+                        }).then(ok => { if (ok) closeBatchModal(); });
+                        return;
+                    }
                     closeBatchModal();
                 } else if (editorModal && editorModal.classList.contains('open')) {
                     closePhotoEditor();
@@ -5446,20 +6502,23 @@
     </script>
     <button id="backToTop" class="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})"
         title="Lên đầu trang">
-        <span>⬆️</span>
+        <svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-arrow-up"></use></svg>
     </button>
 
     <!-- ── Bulk Action Toolbar ── -->
     <div class="bulk-toolbar" id="bulkToolbar">
         <div class="bulk-count">Đã chọn <span id="bulkCount">0</span> nhân viên</div>
         <div class="bulk-actions">
-            <button class="btn-bulk btn-bulk-select-all" id="btnBulkSelectAll" onclick="bulkSelectAll()">☑️ <span
+            <button class="btn-bulk btn-bulk-select-all" id="btnBulkSelectAll" onclick="bulkSelectAll()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-square-check"></use></svg> <span
                     class="btn-bulk-label">Chọn tất cả</span></button>
             <button class="btn-bulk btn-bulk-download" id="btnBulkDownload" disabled
-                onclick="downloadSelectedPhotos()">⬇️ <span class="btn-bulk-label">Tải ảnh về</span></button>
-            <button class="btn-bulk btn-bulk-id" id="btnBulkId" disabled onclick="startBatchIdPhoto()">🤖 <span
+                onclick="downloadSelectedPhotos()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-download"></use></svg> <span class="btn-bulk-label">Tải ảnh về</span></button>
+            <button class="btn-bulk btn-bulk-card" id="btnBulkCards" disabled onclick="openCardPrintDialog()"
+                title="Tạo thẻ nhân viên (tối đa 50 người mỗi lần) — mở tab mới để chỉnh và in"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-id-card"></use></svg> <span
+                    class="btn-bulk-label">In thẻ NV</span></button>
+            <button class="btn-bulk btn-bulk-id" id="btnBulkId" disabled onclick="startBatchIdPhoto()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> <span
                     class="btn-bulk-label">Tạo ảnh thẻ hàng loạt</span></button>
-            <button class="btn-bulk-exit" onclick="exitMultiSelect()">✕ Thoát</button>
+            <button class="btn-bulk-exit" onclick="exitMultiSelect()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg> Thoát</button>
         </div>
     </div>
 
@@ -5467,13 +6526,13 @@
     <div id="batchIdModal">
         <div class="batch-modal-box">
             <div class="batch-modal-header">
-                <h3>🤖 Tạo ảnh thẻ hàng loạt</h3>
+                <h3><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> Tạo ảnh thẻ hàng loạt</h3>
                 <div class="batch-step-bar">
                     <span class="batch-step-pill active" id="batchPill1">1 · Chọn vùng cắt</span>
                     <span class="batch-step-arrow">›</span>
                     <span class="batch-step-pill" id="batchPill2">2 · Duyệt kết quả</span>
                 </div>
-                <button class="editor-modal-close" id="btnBatchClose" onclick="closeBatchModal()">✕</button>
+                <button class="editor-modal-close" id="btnBatchClose" onclick="closeBatchModal()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
             </div>
             <div class="batch-modal-progress" id="batchProgressSection" style="display:none;">
                 <div class="batch-progress-text">
@@ -5488,22 +6547,22 @@
             <!-- Footer step 1 -->
             <div class="batch-modal-footer" id="batchFooterStep1"
                 style="flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;">
-                <span class="batch-footer-info" style="white-space:nowrap;flex-shrink:0;">Kéo khung xanh · Nhấn <b>✂️
+                <span class="batch-footer-info" style="white-space:nowrap;flex-shrink:0;">Kéo khung xanh · Nhấn <b><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-crop"></use></svg>
                         Chỉnh</b> · Dùng phím <b>↑↓ +−</b></span>
                 <span id="batchAiStatus"
                     style="display:none;font-size:11px;color:#8a95b0;white-space:nowrap;flex-shrink:0;"></span>
-                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
-                <span style="font-size:11px;color:#8a95b0;white-space:nowrap;flex-shrink:0;">Tất cả:</span>
+                <div class="bf-sep"></div>
+                <span class="bf-label">Tất cả:</span>
                 <button class="btn-batch-adj" id="btnCropUp" onclick="batchAdjustAllCropY(-0.03)"
-                    title="↑ Lên (phím ↑)">↑ Lên</button>
+                    title="↑ Lên (phím ↑)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-arrow-up"></use></svg> Lên</button>
                 <button class="btn-batch-adj" id="btnCropDown" onclick="batchAdjustAllCropY(+0.03)"
-                    title="↓ Xuống (phím ↓)">↓ Xuống</button>
+                    title="↓ Xuống (phím ↓)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-arrow-down"></use></svg> Xuống</button>
                 <button class="btn-batch-adj" id="btnCropZoomIn" onclick="batchAdjustAllCropZoom(1.1)"
-                    title="Phóng to (phím +)">🔍+</button>
+                    title="Phóng to (phím +)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-zoom-in"></use></svg></button>
                 <button class="btn-batch-adj" id="btnCropZoomOut" onclick="batchAdjustAllCropZoom(0.9)"
-                    title="Thu nhỏ (phím −)">🔍−</button>
-                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
-                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Màu nền:</span>
+                    title="Thu nhỏ (phím −)"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-zoom-out"></use></svg></button>
+                <div class="bf-sep"></div>
+                <span class="bf-label">Màu nền:</span>
                 <div class="batch-bg-swatches" style="flex-shrink:0;">
                     <div class="batch-bg-swatch on" data-scope="step1" style="background:#f0f0f0;"
                         title="Xám nhạt (mặc định)" onclick="setBatchBgSwatch('#f0f0f0',this,'step1')"></div>
@@ -5514,8 +6573,8 @@
                     <div class="batch-bg-swatch" data-scope="step1" style="background:#4A90D9;" title="Xanh đậm"
                         onclick="setBatchBgSwatch('#4A90D9',this,'step1')"></div>
                 </div>
-                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
-                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Xóa nền:</span>
+                <div class="bf-sep"></div>
+                <span class="bf-label">Xóa nền:</span>
                 <label
                     style="display:flex;align-items:center;gap:4px;font-size:11px;color:#c8ccd6;flex-shrink:0;cursor:pointer;"
                     title="Tắt nếu ảnh đã có nền sạch, không cần xử lý AI">
@@ -5525,21 +6584,21 @@
                     title="Xóa nền chạy ngay trên máy bạn (không tốn tài nguyên server).&#10;Chất lượng trung bình, tốc độ tùy máy — dùng khi server bận.">JS
                     (@imgly)</button>
                 <button class="btn-bg-engine active" id="bge_rembg" onclick="setBgEngine('rembg')"
-                    title="Xóa nền AI chạy trên server — chất lượng theo model chọn bên cạnh.">🖥 rembg</button>
+                    title="Xóa nền AI chạy trên server — chất lượng theo model chọn bên cạnh."><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-server"></use></svg> rembg</button>
                 <div id="bgeModelRow" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
                     <span style="color:#8a95b0;font-size:11px;">Model:</span>
                     <div id="bgeModelSelect" style="display:flex;gap:4px;">
                         <button class="btn-bg-engine" data-model="u2net" onclick="setRembgModel('u2net')"
-                            title="⚡ NHANH: ~0.3 giây/ảnh, chạy 10 ảnh song song.&#10;Viền tóc thô hơn một chút — đủ tốt cho ảnh thẻ đồng phục, nền phẳng.&#10;Nên dùng cho batch nhiều ảnh.">u2net</button>
+                            title="NHANH: ~0.3 giây/ảnh, chạy 10 ảnh song song.&#10;Viền tóc thô hơn một chút — đủ tốt cho ảnh thẻ đồng phục, nền phẳng.&#10;Nên dùng cho batch nhiều ảnh.">u2net</button>
                         <button class="btn-bg-engine active" data-model="birefnet-portrait"
                             onclick="setRembgModel('birefnet-portrait')"
-                            title="✨ CHẤT LƯỢNG CAO NHẤT: giữ sợi tóc, viền mượt (model chân dung 2024).&#10;Chậm ~10-20 giây/ảnh, chỉ chạy 2 ảnh song song, lần đầu chờ load model.&#10;Nên dùng khi tóc xõa/nền phức tạp hoặc ảnh cần in lớn.">birefnet</button>
+                            title="CHẤT LƯỢNG CAO NHẤT: giữ sợi tóc, viền mượt (model chân dung 2024).&#10;Chậm ~10-20 giây/ảnh, chỉ chạy 2 ảnh song song, lần đầu chờ load model.&#10;Nên dùng khi tóc xõa/nền phức tạp hoặc ảnh cần in lớn.">birefnet</button>
                     </div>
                     <span id="bgeModelHint" style="color:#6f7d96;font-size:10.5px;white-space:nowrap;"></span>
                 </div>
                 <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0;">
                     <button class="btn-batch-cancel" onclick="closeBatchModal()">Hủy</button>
-                    <button class="btn-batch-save" id="btnConfirmCrops" onclick="confirmCropZones()">▶ Tiến hành xử lý
+                    <button class="btn-batch-save" id="btnConfirmCrops" onclick="confirmCropZones()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-play"></use></svg> Tiến hành xử lý
                         (<span id="batchStep1Count">0</span>)</button>
                 </div>
             </div>
@@ -5547,8 +6606,8 @@
             <div class="batch-modal-footer" id="batchFooterStep2"
                 style="display:none;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;">
                 <span class="batch-footer-info" id="batchFooterInfo" style="white-space:nowrap;flex-shrink:0;"></span>
-                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
-                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Màu nền:</span>
+                <div class="bf-sep"></div>
+                <span class="bf-label">Màu nền:</span>
                 <div class="batch-bg-swatches" style="flex-shrink:0;">
                     <div class="batch-bg-swatch on" data-scope="step2" style="background:#f0f0f0;"
                         title="Xám nhạt (mặc định)" onclick="setBatchBgSwatch('#f0f0f0',this,'step2')"></div>
@@ -5559,19 +6618,19 @@
                     <div class="batch-bg-swatch" data-scope="step2" style="background:#4A90D9;" title="Xanh đậm"
                         onclick="setBatchBgSwatch('#4A90D9',this,'step2')"></div>
                 </div>
-                <div style="width:1px;height:20px;background:#323a48;flex-shrink:0;"></div>
-                <span style="color:#8a95b0;font-size:11px;white-space:nowrap;flex-shrink:0;">Áp dụng tất cả:</span>
+                <div class="bf-sep"></div>
+                <span class="bf-label">Áp dụng tất cả:</span>
                 <button class="btn-bg-engine bcpreset-global-btn active" data-preset="auto"
-                    onclick="applyPresetToAll('auto')">🤖 Auto</button>
+                    onclick="applyPresetToAll('auto')"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> Auto</button>
                 <button class="btn-bg-engine bcpreset-global-btn" data-preset="Tự nhiên"
-                    onclick="applyPresetToAll('Tự nhiên')">🌿 Tự nhiên</button>
+                    onclick="applyPresetToAll('Tự nhiên')"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-leaf"></use></svg> Tự nhiên</button>
                 <button class="btn-bg-engine bcpreset-global-btn" data-preset="Chuyên nghiệp"
-                    onclick="applyPresetToAll('Chuyên nghiệp')">💼 Chuyên nghiệp</button>
+                    onclick="applyPresetToAll('Chuyên nghiệp')"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-briefcase"></use></svg> Chuyên nghiệp</button>
                 <button class="btn-bg-engine bcpreset-global-btn" data-preset="Tươi sáng"
-                    onclick="applyPresetToAll('Tươi sáng')">☀️ Tươi sáng</button>
+                    onclick="applyPresetToAll('Tươi sáng')"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sun"></use></svg> Tươi sáng</button>
                 <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0;">
                     <button class="btn-batch-cancel" onclick="closeBatchModal()">Đóng</button>
-                    <button class="btn-batch-save" id="btnBatchSave" disabled onclick="saveBatchApproved()">✅ Cập nhật
+                    <button class="btn-batch-save" id="btnBatchSave" disabled onclick="saveBatchApproved()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-circle-check"></use></svg> Cập nhật
                         thư viện (<span id="batchApprovedCount">0</span>)</button>
                 </div>
             </div>
@@ -5582,17 +6641,17 @@
     <div class="upload-modal" id="batchCropAdjustModal">
         <div class="upload-modal-box" style="min-width:min(700px,92vw);">
             <h3>
-                <span>✂️ Chỉnh vùng cắt — <span class="emp-label" id="batchCropAdjLabel"></span></span>
-                <button class="upload-modal-close" onclick="closeBatchCropAdjust()">✕</button>
+                <span><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-crop"></use></svg> Chỉnh vùng cắt — <span class="emp-label" id="batchCropAdjLabel"></span></span>
+                <button class="upload-modal-close" onclick="closeBatchCropAdjust()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg></button>
             </h3>
             <div id="batchCropContainer" style="max-height:55vh;overflow:hidden;border-radius:8px;background:#000;">
                 <img id="batchCropImg" src="" alt="crop">
             </div>
-            <p style="margin:10px 0 4px;color:#8a95b0;font-size:12px;">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố định
+            <p class="modal-hint">Kéo để di chuyển · Scroll để zoom · Tỷ lệ cố định
                 3:4</p>
             <div class="crop-actions">
                 <button class="btn-cancel-modal" onclick="closeBatchCropAdjust()">Huỷ</button>
-                <button class="btn-save-crop" onclick="saveBatchCropAdjust()">✓ Xác nhận vùng cắt</button>
+                <button class="btn-save-crop" onclick="saveBatchCropAdjust()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-check"></use></svg> Xác nhận vùng cắt</button>
             </div>
         </div>
     </div>

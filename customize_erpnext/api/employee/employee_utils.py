@@ -1450,6 +1450,10 @@ def process_employee_photo(employee_id, employee_name, image_data):
         frappe.db.set_value('Employee', employee_id, 'image', file_url)
         frappe.db.commit()
 
+        # Ảnh thu nhỏ cho lưới /employee-photos (lỗi chỉ ghi log, ảnh gốc đã lưu xong)
+        from customize_erpnext.api.employee.employee_photo_thumbs import make_thumb
+        make_thumb(file_url)
+
         return {
             'status': 'success',
             'file_url': file_url,
@@ -1498,6 +1502,9 @@ def delete_employee_photo(employee_id):
                 frappe.delete_doc('File', f.name, ignore_permissions=True, force=True)
             except Exception as e:
                 frappe.logger().warning(f"delete_employee_photo: could not remove file {f.name}: {e}")
+
+        from customize_erpnext.api.employee.employee_photo_thumbs import remove_thumb
+        remove_thumb(current_image)
 
         # Also remove physical file from current_image path (in case no File doc)
         if current_image.startswith('/files/'):

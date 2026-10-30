@@ -2,7 +2,7 @@
 
 > **Mục đích:** Trang cho HR chụp, cắt và gắn ảnh nhân viên hàng loạt, kèm chế độ làm ảnh thẻ.
 > **Phạm vi:** Trang portal
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-20
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-10-30 (xem mục 8)
 >
 > 28/10/2026: chuyển từ `www/employee-photos/employee-photos.md` về đây — file không phải `.py` trong `www/` bị Frappe
 > dựng thành trang công khai (`/employee-photos/employee-photos` hiện cả tài liệu này, không cần đăng nhập).
@@ -18,7 +18,12 @@ www/employee-photos/
 employee_photos/README.md  # tài liệu này (KHÔNG để trong www/ — công khai)
 
 api/employee/
-└── employee_utils.py  # Backend API (process_employee_photo)
+├── employee_utils.py          # Backend API (process_employee_photo, delete_employee_photo, thẻ NV)
+└── employee_photo_thumbs.py   # Ảnh thu nhỏ cho lưới (_thumbs/) + backfill
+
+api/employee_photos_viewer/api.py  # get_employee_photos (mtime, thumb_url, stats toàn bảng)
+
+public/js/employee_cards_preview.js  # Tab xem trước thẻ NV (sửa được + nút In)
 
 public/bg_removal/     # Model @imgly (~211MB, phục vụ local)
 ├── resources.json
@@ -61,8 +66,11 @@ loadGroups() → API get_employee_groups → lưu localStorage
 loadPhotos() → API get_employee_photos → lưu localStorage
 ```
 
-- Cache lưu bằng `localStorage` với thời hạn (CACHE_CONFIG).
+- Cache lưu bằng `localStorage` với thời hạn (CACHE_CONFIG, danh sách 1 giờ). Lỗi quota bị bỏ qua (`setCache` try/catch).
 - Mỗi entry cache gồm `{ data, expiry }`. Hết hạn → xóa và tải lại.
+- 2 phạm vi danh sách (`_photosScope`): `active` (mặc định, key `employee_photos_data_active`) và `all`
+  (key `employee_photos_data`) — xem 8.2.
+- Danh sách lấy từ cache → hiện ngay rồi `revalidatePhotos()` tải lại ngầm, khác thì render lại.
 - `refreshData()`: xóa cache, gọi lại cả 2 API, re-render gallery.
 
 ### 2.2 Lọc & Hiển thị
@@ -135,11 +143,9 @@ openPhotoEditor(photo) → sendToEditor() [postMessage INIT_EDITOR]
 
 ```
 refreshPhotoCardImage(employeeId, newUrl)
-  → cập nhật <img> trên card ngay (không reload trang)
-  → thêm ?t=timestamp để tránh browser cache ảnh cũ
-  → cập nhật allPhotos[] trong memory
-  → setCache(PHOTOS_KEY, allPhotos) — lưu lại cache mới
-  → gán lại sự kiện click cho nút Edit/Delete (addEventListener)
+  → cập nhật allPhotos[]: url mới, modified = Date.now() (URL ảnh đổi version), thumb_url = ''
+  → rerenderCard(employeeId, true) — dựng lại thẻ từ buildCardHtml (ảnh ↔ ô chữ cái đầu, đúng bộ nút)
+  → savePhotosCache()
 ```
 
 ---
@@ -221,10 +227,8 @@ Nút **"Tạo ảnh thẻ tự động"** chạy pipeline chia 2 giai đoạn:
 3. analyzeDeep()       — phân tích ảnh
 4. p.smooth = max(p.smooth, 3)  — minimum smooth vừa phải
 5. applySliders(p) + applyFilters()  — làm đẹp
-6. Khôi phục nền sạch:  — (quan trọng, xem mục 3.7)
-   copy màu pixel đã enhance + restore alpha gốc từ G.bgRemoved
-   → G.bgRemoved = newFg
-   → applyBgColor() lại để composite sạch
+   (30/10/2026: bỏ bước "khôi phục nền sạch" cũ — nó lọc người 2 lần và vẫn lọc nền.
+    Nay chính applyFilters() ghép người đã lọc lên nền sạch, xem 3.8)
 ```
 
 ### 3.5 Xóa nền AI — `_removeBgCore()`
@@ -276,7 +280,10 @@ Các bộ lọc pixel-level (duyệt từng pixel trên ImageData), thứ tự:
 | 7 | `unsharpMask(id, Sh)` | Unsharp mask trên skin pixels |
 | 8 | `vignette(id, 0.08)` | Tối nhẹ góc ảnh (portrait feel) |
 
-**Lưu ý:** `applyFilters()` áp dụng lên toàn bộ pixel kể cả vùng nền. Sau khi enhance trong auto pipeline, cần **khôi phục nền sạch** (xem mục 3.4 Phase 2).
+**Nền ảnh thẻ (30/10/2026):** khi đã xóa nền và nền ≠ trong suốt, `applyFilters()` gắn lại alpha của `G.bgRemoved`
+rồi ghép người đã lọc lên nền sạch (`_compositeOnBg`) → sáng/ấm/tương phản/vignette KHÔNG đổi màu nền
+(giống `applyBatchPreset` ở index.html). Khác kích thước (hoàn tác về ảnh trước resize) → giữ hành vi cũ.
+Thanh trượt: `oninput` → `scheduleFilters()` (requestAnimationFrame) — xem trước ngay khi kéo (~50 ms ảnh 600×800).
 
 ### 3.9 Smart Beautify — `smartBeautify()`
 
@@ -419,12 +426,13 @@ cd /home/frappe/frappe-bench
 |--------|---------|
 | CSRF error 403 | Đảm bảo dùng FormData (không phải JSON header) |
 | Session hết hạn | HTTP 403 → `location.reload()` tự động |
-| Ảnh không cập nhật sau lưu | `refreshPhotoCardImage`, cache `?t=timestamp` |
+| Ảnh không cập nhật sau lưu | `refreshPhotoCardImage` → `modified`/`?v=`; ảnh người khác đổi → `revalidatePhotos()` |
+| Lưới hiện ảnh cũ / thumb lỗi | `thumb_url` chỉ có khi thumb mới hơn ảnh gốc; img `onerror` → ảnh gốc → ô chữ cái đầu |
 | @imgly model không load | Network tab → `/assets/customize_erpnext/bg_removal/` phải 200 |
 | `Invalid base URL` | `publicPath` phải là URL tuyệt đối (`location.origin + ...`) |
 | Face detect thất bại | Console `[runAutoPipeline] face detect failed` → crop thủ công |
 | Nút Edit/Delete không hiện sau upload | `refreshPhotoCardImage` dùng `addEventListener` (không phải setAttribute) |
-| Nền bị màu drift sau enhance | Kiểm tra logic restore alpha trong `continueAutoPipeline` |
+| Nền bị màu drift sau enhance | `applyFilters()` (editor) phải chạy nhánh ghép nền sạch: `G.hasBg`, cùng kích thước `G.bgRemoved` |
 | Upload hàng loạt bỏ qua file | Từ đầu tiên của tên file phải là mã NV (`TIQN-0148`/`0148`); xem 2.4-B |
 | Camera không hoạt động | Cần HTTPS, kiểm tra `navigator.mediaDevices` |
 | postMessage không nhận | Kiểm tra `EDITOR_READY` → `sendToEditor()` flow |
@@ -588,3 +596,59 @@ RAM peak = concurrent × RAM_per_worker + base (~1.5 GB)
 
 - Server: CPU only (không cần GPU)
 - Frappe CSRF: dùng FormData (không dùng JSON + header)
+
+---
+
+## 8. Thay đổi 30/10/2026
+
+### 8.1 Tốc độ tải ảnh
+- **Version ảnh:** URL ảnh = `url?v=<mtime file>` (`photoSrc()`), không còn `?t=<giờ mở trang>` → trình duyệt cache được giữa các lần mở.
+  Ảnh `/private/...` (36 NV) không stat được → `modified = 0` → rơi về `sessionTimestamp` như cũ.
+- **Thumbnail:** `public/files/employee_photos/_thumbs/<tên gốc>.jpg`, 300×400 JPEG q80 (~12 KB thay ~40 KB). Sinh trong
+  `process_employee_photo`, xoá trong `delete_employee_photo`. API chỉ trả `thumb_url` khi thumb **mới hơn** ảnh gốc
+  → chỗ nào ghi ảnh mà không sinh thumb (Desk, import) lưới tự dùng ảnh gốc. Lưới dùng `gridSrc()`; xem lớn / sửa / tải / ZIP / in thẻ dùng ảnh gốc.
+  Backfill + dọn thumb mồ côi (chạy lại an toàn):
+  `bench --site erp.tiqn.local execute customize_erpnext.api.employee.employee_photo_thumbs.backfill`
+  (30/10: 2.224 thumb, 32 MB; 5 NV có `Employee.image` trỏ file không tồn tại → lưới hiện "Không tìm thấy file ảnh").
+
+### 8.2 Phạm vi danh sách
+- Mặc định chỉ tải NV `Active` (`show_active_only=1`, ~1.040). `ensureAllPhotos()` nâng lên đủ mọi trạng thái khi:
+  đổi lọc trạng thái sang "Đã nghỉ"/"Tất cả", hoặc "Tải ảnh lên" theo tên file (mã NV đã nghỉ phải dò được).
+- Chip thống kê vẫn đếm TOÀN BỘ NV: API trả `stats {total, has_photo}` toàn bảng; phần ngoài phạm vi lưu ở `_outOfScopeStats`.
+  Server không trả `stats` → client tự tải đủ (chip không bao giờ sai số).
+
+### 8.3 Giao diện (index.html)
+- **Theme sáng/tối theo trình duyệt:** token màu ở `:root` + `@media (prefers-color-scheme: dark)`. Nút chữ trắng dùng
+  `--primary-fill` (tối `#2f6bd8`), chữ/viền xanh dùng `--primary` (tối `#6a9fff`). Hộp thoại tối (editor, batch, upload, xoá) giữ nguyên.
+  Mọi cặp chữ/nền đo bằng `scripts/check_contrast.py` đạt AA.
+  ⚠ Thử theme bằng CSS ghi đè từ ngoài (console) KHÔNG được — CSS gốc tranh chấp; đổi màu phải sửa token.
+- **Icon:** không còn emoji — icon Lucide từ sprite có sẵn của Frappe `/assets/frappe/icons/lucide.svg` qua `ic(name, cls)`
+  (JS) hoặc `<svg class="ic"><use href=".../lucide.svg#icon-<tên>">` (HTML tĩnh). Tooltip / `<option>` / `confirm` chỉ để chữ.
+  Toast: `showEditorToast(msg, type)` tự gắn icon theo type (`ok` / `err` / `''` = vòng quay), nội dung vẫn `textContent`.
+- **Thanh công cụ:** hàng chính = tìm kiếm, trạng thái, nhóm, nút "Bộ lọc", thao tác. Panel "Bộ lọc" (ngày vào làm, mã,
+  sắp xếp, cỡ thẻ, nhóm theo bộ phận, hiện SĐT) thu gọn mặc định, nhớ trạng thái ở `ep_filter_panel`.
+  Hàng chip lọc đang bật (`renderActiveFilters()` cuối `applyFilters()`), mỗi chip có ×, "Xoá lọc" = `resetAllFilters()`.
+  Công tắc "Chưa có ảnh" bỏ khỏi giao diện (trùng chip thống kê), giữ `<input id="showNoPhotoOnlyCheckbox" hidden>` làm trạng thái (`?nophoto=1`).
+- **Thẻ ảnh:** nút "⋯" (`openCardMenu`): Tải ảnh về / Mở hồ sơ / Xoá ảnh — xoá không còn nằm sát nút sửa.
+  `@media (hover: none)` → nút thao tác luôn hiện trên máy cảm ứng. NV chưa ảnh = chữ cái đầu + "Thêm ảnh" (`nameInitials`).
+- **Hộp thoại chung `uiDialog()`** thay `prompt/alert/confirm`: mật khẩu xem SĐT (sai báo trong hộp), cảnh báo birefnet > 10 ảnh,
+  Esc khi đang batch. Có `form` (nhiều trường) → trả object. Phím trong hộp không lọt ra phím tắt của trang.
+
+### 8.4 In thẻ nhân viên
+- Thanh "chọn nhiều" → **In thẻ NV** → hộp tuỳ chọn (khổ A4/A5, cỡ chữ tên dài, ngưỡng tên ngắn, màu nền/viền, barcode, bo góc;
+  nhớ ở `ep_card_print`) → `generate_employee_cards_html_api` (cùng API với Employee list > "Generate Employee Cards"; chỉ HTML, không PDF).
+- Tối đa 50 NV/lần như Desk; thứ tự = thứ tự đang hiển thị; NV chưa ảnh vẫn in (ô ảnh trống).
+- `EmployeeCardsPreview.open()` mở tab **ngay khi bấm** (chờ server xong mới `window.open` thì bị chặn popup), `.write(tab, html)` khi có kết quả.
+  Nội dung inject chép từ `open_employee_cards_html_tab()` (employee_list.js) — Desk chưa chuyển sang file chung.
+
+### 8.5 Trình sửa ảnh (photo_editor.html)
+- Sửa: filter/vignette không còn đổi màu nền; luồng Auto không còn lọc người 2 lần (xem 3.4, 3.8).
+- Icon thay emoji (`ic()`; `showProg(<tên icon>, ...)`, `toast()` gắn icon theo type).
+- Xem trước ngay khi kéo thanh trượt; xoá nền rembg hiện "còn khoảng N giây" (ước tính theo đo 30/10: birefnet ~10 s, u2net ~0,5 s).
+- Đã thử rồi BỎ theo yêu cầu (đừng làm lại): khung hướng dẫn cắt 3:4, kiểm tra chuẩn ảnh thẻ, đo nghiêng đầu.
+
+### 8.6 Kiểm thử không cần đăng nhập
+Không tạo phiên đăng nhập để chụp trang. Dựng bản sao `index.html` với `window.fetch` giả lập (dữ liệu giả) chạy trong
+Chromium headless — test được 2 theme, mobile 390px, menu, hộp thoại, chip lọc, in thẻ. Headless không có WebGL → face-api
+không chạy (cần thử trên trình duyệt thật).
+
