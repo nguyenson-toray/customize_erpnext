@@ -342,23 +342,13 @@ function execute_bulk_update_attendance_v2(values, employee_list, dialog, list_v
 				if (result.background_job) {
 					// Large dataset - Show background job info
 					console.log("🚀 Background job mode");
-					// Estimate comes from the server, derived from what recent runs
-					// actually achieved — a hardcoded divisor here went stale the
-					// moment the backend got faster.
-					const est_min = result.estimated_seconds_min;
-					const est_max = result.estimated_seconds_max;
+					// No time estimate shown: the range was too wide to be useful
+					// (e.g. "33s - 1h 54m" for 34k records)
 					show_background_job_dialog_v2({
 						title: __('Background Processing Started'),
 						message: result.message,
 						job_id: result.job_id,
-						estimated_records: result.estimated_records,
-						// No server estimate (older backend, or no measured run yet):
-						// say so plainly rather than implying something is in progress.
-						estimated_time: est_min
-							? (est_min === est_max
-								? `~${fmt_duration(est_min)}`
-								: `${fmt_duration(est_min)} - ${fmt_duration(est_max)}`)
-							: __('unknown')
+						estimated_records: result.estimated_records
 					});
 				} else {
 					// Small dataset - Show results immediately
@@ -556,7 +546,6 @@ function show_background_job_dialog_v2(options) {
 				<p class="mb-3">${options.message}</p>
 				<div>
 					<strong><i class="fa fa-list"></i> ${__('Records')}:</strong> ~${options.estimated_records}<br>
-					<strong><i class="fa fa-clock-o"></i> ${__('Estimated time')}:</strong> ${options.estimated_time}<br>
 					<strong><i class="fa fa-bell"></i> ${__('Notification')}:</strong> ${__("You'll be notified when complete")}
 				</div>
 			</div>
