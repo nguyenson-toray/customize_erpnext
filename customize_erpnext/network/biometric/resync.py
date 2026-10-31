@@ -14,6 +14,7 @@ page polls them through the existing get_sync_job_status + pollJobStatus().
 """
 
 import json
+import time
 import uuid
 from datetime import datetime
 
@@ -284,6 +285,31 @@ def delete_ot(from_date, to_date, confirm_text):
         return {"status": "error", "message": str(e)}
 
 
+# frappe.delete_doc enqueues delete_dynamic_links on "default" per deleted doc and
+# Frappe refuses new jobs at 550 queued -> delete_doc throws QueueOverloaded and the
+# doc is rolled back (31/10: 885 of 1,599 registrations failed that way)
+DELETE_LINKS_QUEUE = "default"
+DELETE_LINKS_QUEUE_GUARD = 400
+DELETE_LINKS_MAX_WAIT_SEC = 600
+
+
+def _wait_for_delete_links_queue(cache_key):
+    """Pause until the workers drain the queue; after max wait let delete_doc fail as before."""
+    from frappe.utils.background_jobs import get_queue
+
+    waited = 0
+    while waited < DELETE_LINKS_MAX_WAIT_SEC:
+        try:
+            queued = get_queue(DELETE_LINKS_QUEUE).count
+        except Exception:
+            return
+        if queued <= DELETE_LINKS_QUEUE_GUARD:
+            return
+        _update_cache(cache_key, {"phase": f"Waiting for background queue ({queued} jobs)..."})
+        time.sleep(3)
+        waited += 3
+
+
 def _run_delete_ot_job(from_date, to_date, cache_key):
     from frappe.utils import getdate
     d_from, d_to = getdate(from_date), getdate(to_date)
@@ -298,7 +324,7 @@ def _run_delete_ot_job(from_date, to_date, cache_key):
         _update_cache(cache_key, {"status": "running", "total_count": total,
                                   "phase": f"Deleting OT in {total} registrations..."})
 
-        deleted_docs = trimmed_docs = skipped_docs = 0
+        deleted_docs = trimmed_docs = skipped_docs = failed_docs = 0
         removed_rows = 0
         for i, parent in enumerate(parents):
             try:
@@ -308,6 +334,7 @@ def _run_delete_ot_job(from_date, to_date, cache_key):
 
                 if not keep:
                     # whole registration falls in range -> delete the document
+                    _wait_for_delete_links_queue(cache_key)
                     if doc.docstatus == 1:
                         doc.cancel()
                     frappe.delete_doc("Overtime Registration", parent, ignore_permissions=True)
@@ -330,6 +357,7 @@ def _run_delete_ot_job(from_date, to_date, cache_key):
                 frappe.db.commit()
             except Exception as e:
                 frappe.db.rollback()
+                failed_docs += 1
                 _append_result(cache_key, False, parent, "OT", str(e))
 
             if i % 10 == 0:
@@ -341,7 +369,7 @@ def _run_delete_ot_job(from_date, to_date, cache_key):
             "done_count": total,
             "progress_pct": 100,
             "phase": f"Complete: {removed_rows} rows removed — {deleted_docs} registrations deleted, "
-                     f"{trimmed_docs} trimmed, {skipped_docs} skipped (submitted)",
+                     f"{trimmed_docs} trimmed, {skipped_docs} skipped (submitted), {failed_docs} failed",
         })
     except Exception as e:
         frappe.log_error(f"_run_delete_ot_job failed: {e}")

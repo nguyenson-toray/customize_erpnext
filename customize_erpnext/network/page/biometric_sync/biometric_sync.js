@@ -541,7 +541,8 @@ const BSYNC_HTML = `<div class="bsync">
                 <div class="card-title"><span class="section-num">3</span> 📋 Sync OT MongoDB → ERPNext</div>
                 <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px;">
                     Create Overtime Registrations from MongoDB (OtRegister) for the OT date range.
-                    Requests that already exist (or where every employee already has that OT) are skipped.
+                    Rows are compared one by one: rows missing from an existing request are added back to it
+                    (e.g. after Delete OT), rows that already exist are skipped.
                 </div>
                 <div class="form-row" style="margin-bottom:10px;">
                     <div class="form-group"><label>OT date from</label><input type="date" id="rsOtFrom"></div>

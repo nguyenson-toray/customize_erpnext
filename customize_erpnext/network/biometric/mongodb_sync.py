@@ -145,6 +145,7 @@ def sync_ot_from_mongodb(from_date, to_date=None):
             from_date=str(d_from),
             to_date=str(d_to) if d_to else None,
             cache_key=cache_key,
+            fill_missing_rows=True,
         )
         return {"status": "success", "job_id": job_id}
     except Exception as e:
@@ -157,6 +158,12 @@ def _normalize_time(value, default):
     return value + ":00" if len(value) == 5 else value
 
 
+def _hms(value):
+    # DB times come back as timedelta: str() is "7:00:00", not "07:00:00"
+    parts = [int(float(p)) for p in str(value).split(":")] + [0, 0]
+    return "%02d:%02d:%02d" % tuple(parts[:3])
+
+
 def _employee_has_ot(emp_id, ot_date, begin_time, end_time):
     """Same conflict rule as the CLI tool: identical employee/date/begin/end."""
     existing = frappe.get_all(
@@ -164,16 +171,44 @@ def _employee_has_ot(emp_id, ot_date, begin_time, end_time):
         filters={"employee": emp_id, "date": ot_date},
         fields=["begin_time", "end_time"],
     )
-    # DB times come back as timedelta: str() is "7:00:00", not "07:00:00"
-    def hms(value):
-        parts = [int(float(p)) for p in str(value).split(":")] + [0, 0]
-        return "%02d:%02d:%02d" % tuple(parts[:3])
-
-    begin_time, end_time = hms(begin_time), hms(end_time)
-    return any(hms(row.begin_time) == begin_time and hms(row.end_time) == end_time for row in existing)
+    begin_time, end_time = _hms(begin_time), _hms(end_time)
+    return any(_hms(row.begin_time) == begin_time and _hms(row.end_time) == end_time for row in existing)
 
 
-def _run_ot_sync_job(from_date, cache_key, to_date=None):
+def _existing_ot_keys(date_from, date_to):
+    """{(employee, date, begin, end)} already in ERPNext — row-level dedup of fill mode.
+    Orphan rows (parent registration gone) do not count."""
+    rows = frappe.db.sql("""
+        SELECT d.employee, d.date, d.begin_time, d.end_time
+        FROM `tabOvertime Registration Detail` d
+        JOIN `tabOvertime Registration` p ON p.name = d.parent
+        WHERE d.date BETWEEN %(date_from)s AND %(date_to)s
+    """, {"date_from": date_from, "date_to": date_to}, as_dict=1)
+    return {(r.employee, str(r.date), _hms(r.begin_time), _hms(r.end_time)) for r in rows}
+
+
+def _registrations_by_request_no():
+    """requestNo -> {parent: docstatus} for requests already pulled into ERPNext."""
+    marker = "Request number: "
+    rows = frappe.db.sql("""
+        SELECT DISTINCT d.parent, d.reason, p.docstatus
+        FROM `tabOvertime Registration Detail` d
+        JOIN `tabOvertime Registration` p ON p.name = d.parent
+        WHERE d.reason LIKE %(pattern)s
+    """, {"pattern": f"%{marker}%"}, as_dict=1)
+    result = {}
+    for r in rows:
+        request_no = r.reason.split(marker, 1)[1].strip()
+        result.setdefault(request_no, {})[r.parent] = r.docstatus
+    return result
+
+
+def _run_ot_sync_job(from_date, cache_key, to_date=None, fill_missing_rows=False):
+    """fill_missing_rows=False (daily 18:00 job): a request with any row in ERPNext is skipped.
+    fill_missing_rows=True (manual sync on the page): rows are compared one by one and the
+    missing ones are added to the request's draft registration — so after "Delete OT" cut
+    a request spanning the range edge (rows 8-12, deleted 1-10), syncing 1-10 again restores 8-10.
+    """
     try:
         _update_cache(cache_key, {"status": "running", "phase": "Connecting to MongoDB..."})
         client, db = _get_mongo()
@@ -205,15 +240,22 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
         total = len(grouped)
         _update_cache(cache_key, {"total_count": total, "phase": f"Processing {total} OT requests..."})
 
-        created = skipped = failed = 0
+        if fill_missing_rows:
+            ot_dates = [r["otDate"].strftime("%Y-%m-%d") for recs in grouped.values()
+                        for r in recs if isinstance(r.get("otDate"), datetime)]
+            existing_keys = _existing_ot_keys(min(ot_dates), max(ot_dates)) if ot_dates else set()
+            request_parents = _registrations_by_request_no()
+
+        created = updated = skipped = failed = 0
         for i, (request_no, recs) in enumerate(sorted(grouped.items())):
             try:
                 # The request number lives in the rows' reason (the parent
                 # reason_general field was removed 2026-09-24)
                 ot_reason = f"Sync from MongoDB: Request number: {request_no}"
-                if frappe.get_all("Overtime Registration Detail",
-                                  filters=[["reason", "like", f"%Request number: {request_no}%"]],
-                                  limit=1):
+                if not fill_missing_rows and frappe.get_all(
+                        "Overtime Registration Detail",
+                        filters=[["reason", "like", f"%Request number: {request_no}%"]],
+                        limit=1):
                     skipped += 1
                     continue
 
@@ -224,6 +266,7 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
                                 else datetime.now().strftime("%Y-%m-%d"))
 
                 ot_employees = []
+                zero_rows = 0
                 for rec in recs:
                     ot_date_raw = rec.get("otDate")
                     emp_id = rec.get("empId")
@@ -232,7 +275,15 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
                     ot_date = ot_date_raw.strftime("%Y-%m-%d")
                     begin_time = _normalize_time(rec.get("otTimeBegin"), "17:00")
                     end_time = _normalize_time(rec.get("otTimeEnd"), "19:00")
-                    if _employee_has_ot(emp_id, ot_date, begin_time, end_time):
+                    if fill_missing_rows:
+                        # legacy "00:00-00:00" = 0-hour OT: validate_time_order would
+                        # reject the whole request because of it
+                        if _hms(begin_time) >= _hms(end_time):
+                            zero_rows += 1
+                            continue
+                        if (emp_id, ot_date, _hms(begin_time), _hms(end_time)) in existing_keys:
+                            continue
+                    elif _employee_has_ot(emp_id, ot_date, begin_time, end_time):
                         continue
                     ot_employees.append({
                         "employee": emp_id,
@@ -248,16 +299,41 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
                                    "Skipped: all employees already have this OT")
                     continue
 
-                doc = frappe.get_doc({
-                    "doctype": "Overtime Registration",
-                    "request_date": request_date,
-                    "ot_employees": ot_employees,
-                })
-                doc.insert(ignore_permissions=True)
-                frappe.db.commit()
-                created += 1
-                _append_result(cache_key, True, request_no, "OT",
-                               f"Created with {len(ot_employees)} employee(s)")
+                # Fill mode: add the missing rows to the request's draft registration;
+                # a submitted/cancelled one cannot be edited -> new registration
+                draft = None
+                if fill_missing_rows:
+                    draft = next((name for name, docstatus
+                                  in sorted(request_parents.get(request_no, {}).items())
+                                  if docstatus == 0), None)
+
+                if draft:
+                    doc = frappe.get_doc("Overtime Registration", draft)
+                    doc.extend("ot_employees", ot_employees)
+                    doc.save(ignore_permissions=True)
+                    frappe.db.commit()
+                    updated += 1
+                    _append_result(cache_key, True, request_no, "OT",
+                                   f"Added {len(ot_employees)} missing row(s) to {draft}"
+                                   + (f" ({zero_rows} invalid-time row(s) skipped)" if zero_rows else ""))
+                else:
+                    doc = frappe.get_doc({
+                        "doctype": "Overtime Registration",
+                        "request_date": request_date,
+                        "ot_employees": ot_employees,
+                    })
+                    doc.insert(ignore_permissions=True)
+                    frappe.db.commit()
+                    created += 1
+                    _append_result(cache_key, True, request_no, "OT",
+                                   f"Created with {len(ot_employees)} employee(s)"
+                                   + (f" ({zero_rows} invalid-time row(s) skipped)" if zero_rows else ""))
+                    if fill_missing_rows:
+                        request_parents.setdefault(request_no, {})[doc.name] = doc.docstatus
+
+                if fill_missing_rows:
+                    existing_keys.update((r["employee"], r["date"], _hms(r["begin_time"]), _hms(r["end_time"]))
+                                         for r in ot_employees)
             except Exception as e:
                 frappe.db.rollback()
                 failed += 1
@@ -273,7 +349,9 @@ def _run_ot_sync_job(from_date, cache_key, to_date=None):
             "status": "done",
             "done_count": total,
             "progress_pct": 100,
-            "phase": f"Complete: {created} created, {skipped} skipped, {failed} failed (of {total} requests)",
+            "phase": f"Complete: {created} created, "
+                     + (f"{updated} updated, " if fill_missing_rows else "")
+                     + f"{skipped} skipped, {failed} failed (of {total} requests)",
         })
     except Exception as e:
         frappe.log_error(f"_run_ot_sync_job failed: {e}")
