@@ -1039,6 +1039,12 @@
             color: #22c97a;
         }
 
+        .editor-toast.warn {
+            background: #2d2614;
+            border-color: rgba(245, 185, 66, .4);
+            color: #f5b942;
+        }
+
         .editor-toast.err {
             background: #2d1a1a;
             border-color: rgba(255, 90, 90, .35);
@@ -1602,7 +1608,7 @@
             gap: 6px;
         }
 
-        .btn-bulk:disabled {
+        .btn-bulk[aria-disabled="true"] {
             opacity: 0.4;
             cursor: not-allowed;
         }
@@ -1614,8 +1620,8 @@
             border: 1px solid var(--primary);
         }
 
-        .btn-bulk-download:not(:disabled):hover,
-        .btn-bulk-card:not(:disabled):hover {
+        .btn-bulk-download:not([aria-disabled="true"]):hover,
+        .btn-bulk-card:not([aria-disabled="true"]):hover {
             background: rgba(79, 142, 255, 0.15);
         }
 
@@ -1624,7 +1630,7 @@
             color: white;
         }
 
-        .btn-bulk-id:not(:disabled):hover {
+        .btn-bulk-id:not([aria-disabled="true"]):hover {
             box-shadow: 0 0 0 3px rgba(79, 142, 255, 0.3);
         }
 
@@ -1634,9 +1640,21 @@
             border: 1px solid #323a48;
         }
 
-        .btn-bulk-select-all:hover {
+        .btn-bulk-select-all:not([aria-disabled="true"]):hover {
             background: #2d3545;
             color: #dde3f0;
+        }
+
+        .bulk-hint {
+            color: #9aa3b8;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .bulk-count[hidden],
+        .bulk-hint[hidden],
+        .btn-bulk-exit[hidden] {
+            display: none;
         }
 
         .btn-bulk-exit {
@@ -4537,7 +4555,7 @@
         }
 
         // Icon theo loại thông báo; nội dung luôn gán bằng textContent (có thể chứa tên NV / message lỗi)
-        const TOAST_ICONS = { ok: ['circle-check', ''], err: ['triangle-alert', ''], '': ['loader-circle', 'spin'] };
+        const TOAST_ICONS = { ok: ['circle-check', ''], warn: ['info', ''], err: ['triangle-alert', ''], '': ['loader-circle', 'spin'] };
         function showEditorToast(msg, type = '') {
             const el = document.getElementById('editorToast');
             const [icName, icCls] = TOAST_ICONS[type] || TOAST_ICONS[''];
@@ -4941,9 +4959,6 @@
             document.getElementById('btnMultiSelect').classList.add('active');
             document.getElementById('gallery').classList.add('multi-select-active');
             updateBulkToolbar();
-            document.getElementById('bulkToolbar').classList.add('show');
-            // Add bottom padding so toolbar doesn't cover cards
-            document.body.style.paddingBottom = '70px';
         }
 
         function exitMultiSelect() {
@@ -4954,9 +4969,36 @@
             const gallery = document.getElementById('gallery');
             gallery.classList.remove('multi-select-active');
             gallery.querySelectorAll('.photo-card.selected').forEach(c => c.classList.remove('selected'));
-            document.getElementById('bulkToolbar').classList.remove('show');
-            document.body.style.paddingBottom = '';
+            updateBulkToolbar();
         }
+
+        // Thanh công cụ luôn hiện (nút mờ khi chưa bật "Chọn nhiều") → chừa chỗ theo chiều cao thật
+        // của thanh (mobile xuống 2–3 dòng) để không che card và nút "Lên đầu trang"
+        // PHẢI chờ DOMContentLoaded: markup thanh công cụ nằm SAU script
+        window.addEventListener('DOMContentLoaded', function reserveBulkToolbarSpace() {
+            const bar = document.getElementById('bulkToolbar');
+            // Bấm nút đang mờ: chặn ở pha capture (onclick của nút không chạy) và báo lý do
+            bar.addEventListener('click', function (e) {
+                const btn = e.target.closest('.btn-bulk[aria-disabled="true"]');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                showEditorToast(btn.dataset.lockReason || 'Chưa chọn nhân viên nào', 'warn');
+            }, true);
+            const apply = () => {
+                const h = bar.offsetHeight;
+                document.body.style.paddingBottom = (h + 10) + 'px';
+                const top = document.getElementById('backToTop');
+                if (top) top.style.bottom = (h + 16) + 'px';
+                // Toast mặc định bottom 24px sẽ nằm đè lên thanh → đẩy lên trên thanh
+                const toast = document.getElementById('editorToast');
+                if (toast) toast.style.bottom = (h + 14) + 'px';
+            };
+            updateBulkToolbar();  // gán lý do khoá ban đầu cho các nút
+            if (window.ResizeObserver) new ResizeObserver(apply).observe(bar);
+            window.addEventListener('resize', apply);
+            apply();
+        });
 
         let _lastSelectedEmpId = null;
 
@@ -5045,15 +5087,35 @@
             const withPhoto = getSelectedPhotosWithPhoto().length;
             const hasAny = withPhoto > 0;
 
-            document.getElementById('btnBulkDownload').disabled = !hasAny;
-            document.getElementById('btnBulkCards').disabled = count === 0;
-            document.getElementById('btnBulkId').disabled = !hasAny;
+            // Chưa bật "Chọn nhiều": vẫn hiện nút nhưng mờ, không bấm được
+            const on = isMultiSelectMode;
+            document.getElementById('bulkCountWrap').hidden = !on;
+            document.getElementById('bulkHint').hidden = on;
+            document.getElementById('btnBulkExit').hidden = !on;
 
-            // Toggle select-all button label
+            // Lý do khoá (rỗng = bấm được) — hiện toast khi bấm vào nút đang mờ
+            const reasonNoMode = 'Bấm "Chọn nhiều" rồi chọn nhân viên trước';
+            const reasonNone = on ? 'Chưa chọn nhân viên nào' : reasonNoMode;
+            const reasonNoPhoto = count === 0 ? reasonNone : 'Nhân viên đã chọn chưa có ảnh';
+            setBulkBtnLock('btnBulkDownload', !on ? reasonNoMode : (hasAny ? '' : reasonNoPhoto));
+            setBulkBtnLock('btnBulkCards', !on ? reasonNoMode : (count > 0 ? '' : reasonNone));
+            setBulkBtnLock('btnBulkId', !on ? reasonNoMode : (hasAny ? '' : reasonNoPhoto));
+
+            // Toggle select-all button label (giữ span .btn-bulk-label để mobile ẩn chữ)
             const selectAllBtn = document.getElementById('btnBulkSelectAll');
-            const allSelected = filteredPhotos.length > 0 &&
+            setBulkBtnLock('btnBulkSelectAll', on ? '' : reasonNoMode);
+            const allSelected = on && filteredPhotos.length > 0 &&
                 filteredPhotos.every(p => selectedEmpIds.has(p.employee_id));
-            selectAllBtn.innerHTML = allSelected ? ic('x') + ' Bỏ chọn tất' : ic('square-check') + ' Chọn tất cả';
+            selectAllBtn.innerHTML = allSelected
+                ? ic('x') + ' <span class="btn-bulk-label">Bỏ chọn tất</span>'
+                : ic('square-check') + ' <span class="btn-bulk-label">Chọn tất cả</span>';
+        }
+
+        // Khoá nút bằng aria-disabled (không dùng `disabled`: nút disabled không nhận click → không hiện toast được)
+        function setBulkBtnLock(id, reason) {
+            const btn = document.getElementById(id);
+            btn.setAttribute('aria-disabled', reason ? 'true' : 'false');
+            btn.dataset.lockReason = reason || '';
         }
 
         function getSelectedPhotosWithPhoto() {
@@ -6506,19 +6568,20 @@
     </button>
 
     <!-- ── Bulk Action Toolbar ── -->
-    <div class="bulk-toolbar" id="bulkToolbar">
-        <div class="bulk-count">Đã chọn <span id="bulkCount">0</span> nhân viên</div>
+    <div class="bulk-toolbar show" id="bulkToolbar">
+        <div class="bulk-count" id="bulkCountWrap" hidden>Đã chọn <span id="bulkCount">0</span> nhân viên</div>
+        <div class="bulk-hint" id="bulkHint">Bấm <b>Chọn nhiều</b> để chọn nhân viên</div>
         <div class="bulk-actions">
-            <button class="btn-bulk btn-bulk-select-all" id="btnBulkSelectAll" onclick="bulkSelectAll()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-square-check"></use></svg> <span
+            <button class="btn-bulk btn-bulk-select-all" id="btnBulkSelectAll" aria-disabled="true" onclick="bulkSelectAll()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-square-check"></use></svg> <span
                     class="btn-bulk-label">Chọn tất cả</span></button>
-            <button class="btn-bulk btn-bulk-download" id="btnBulkDownload" disabled
+            <button class="btn-bulk btn-bulk-download" id="btnBulkDownload" aria-disabled="true"
                 onclick="downloadSelectedPhotos()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-download"></use></svg> <span class="btn-bulk-label">Tải ảnh về</span></button>
-            <button class="btn-bulk btn-bulk-card" id="btnBulkCards" disabled onclick="openCardPrintDialog()"
+            <button class="btn-bulk btn-bulk-card" id="btnBulkCards" aria-disabled="true" onclick="openCardPrintDialog()"
                 title="Tạo thẻ nhân viên (tối đa 50 người mỗi lần) — mở tab mới để chỉnh và in"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-id-card"></use></svg> <span
                     class="btn-bulk-label">In thẻ NV</span></button>
-            <button class="btn-bulk btn-bulk-id" id="btnBulkId" disabled onclick="startBatchIdPhoto()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> <span
+            <button class="btn-bulk btn-bulk-id" id="btnBulkId" aria-disabled="true" onclick="startBatchIdPhoto()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-sparkles"></use></svg> <span
                     class="btn-bulk-label">Tạo ảnh thẻ hàng loạt</span></button>
-            <button class="btn-bulk-exit" onclick="exitMultiSelect()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg> Thoát</button>
+            <button class="btn-bulk-exit" id="btnBulkExit" hidden onclick="exitMultiSelect()"><svg class="ic" aria-hidden="true"><use href="/assets/frappe/icons/lucide.svg#icon-x"></use></svg> Thoát</button>
         </div>
     </div>
 
