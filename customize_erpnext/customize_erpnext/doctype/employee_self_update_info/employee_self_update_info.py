@@ -17,3 +17,14 @@ class EmployeeSelfUpdateInfo(Document):
 			validate_desk_edit(self)
 		# Tình trạng hồ sơ (Đủ / Thiếu) luôn tính lại từ bản chụp hồ sơ trong data_json.
 		apply_document_status(self)
+
+	def on_update(self):
+		from customize_erpnext.api.self_update_info.self_update_info_api import push_document_status_to_employee
+
+		# Bản sao Document Status / Missing Documents trên Employee (tab Profile).
+		push_document_status_to_employee(self)
+
+	def on_trash(self):
+		from customize_erpnext.api.self_update_info.self_update_info_api import clear_employee_document_status
+
+		clear_employee_document_status(self)

@@ -71,7 +71,6 @@
 		"lft",
 		"rgt",
 		"old_parent",
-		"external_work_history",
 		"internal_work_history"
 	],
 	"Employee Internal Work History": [
@@ -79,7 +78,8 @@
 	],
 	"Employee External Work History": [
 		"address",
-		"contact"
+		"contact",
+		"salary"
 	],
 	"Employee Education": [
 		"year_of_passing",

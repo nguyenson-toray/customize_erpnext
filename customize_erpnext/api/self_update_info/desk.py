@@ -75,6 +75,47 @@ def apply_document_status(doc):
 	doc.missing_documents = "\n".join(missing)
 
 
+# Bản sao trên Employee (tab Profile) — custom field chỉ đọc, phiếu là nguồn duy nhất.
+_EMPLOYEE_DOC_STATUS_FIELDS = {
+	"document_status": "custom_document_status",
+	"missing_documents": "custom_missing_documents",
+}
+
+
+def _set_employee_document_status(employee, values):
+	if employee and frappe.db.exists("Employee", employee):
+		# update_modified=False: không đổi `modified` của Employee → form NV đang mở không bị
+		# TimestampMismatch, và không sinh Version giả.
+		frappe.db.set_value("Employee", employee, values, update_modified=False)
+
+
+def push_document_status_to_employee(doc):
+	"""Gọi ở EmployeeSelfUpdateInfo.on_update: chép document_status / missing_documents sang Employee."""
+	before = doc.get_doc_before_save()
+	if before and before.employee and before.employee != doc.employee:
+		_set_employee_document_status(before.employee, dict.fromkeys(_EMPLOYEE_DOC_STATUS_FIELDS.values(), ""))
+	_set_employee_document_status(doc.employee, {
+		target: doc.get(source) or "" for source, target in _EMPLOYEE_DOC_STATUS_FIELDS.items()
+	})
+
+
+def clear_employee_document_status(doc):
+	"""Gọi ở EmployeeSelfUpdateInfo.on_trash: xoá phiếu → xoá bản sao trên Employee."""
+	_set_employee_document_status(doc.employee, dict.fromkeys(_EMPLOYEE_DOC_STATUS_FIELDS.values(), ""))
+
+
+def backfill_employee_document_status():
+	"""Đồng bộ một lần cho phiếu đã có trước khi thêm field trên Employee.
+	bench --site erp.tiqn.local execute customize_erpnext.api.self_update_info.desk.backfill_employee_document_status"""
+	rows = frappe.get_all("Employee Self Update Info", fields=["employee", *_EMPLOYEE_DOC_STATUS_FIELDS])
+	for r in rows:
+		_set_employee_document_status(r.employee, {
+			target: r.get(source) or "" for source, target in _EMPLOYEE_DOC_STATUS_FIELDS.items()
+		})
+	frappe.db.commit()
+	return len(rows)
+
+
 # HR sửa trực tiếp giá trị đã khai ngay trên bảng của form Desk (data_view), rồi lưu bằng
 # nút Save chuẩn: JS ghép vào data_json, controller validate gọi validate_desk_edit().
 _TEXT_EDITABLE_TYPES = {"Data", "Small Text", "Text", "Long Text", "Int", "Float", "Currency", "Phone"}

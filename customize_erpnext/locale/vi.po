@@ -89912,3 +89912,7 @@ msgstr "Người nghỉ từ ngày {0} của tháng cuối kỳ trở đi cũng 
 #. source: tiqn
 msgid "Included all the same: those whose relieving date is from day {0} of the period's last month to the 25th (Employee Portal Settings), paid on the monthly pay day."
 msgstr "Vẫn có: những người có ngày nghỉ việc từ ngày {0} của tháng cuối kỳ đến ngày 25 (Cài đặt Cổng nhân viên), trả vào ngày trả lương tháng."
+
+#. source: tiqn
+msgid "From Employee Self Update Info (read only)."
+msgstr "Lấy từ Phiếu tự cập nhật thông tin nhân viên (chỉ đọc)."

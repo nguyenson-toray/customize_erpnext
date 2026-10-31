@@ -195,6 +195,8 @@ from .portal import (  # noqa: F401
 from .desk import (  # noqa: F401
 	download_pdf_for_hr,
 	apply_document_status,
+	push_document_status_to_employee,
+	clear_employee_document_status,
 	_TEXT_EDITABLE_TYPES,
 	_MULTILINE_TYPES,
 	_hr_editor,
