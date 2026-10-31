@@ -40,11 +40,15 @@ Không đổi gì → bỏ qua. Có thêm / bớt / đổi tên khoản hay đ�
 
 File có sẵn mỗi nhân viên một dòng (STT, kỳ, từ ngày – đến ngày, mã NV, họ tên, chức danh, bộ phận…). File mẫu
 **tự bỏ** những người sau:
-- Nghỉ việc trước kỳ hoặc **trong kỳ**: người nghỉ trong kỳ được tính riêng, xem mục 3.
+- Nghỉ việc trước kỳ hoặc **trong kỳ**: người nghỉ trong kỳ được tính riêng, xem mục 3. Ngoại lệ: Cài đặt
+  *Gom người nghỉ vào mẫu tháng từ ngày* = 20 thì người nghỉ từ ngày 20 đến 25 của kỳ **có** trong file tháng (mục 3).
 - Nghỉ thai sản trọn kỳ.
 - Nhân viên trong danh sách *Exclude Employees* của Attendance Calculation Setting.
 
 Nhân viên vào làm giữa kỳ: cột *Từ ngày* là ngày vào làm.
+
+Cột **1.1 Số ngày công chuẩn** điền sẵn = số ngày của kỳ trừ Chủ nhật (ngày lễ vẫn tính, vì nghỉ lễ có lương), cùng một
+số cho cả kỳ, kể cả người vào làm / nghỉ giữa kỳ. C&B chỉ cần kiểm tra lại.
 
 ### Bước 2 — Điền số
 - Mỗi khoản lương là **một cột**, đúng các khoản trong **Cấu trúc phiếu lương** của kỳ. Tiêu đề bắt đầu bằng **mã
@@ -159,6 +163,12 @@ Nhân viên nghỉ việc được thanh toán **trong 14 ngày kể từ ngày 
 
 Khi phát hành phiếu tháng của cùng kỳ sau đó, thông báo chung vẫn được tạo như bình thường.
 
+**Gom người nghỉ cuối kỳ vào đợt lương tháng:** Cài đặt → *Gom người nghỉ vào mẫu tháng từ ngày* (mục 8), ví dụ **20**.
+Người có ngày nghỉ việc từ 20 đến 25 của kỳ nằm luôn trong **file tháng**: *Đến ngày* = ngày trước ngày nghỉ, *Pay Date*
+= ngày trả lương tháng, và **không** có trong file *Chỉ nhân viên nghỉ việc* (tránh 2 dòng ở 2 file). Phiếu vẫn đánh dấu
+*Thanh toán nghỉ việc*. Luật buộc trả trong 14 ngày làm việc kể từ ngày nghỉ: đặt ngày quá sớm thì ngày trả lương tháng có
+thể trễ hạn. Để 0 = tắt.
+
 ⚠ **Tải file tháng trước khi nhập ngày nghỉ việc**: người nghỉ giữa kỳ vẫn nằm trong file tháng với *Đến ngày* = 25.
 Khi tải lên, ERP cảnh báo *"Employee left on … (last working day …), but Period To in the file is …"*. Đừng tick bỏ qua:
 xoá dòng đó khỏi file tháng và tính cho người này bằng file **Chỉ nhân viên nghỉ việc**. Nếu vẫn muốn để trong file tháng thì
@@ -235,6 +245,9 @@ Nhân viên bị báo "chưa tìm thấy hồ sơ" sẽ nhập **mã NV + họ t
 - App chỉ nhận yêu cầu khi **mã NV và họ tên khớp** hồ sơ (không phân biệt dấu, hoa/thường). Vì vậy ô **Khớp tên**
   gần như luôn được tick, nhưng **vẫn phải gọi lại SĐT Zalo**, vì mã và tên của đồng nghiệp ai cũng có thể biết.
 - **Mã yêu cầu chính là SĐT Zalo** của người gửi, nên có thể tìm theo SĐT ở danh sách.
+- Cài đặt *Chat với C&B sau khi gửi yêu cầu liên kết* bật (mục 8): nhân viên gửi xong, app mở chat Zalo với C&B kèm
+  **link yêu cầu**. Bấm link trên Zalo PC là mở yêu cầu trên ERP (phải đăng nhập ERP). Tin nhắn do nhân viên tự gửi
+  và sửa được, nên **vẫn gọi lại SĐT Zalo** trước khi duyệt; chỉ bấm link bắt đầu bằng `https://erp.tiqn.com.vn:8888/`.
 - Phiếu hiện **tên và ảnh đại diện Zalo** của người gửi (lấy thẳng từ Zalo) để đối chiếu thêm. Trống nếu người đó chưa
   cho app xem hồ sơ Zalo.
 - Nhân viên gõ nhầm mã sang người khác thì C&B **sửa ô Nhân viên** ngay trên yêu cầu (chỉ khi còn *Chờ duyệt*) → Lưu,
@@ -264,8 +277,10 @@ Thường **không cần sửa**. Các mục C&B hay dùng:
 | Tab | Mục | Ý nghĩa |
 |---|---|---|
 | Tính năng Mini App | **Ngày trả lương trong tháng** | Mặc định 5 |
+| | **Gom người nghỉ vào mẫu tháng từ ngày** | 0 = tắt. Ví dụ 20: người nghỉ từ ngày 20 đến 25 của kỳ được tính chung đợt lương tháng (mục 3) |
 | | **Mặc định hiện dòng 0đ** | Tick = khi mở phiếu, app hiện cả khoản 0đ như phiếu giấy; bỏ tick = ẩn khoản 0đ. Nhân viên vẫn bấm "Ẩn khoản 0đ" để đổi. Có hiệu lực từ bản Mini App cập nhật sau (bản hiện tại luôn hiện đủ) |
 | Zalo OA & Chat | **ID chat C&B (ID by OA)** + tên | Nút "Chat với C&B" trên app mở chat Zalo với người này. Lấy ID ở *Tài khoản Zalo* của người đó (sau khi họ mở app) |
+| | **Chat với C&B sau khi gửi yêu cầu liên kết** | Tick = nhân viên gửi *Yêu cầu liên kết* xong, app mở chat Zalo với người C&B ở trên, tin nhắn soạn sẵn có tên, mã NV và link yêu cầu trên ERP (mục 7.1). Bỏ tick khi bị nhắn quá nhiều |
 | Access | Hạn chỉ xem sau nghỉ việc | Mặc định 30 ngày |
 | | **Zalo App Review** | Tick **Enable Review Mode**, điền SĐT reviewer Zalo đưa (mỗi dòng 1 số). Reviewer chỉ thấy **dữ liệu mẫu**: NV "Nguyễn Văn Mẫu", **3 phiếu lương mẫu** của 3 kỳ gần nhất (tự cập nhật theo tháng), thông báo mẫu — không bao giờ thấy dữ liệu thật. 🔴 Zalo **kiểm tra lại mỗi lần phát hành bản app mới**, nên **giữ bật** (không ảnh hưởng nhân viên). SĐT của nhân viên thật luôn vào bằng hồ sơ thật dù có trong danh sách |
 

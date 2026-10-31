@@ -19,9 +19,13 @@ controller works them out. Pay Date empty = the monthly pay day (or relieving + 
 Two templates (download_template):
 - monthly: everyone on the payroll for the WHOLE end of the period - not those who left
   before or during it (left during it = final settlement, paid separately), not those on
-  maternity leave for the whole period;
+  maternity leave for the whole period. Settings > Resigned on Monthly Template From Day
+  (31/10/2026) adds those who left from that day of the period's last month on: still a
+  final settlement, but paid with everyone (Period To = last working day, Pay Date = the
+  monthly pay day);
 - resigned: everyone whose relieving_date falls in a date range HR picks, each in the
-  period of their last working day, Period To and Pay Date filled in.
+  period of their last working day, Period To and Pay Date filled in - minus those the
+  monthly template already holds.
 
 Line columns follow the TIQN Payslip Structure of the period (28/10/2026, see
 payslip_structure.py) and are matched by the leading code of the header
@@ -51,10 +55,12 @@ from customize_erpnext.employee_portal import payslip_structure as pss
 from customize_erpnext.employee_portal.doctype.tiqn_payslip.tiqn_payslip import FINAL_SETTLEMENT_PAY_DAYS
 from customize_erpnext.employee_portal.notify import notify_all
 from customize_erpnext.employee_portal.utils import (
+	expected_pay_date,
 	parse_period_cell,
 	period_bounds,
 	period_label,
 	period_of_date,
+	resigned_monthly_from,
 	shift_period,
 	strip_company_suffix,
 	validate_period,
@@ -130,7 +136,8 @@ def get_template_periods():
 				"to_date": str(end),
 			}
 		)
-	return {"default": shift_period(current, -1), "periods": out}
+	day = resigned_monthly_from(current)
+	return {"default": shift_period(current, -1), "periods": out, "resigned_monthly_from_day": day.day if day else 0}
 
 
 @frappe.whitelist(methods=["GET"])
@@ -150,15 +157,18 @@ def template_employees(period):
 	"""Monthly template: on the payroll until the END of the period. Not those who left
 	before or during it (🔴 relieving_date = first day OFF; left during it = final
 	settlement, see resigned_employees), not those on maternity leave for the whole
-	period (no working day in it), not Attendance Calculation Setting > Exclude Employees."""
+	period (no working day in it), not Attendance Calculation Setting > Exclude Employees.
+	Plus those who left from resigned_monthly_from(period) on (paid with the monthly payroll)."""
 	start, end = period_bounds(period)
+	from_date = resigned_monthly_from(period) or add_days(end, 1)
 	return _not_excluded(frappe.db.sql(
 		"""
 		SELECT e.name, e.employee_name, e.designation, e.department, e.custom_section, e.custom_group,
-		       e.date_of_joining, e.relieving_date
+		       e.date_of_joining, e.relieving_date, e.holiday_list
 		FROM `tabEmployee` e
 		WHERE (e.date_of_joining IS NULL OR e.date_of_joining <= %(end)s)
-		  AND (e.relieving_date IS NULL OR e.relieving_date > %(end)s)
+		  AND (e.relieving_date IS NULL OR e.relieving_date >= %(from_date)s)
+		  AND (e.relieving_date IS NULL OR e.date_of_joining IS NULL OR e.date_of_joining < e.relieving_date)
 		  AND NOT EXISTS (
 			SELECT 1 FROM `tabEmployee Maternity` m
 			WHERE m.employee = e.name
@@ -166,7 +176,7 @@ def template_employees(period):
 		  )
 		ORDER BY e.name
 		""",
-		{"start": start, "end": end},
+		{"start": start, "end": end, "from_date": from_date},
 		as_dict=True,
 	))
 
@@ -176,8 +186,17 @@ def resigned_employees(from_date, to_date):
 	Attendance Calculation Setting > Exclude Employees left out too, and so are those
 	whose last working day is the LAST day of a period (relieving_date = the 26th): they
 	worked the whole period, so they are on the monthly template (paid on the 5th, still
-	within the 14 days) - listing them here too would make a second payslip (26/10/2026)."""
-	return [e for e in _resigned_in_range(from_date, to_date) if not _left_at_period_end(e.relieving_date)]
+	within the 14 days) - listing them here too would make a second payslip (26/10/2026).
+	Same for those the monthly template takes from resigned_monthly_from on (31/10/2026)."""
+	return [
+		e for e in _resigned_in_range(from_date, to_date)
+		if not _left_at_period_end(e.relieving_date) and not _on_monthly_template(e.relieving_date)
+	]
+
+
+def _on_monthly_template(relieving_date):
+	start = resigned_monthly_from(period_of_date(relieving_date))
+	return bool(start) and getdate(relieving_date) >= start
 
 
 def _left_at_period_end(relieving_date):
@@ -189,7 +208,7 @@ def _resigned_in_range(from_date, to_date):
 	return _not_excluded(frappe.db.sql(
 		"""
 		SELECT name, employee_name, designation, department, custom_section, custom_group,
-		       date_of_joining, relieving_date
+		       date_of_joining, relieving_date, holiday_list
 		FROM `tabEmployee`
 		WHERE relieving_date BETWEEN %(from_date)s AND %(to_date)s
 		  AND (date_of_joining IS NULL OR date_of_joining < relieving_date)
@@ -209,10 +228,14 @@ def _not_excluded(employees):
 
 def template_row(e, period=None):
 	"""Period, From, To, Pay Date of one template row. Resigned (no `period`): the
-	period of the last working day, cut at relieving_date - 1, paid 14 days after."""
+	period of the last working day, cut at relieving_date - 1, paid 14 days after. Left
+	during a monthly `period` (resigned_monthly_from): cut the same, paid on the monthly
+	pay day - written out, an empty Pay Date would be relieving + 14."""
 	if period:
 		start, end = period_bounds(period)
 		last, pay = end, None
+		if e.relieving_date and getdate(e.relieving_date) <= end:
+			last, pay = add_days(e.relieving_date, -1), expected_pay_date(period)
 	else:
 		last = add_days(e.relieving_date, -1)
 		period = period_of_date(last)
@@ -220,6 +243,39 @@ def template_row(e, period=None):
 		pay = add_days(e.relieving_date, FINAL_SETTLEMENT_PAY_DAYS)
 	first = max(start, getdate(e.date_of_joining)) if e.date_of_joining else start
 	return period, first, last, pay
+
+
+def standard_days(period, holiday_list=None):
+	"""Standard working days of a pay period = its days - the weekly offs (Sundays) of the
+	Holiday List. Public holidays are paid, so they count (hooks.py "Salary Slip"). The
+	WHOLE period, also for those who joined / left during it: the day rate stays the same,
+	their actual days (line 1.2) are what drops. Employee.holiday_list is empty at TIQN -> the
+	lists covering the period; no list at all -> Sundays."""
+	start, end = period_bounds(period)
+	lists = [holiday_list] if holiday_list else frappe.get_all(
+		"Holiday List", filters={"from_date": ["<=", end], "to_date": [">=", start]}, pluck="name"
+	)
+	days = [add_days(start, i) for i in range((end - start).days + 1)]
+	if not lists:
+		return sum(1 for d in days if d.weekday() != 6)
+	offs = {
+		getdate(d)
+		for d in frappe.get_all(
+			"Holiday",
+			filters={"parent": ["in", lists], "holiday_date": ["between", [start, end]], "weekly_off": 1},
+			pluck="holiday_date",
+		)
+	}
+	return sum(1 for d in days if d not in offs)
+
+
+def _standard_days_column(lines, headers):
+	"""Template column of the line carrying Report Column "Standard Days" (1.1), else None."""
+	line = next((l for l in lines if l.report_key == "Standard Days"), None)
+	if not line:
+		return None
+	header = qty_header(line) if line.quantity_unit else amount_header(line)
+	return headers.index(header) if header in headers else None
 
 
 @frappe.whitelist(methods=["GET"])
@@ -270,12 +326,21 @@ def download_template(period=None, resigned=0, from_date=None, to_date=None):
 	blanks = [None] * (len(headers) - len(TEMPLATE_IDENT))
 	if period or resigned:
 		employees = resigned_employees(from_date, to_date) if resigned else template_employees(period)
+		# Standard working days filled in (user, 31/10/2026): the same for everyone of a
+		# period / Holiday List, HR only checks it.
+		std_col, std_cache = _standard_days_column(lines, headers), {}
 		for no, e in enumerate(employees, start=1):
 			row_period, first, last, pay = template_row(e, None if resigned else period)
+			values = list(blanks)
+			if std_col is not None:
+				key = (row_period, e.holiday_list)
+				if key not in std_cache:
+					std_cache[key] = standard_days(*key)
+				values[std_col - len(TEMPLATE_IDENT)] = std_cache[key]
 			ws.append(
 				[no, row_period, first, last, pay, e.name, e.employee_name, e.designation,
 				 strip_company_suffix(e.department), e.custom_section, e.custom_group, None]
-				+ blanks
+				+ values
 			)
 	else:
 		example_from, example_to = period_bounds("2026-10")

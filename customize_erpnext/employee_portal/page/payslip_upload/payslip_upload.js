@@ -306,6 +306,8 @@ function payslip_template_dialog(api) {
 			d.set_value('from_date', b.from_date || '');
 			d.set_value('to_date', b.to_date || '');
 		};
+		// Employee Portal Settings > Resigned on Monthly Template From Day (0 = off).
+		const from_day = m.resigned_monthly_from_day;
 		d = new frappe.ui.Dialog({
 			title: __('Download Template'),
 			fields: [
@@ -313,9 +315,13 @@ function payslip_template_dialog(api) {
 					fieldtype: 'Check',
 					fieldname: 'resigned',
 					label: __('Resigned Employees Only'),
-					description: __(
-						'Employees whose relieving date is in the selected period (range below), paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in. Those leaving on the day after the period ends worked the whole period and are on the monthly template.'
-					),
+					description:
+						__(
+							'Employees whose relieving date is in the selected period (range below), paid separately within 14 days of leaving. Period To = the day before the relieving date; Pay Date is filled in. Those leaving on the day after the period ends worked the whole period and are on the monthly template.'
+						) +
+						(from_day
+							? ' ' + __('Those leaving from day {0} of the period\'s last month on are on the monthly template too.', [from_day])
+							: ''),
 					onchange: () => reset_range(),
 				},
 				{
@@ -325,9 +331,13 @@ function payslip_template_dialog(api) {
 					options: (m.periods || []).map((p) => ({ value: p.value, label: p.label })),
 					default: m.default,
 					reqd: 1,
-					description: __(
-						'Monthly: employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
-					),
+					description:
+						__(
+							'Monthly: employees on the payroll until the end of this period. Not included: those who left before or during it (use Resigned Employees Only), those on maternity leave for the whole period, and Exclude Employees of Attendance Calculation Setting.'
+						) +
+						(from_day
+							? ' ' + __('Included all the same: those whose relieving date is from day {0} of the period\'s last month to the 25th (Employee Portal Settings), paid on the monthly pay day.', [from_day])
+							: ''),
 					onchange: () => reset_range(),
 				},
 				{

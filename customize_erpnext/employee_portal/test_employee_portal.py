@@ -599,10 +599,11 @@ check("rows: 6 header, amount positive", (rows_by_no["6"]["is_header"], rows_by_
 check("rows: 6.1 under 6", rows_by_no["6.1"]["level"], 1)
 check("rows: plain amount line has no days/hours", (rows_by_no["6.1"]["quantity"], rows_by_no["6.1"]["quantity_unit"]), (None, None))
 check("rows: formulas", (rows_by_no["3"]["formula"], rows_by_no["9"]["formula"], rows_by_no["6.2"]["formula"]), ("c=a+b", "j=f-g+h+i", None))
+label_12 = next(l.label_vi for l in SLINES if l.code == "1.2")  # C&B renames it (PSS-03, 31/10)
 check("rows: display_label = No. + Vietnamese Label + (Formula) of the structure", (rows_by_no["1"]["display_label"], rows_by_no["1.2"]["display_label"], rows_by_no["9"]["display_label"]),
-	("1 Lương cơ bản (a)", "1.2 Số ngày công thực tế làm việc", "9 Thực lĩnh (j=f-g+h+i)"))
+	("1 Lương cơ bản (a)", "1.2 " + label_12, "9 Thực lĩnh (j=f-g+h+i)"))
 check("rows: label = the text without number / letters (older app builds)", (rows_by_no["1"]["label"], rows_by_no["1.2"]["label"], rows_by_no["9"]["label"]),
-	("Lương cơ bản", "Số ngày công thực tế làm việc", "Thực lĩnh"))
+	("Lương cơ bản", label_12, "Thực lĩnh"))
 check("payslip: attendance total null", att["total"], None)
 check("payslip: section-total line not repeated", any(l["code"] == "5" for l in earn["lines"]), False)
 check("payslip: first_viewed_on set", bool(frappe.db.get_value("TIQN Payslip", doc_a.name, "first_viewed_on")), True)
@@ -1062,7 +1063,9 @@ check("prefilled: employee columns filled", row_a and (row_a[1], row_a[6], row_a
 check("prefilled: period dates, Pay Date empty", row_a and (str(getdate(row_a[2])), str(getdate(row_a[3])), row_a[4]), ("2026-08-26", "2026-09-25", None))
 left_before = frappe.db.get_value("Employee", {"relieving_date": ["<=", "2026-08-26"]}, "name")
 check("prefilled: left before the period not listed", left_before in listed, False)
-left_during = frappe.get_all("Employee", filters={"relieving_date": ["between", ["2026-08-27", "2026-09-25"]]}, pluck="name")
+# Up to the day before Settings > Resigned on Monthly Template From Day (those after are listed).
+left_until = add_days(utils.resigned_monthly_from("2026-09"), -1) if utils.resigned_monthly_from("2026-09") else "2026-09-25"
+left_during = frappe.get_all("Employee", filters={"relieving_date": ["between", ["2026-08-27", left_until]]}, pluck="name")
 check("prefilled: left during the period not listed (final settlement)", set(left_during) & listed, set())
 on_maternity = frappe.get_all(
 	"Employee Maternity", filters={"maternity_from_date": ["<=", "2026-08-26"], "maternity_to_date": [">=", "2026-09-25"]}, pluck="employee"
@@ -1115,9 +1118,47 @@ check("resigned: From after To refused",
 	refused(lambda: payslip_admin.download_template(period=r_period, resigned=1, from_date=r_to, to_date=r_from)), "refused")
 check("template periods carry their dates", {k for k in payslip_admin.get_template_periods()["periods"][0]} >= {"from_date", "to_date"}, True)
 check("prefilled: bad period refused", refused(lambda: payslip_admin.download_template(period="2026-13")), "refused")
+
+# Settings > Resigned on Monthly Template From Day (31/10): left from day N of the period's
+# last month -> on the monthly template (To = last day, Pay Date = monthly pay day), not on
+# the Resigned one. EMP_B's relieving date moved for the check, put back after.
+def _monthly_from(day):
+	frappe.db.set_single_value("Employee Portal Settings", "resigned_monthly_from_day", day)
+	frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
+
+
+def _lists(relieving):
+	frappe.db.set_value("Employee", EMP_B, "relieving_date", relieving, update_modified=False)
+	return (EMP_B in {e.name for e in payslip_admin.template_employees("2026-09")},
+		EMP_B in {e.name for e in payslip_admin.resigned_employees(*utils.period_bounds("2026-09"))})
+
+
+b_relieving = frappe.db.get_value("Employee", EMP_B, "relieving_date")
+_monthly_from(0)
+check("monthly from day off: left 22/09 -> Resigned template only", _lists("2026-09-22"), (False, True))
+_monthly_from(20)
+check("monthly from day 20: left 22/09 -> monthly template only", _lists("2026-09-22"), (True, False))
+check("monthly from day 20: left 20/09 (the day itself) -> monthly", _lists("2026-09-20"), (True, False))
+check("monthly from day 20: left 19/09 -> Resigned template only", _lists("2026-09-19"), (False, True))
+check("monthly from day 20: left 26/09 (whole period) -> monthly as before", _lists("2026-09-26"), (True, False))
+check("monthly from day 20: dialog told", payslip_admin.get_template_periods()["resigned_monthly_from_day"], 20)
+_lists("2026-09-22")
+b_row = next(e for e in payslip_admin.template_employees("2026-09") if e.name == EMP_B)
+check("monthly from day 20: To = last working day, Pay Date = monthly pay day",
+	payslip_admin.template_row(b_row, "2026-09")[2:], (getdate("2026-09-21"), utils.expected_pay_date("2026-09")))
+check("monthly from day: 26 refused (period ends on the 25th)",
+	refused_fn(lambda: frappe.get_doc("Employee Portal Settings").update({"resigned_monthly_from_day": 26}).save(ignore_permissions=True)), "refused")
+frappe.db.set_value("Employee", EMP_B, "relieving_date", b_relieving, update_modified=False)
+_monthly_from(0)
 theader = [c.value for c in tws[1]]
 c12 = next(l for l in SLINES if l.code == "1.2")
 check("template: days column just before its amount", theader.index(payslip_admin.qty_header(c12)) + 1, theader.index(payslip_admin.amount_header(c12)))
+# 31/10: standard working days filled in = period days - Sundays (holidays count, paid).
+c11 = next(l for l in SLINES if l.report_key == "Standard Days")
+check("template: standard working days filled in for everyone",
+	{r[theader.index(payslip_admin.amount_header(c11))] for r in trows}, {payslip_admin.standard_days("2026-09")})
+check("standard days: 2026-09 = 31 - 4 Sundays, 2026-10 = 30 - 5, 2030-03 (no Holiday List) = Sundays only",
+	(payslip_admin.standard_days("2026-09"), payslip_admin.standard_days("2026-10"), payslip_admin.standard_days("2030-03")), (27, 25, 24))
 check("template: days / hours headers short", (payslip_admin.qty_header(c12),
 	payslip_admin.qty_header(next(l for l in SLINES if l.code == "2.1"))), ("1.2 Days", "2.1 Hours"))
 check("template: starts with No.", theader[:2], ["No.", "Period"])
@@ -1375,6 +1416,9 @@ EMP_LR = next(
 )
 name_lr = frappe.db.get_value("Employee", EMP_LR, "employee_name")
 phone_lr_before = frappe.db.get_value("Employee", EMP_LR, "custom_cell_phone_zalo")
+_lr_settings = frappe.db.get_value("Employee Portal Settings", None, ["cb_chat_id_by_oa", "cb_chat_name", "link_request_chat_enabled"], as_dict=True)
+frappe.db.set_single_value("Employee Portal Settings", "link_request_chat_enabled", 0)  # HR may have it on
+frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
 # A client-sent zalo_user_id is dropped: the request belongs to whoever Zalo says.
 r = link(employee_id=EMP_LR.lower(), full_name=name_lr.upper(), zalo_user_id=zid_a)
 check("lr: request sent", (r["ok"], r["data"]["status"], r["data"]["link_request"]["status"]), (True, "PENDING", "PENDING"))
@@ -1382,6 +1426,7 @@ lr = r["data"]["link_request"]
 check("lr: counts in the answer", (lr["request_count"], lr["requests_today"], lr["max_per_day"], lr["remaining_today"], lr["can_resend"], bool(lr["requested_at"])),
 	(1, 1, 2, 1, True, True))
 check("lr: answer does not reveal the employee name", normalise_name(name_lr) in normalise_name(frappe.as_json(r)), False)
+check("lr: chat after request off -> no chat, no link", (r["data"]["link_request_chat"], r["data"]["approval_url"]), (None, None))
 check("lr: client zalo_user_id ignored", frappe.db.exists(LR, {"account": zid_a}), None)
 req = frappe.get_doc(LR, {"account": zid_lr})
 check("lr: stored from server data", (req.employee, utils.phone_key(req.phone), req.zalo_name, req.status), (EMP_LR, utils.phone_key(free_phone), "Zalo LR", "Pending"))
@@ -1397,7 +1442,22 @@ req.employee = EMP_LR
 req.save(ignore_permissions=True)
 
 name_plain = normalise_name(name_lr)  # typed without accents
+# 1.10.0: Settings > Chat with C&B After a Link Request -> chat target + ERP link of the request.
+for _f, _v in (("cb_chat_id_by_oa", "unit-cb-oa-id"), ("cb_chat_name", "C&B Unit"), ("link_request_chat_enabled", 1)):
+	frappe.db.set_single_value("Employee Portal Settings", _f, _v)
+frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
 r = link(employee_id=EMP_LR, full_name=name_plain)
+check("lr: chat on -> C&B chat target + approval_url of this request",
+	(r["data"]["link_request_chat"], r["data"]["approval_url"]),
+	({"type": "user", "id": "unit-cb-oa-id", "name": "C&B Unit"}, frappe.utils.get_url_to_form(LR, free_phone)))
+check("lr: approval_url on the site's public address", r["data"]["approval_url"].startswith(frappe.utils.get_url() + "/desk/"), True)
+check("lr: get_config still has no C&B ID (public endpoint)", "unit-cb-oa-id" in frappe.as_json(call(api.get_config)), False)
+frappe.db.set_single_value("Employee Portal Settings", "cb_chat_id_by_oa", None)
+frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
+check("lr: chat on but no C&B ID -> off", auth_mod.link_request_chat_payload(), None)
+for _f, _v in _lr_settings.items():
+	frappe.db.set_single_value("Employee Portal Settings", _f, _v)
+frappe.clear_document_cache("Employee Portal Settings", "Employee Portal Settings")
 check("lr: second request while pending overwrites", (r["ok"], frappe.db.count(LR, {"account": zid_lr})), (True, 1))
 req.reload()
 check("lr: overwritten content + counts", (req.full_name, req.name_match, req.request_count, req.requests_today), (name_plain, 1, 2, 2))

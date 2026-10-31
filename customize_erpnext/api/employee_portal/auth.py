@@ -10,7 +10,7 @@ from urllib.parse import quote, unquote
 import frappe
 from frappe import _
 from frappe.model.rename_doc import rename_doc
-from frappe.utils import cint, get_url, now_datetime
+from frappe.utils import cint, get_url, get_url_to_form, now_datetime
 
 from customize_erpnext.api.employee_portal.core import (
 	API_VERSION,
@@ -431,11 +431,27 @@ def link_employee_request(access_token=None, employee_id=None, full_name=None):
 	doc.count_request()
 	doc.flags.ignore_permissions = True
 	doc.insert() if doc.is_new() else doc.save()
+	chat = link_request_chat_payload()
 	return {
 		"status": "PENDING",
 		"message": _("Your request has been sent. The HR department will check it."),
 		"link_request": link_request_payload(zalo_user_id),
+		# 1.10.0: the Mini App opens this chat with a message holding approval_url. Both
+		# null = off. Here and not in get_config (Mini App asked for that): get_config
+		# needs no login, and the C&B ID by OA is a person's ID (see chat_payload).
+		"link_request_chat": chat,
+		"approval_url": get_url_to_form(LINK_REQUEST, doc.name) if chat else None,
 	}
+
+
+def link_request_chat_payload():
+	"""Chat the Mini App opens after a link request: the C&B staff member of Settings,
+	only while Settings > Chat with C&B After a Link Request is on (off by default:
+	no chat flood when the app goes out to everyone). Never the OA."""
+	s = get_settings()
+	if not (cint(s.get("link_request_chat_enabled")) and s.get("cb_chat_id_by_oa")):
+		return None
+	return {"type": "user", "id": s.cb_chat_id_by_oa, "name": s.get("cb_chat_name") or None}
 
 
 def _own_request(zalo_user_id, phone):

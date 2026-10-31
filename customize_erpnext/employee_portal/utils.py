@@ -85,6 +85,17 @@ def expected_pay_date(period):
 	return datetime.date(year, month, min(day, calendar.monthrange(year, month)[1]))
 
 
+def resigned_monthly_from(period):
+	"""First relieving date of the people who left at the end of `period` but are paid
+	with the monthly payroll (Settings > Resigned on Monthly Template From Day, user
+	31/10/2026): day N of the period's last month. None = off (0 / outside 1-25)."""
+	day = setting_int("resigned_monthly_from_day", 0)
+	if not 1 <= day <= PERIOD_END_DAY:
+		return None
+	end = period_bounds(period)[1]
+	return datetime.date(end.year, end.month, day)
+
+
 def parse_period_cell(value):
 	"""Read the "Kỳ lương" cell of the HR Excel file into "YYYY-MM".
 

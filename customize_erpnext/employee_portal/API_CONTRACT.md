@@ -1,6 +1,6 @@
 # Employee Portal — Hợp đồng giao diện với Zalo Mini App "Cổng nhân viên"
 
-> **Phiên bản contract: 1.9.0 (28/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
+> **Phiên bản contract: 1.10.0 (31/10/2026).** Giai đoạn hiện tại **chỉ mở phiếu lương** (+ thông báo) — xem §3.5.
 > **Đã chạy thật:** xác thực + phiếu lương + thông báo (M1). **M2** (các màn chỉ xem) code xong, chờ restart.
 > Chưa code: tạo/hủy đơn nghỉ, giấy tờ, giải trình (M3) và tin OA (M4). Xem §13. Tài liệu này được viết trước để đội Mini App dựng 21 màn bằng mock
 > (dữ liệu mẫu ở mỗi endpoint), góp ý, rồi backend mới code theo đúng bản đã chốt.
@@ -515,9 +515,20 @@ SĐT được duyệt là SĐT Zalo đã xác nhận ở lần `login` trước 
   "link_request": { "status": "PENDING", "employee_id": "TIQN-0148",
                     "requested_at": "2026-10-24 09:30:00", "created_at": "2026-10-24 09:30:00",
                     "reject_reason": null, "request_count": 1, "requests_today": 1,
-                    "max_per_day": 2, "remaining_today": 1, "can_resend": true }
+                    "max_per_day": 2, "remaining_today": 1, "can_resend": true },
+  "link_request_chat": { "type": "user", "id": "8471923650123456789", "name": "Chị Lan - C&B" },
+  "approval_url": "https://erp.tiqn.com.vn:8888/desk/tiqn-portal-link-request/0962200054"
 }}
 ```
+
+**Chat với C&B sau khi gửi** *(từ 1.10.0)*: `link_request_chat` (cùng dạng ChatTarget với `me.chat`, luôn `type: "user"`)
+và `approval_url` (link phiếu yêu cầu trên ERP, server dựng sẵn — **dùng nguyên văn**, không tự ghép URL). Cả hai `null` =
+phòng Nhân sự đang tắt tính năng (Employee Portal Settings → *Chat with C&B After a Link Request*, mặc định tắt) → app
+không mở chat. Có cả hai → app mở chat Zalo với người đó, tin nhắn soạn sẵn gồm họ tên, mã NV đã nhập và `approval_url`.
+Chỉ trả ở đây, **không** ở `get_config`: `get_config` không cần đăng nhập, còn ID by OA của C&B là định danh một người
+(như `me.chat`). Link mở được khi đã đăng nhập ERP; C&B vẫn phải gọi lại SĐT Zalo trước khi duyệt vì tin nhắn do
+người gửi tự soạn/sửa được. Bản app cũ bỏ qua 2 field này.
+
 Sai mã hay sai tên đều nhận **cùng một** `NOT_FOUND` "Mã nhân viên hoặc họ tên không đúng…" — server không cho biết sai
 ô nào và không bao giờ trả họ tên trong hồ sơ (chống dò mã/tên). Mini App hiện `message` ở đầu form, không gắn vào ô nào.
 
@@ -1624,6 +1635,7 @@ Khai báo URL chính sách dữ liệu và điều khoản (`get_config().legal`
 | 12/10/2026 | 1.0-draft | Chốt công hết ngày 25, điều chỉnh tới mùng 4: `get_attendance_summary` thêm `adjust_until`, `cutoff_date` luôn có. Giữ tên máy chấm công. `login` luôn có key `expired_on`. |
 | 14/10/2026 | 1.1.1 | Trả lời `QUESTIONS_FOR_BACKEND.md` (Update 02): `designation` giờ là chức danh **tiếng Việt** (mục 17); `approver` của đơn nghỉ **có thể `null`** — đơn HR nhập tay (mục 16); `get_leave_form` thuộc **M3, chưa có** — Mini App chỉ hiện nút "Tạo đơn nghỉ" khi `get_config().features.leave_create = true` (§3.5), hiện đang `false` (mục 15). |
 | 14/10/2026 | 1.1.2 | Trả lời Update 02 (mục 18, 19): `employee.avatar_url` giờ là **URL ảnh nhân viên** (§ Employee), `null` khi không có ảnh công khai. Mục 19: simulator không có `access_token` → `login` luôn trả `ZALO_TOKEN_INVALID` "Thiếu mã truy cập Zalo" (không phải `NO_PHONE`); trên simulator dùng `dev_login`. `READ_ONLY` mặc định **30 ngày** (trước 60). Tài khoản mới không khớp nhân viên được dùng bị tự khoá phía ERP — không đổi kết quả trả về. Sửa: request song song sau khi phiên bị thu hồi giờ trả cùng `reason`/`result` (trước đó có thể ra `REVOKED`); `get_payslip_periods.upcoming` không hiện kỳ trước ngày vào làm. |
+| 31/10/2026 | 1.10.0 | **Chỉ thêm field.** `link_employee_request` trả thêm `link_request_chat` (ChatTarget) + `approval_url` để app mở chat Zalo với C&B kèm link duyệt (§ `link_employee_request`). `null` = tính năng tắt (mặc định). Không đưa vào `get_config` như Mini App đề xuất vì endpoint đó công khai. |
 | 28/10/2026 | 1.9.0 | **Chỉ thêm field, bản app hiện tại không phải sửa.** (1) `get_config.payslip.show_zero_lines` — trạng thái ban đầu của nút "Ẩn khoản 0đ" (§6); server vẫn trả đủ dòng. (2) `content_version` ở `get_payslip`, `get_payslip_periods.items[]`, `get_home.latest_payslip` — thêm vào khoá cache phiếu (§10 "Cache"): đổi khi phòng Nhân sự sửa tên khoản của phiếu đã phát hành. (3) Danh sách dòng `rows` / `sections` **có thể khác giữa các kỳ** (thêm / bớt / đổi tên khoản, đổi chữ công thức — Payslip Structure); mỗi phiếu giữ đúng dòng lúc phát hành; không giả định mã / số dòng cố định. Mini App cập nhật (1) và (2) ở bản sau. |
 | 27/10/2026 | 1.8.0 | `get_payslip` thêm **`note`** (string \| `null`) — ghi chú phòng Nhân sự ghi cho cả phiếu. Có thì hiện khung "Ghi chú" cuối phiếu, giữ xuống dòng. Chỉ thêm field, bản app cũ vẫn đúng. Đã chạy trên server từ 27/10. |
 | 26/10/2026 | 1.7.0 | `get_payslip.rows[]` thêm **`display_label`** — chữ hiển thị nguyên văn, đã gồm số thứ tự và ký hiệu ("9 Thực lĩnh (j=f-g+h+i)"), phòng Nhân sự soạn trên ERP. Mini App hiển thị field này, **không ghép** `no` / `formula` nữa. `label`, `no`, `formula` vẫn trả như cũ (bản app cũ vẫn đúng). |

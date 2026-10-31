@@ -16,6 +16,9 @@ class EmployeePortalSettings(Document):
 			frappe.throw(_("Minimum Mini App Version must look like 1.0.0"))
 		if self.expected_pay_day and not 1 <= self.expected_pay_day <= 31:
 			frappe.throw(_("Pay Day of Month must be between 1 and 31"))
+		if (self.get("resigned_monthly_from_day") or 0) and not 1 <= self.resigned_monthly_from_day <= 25:
+			# The period ends on the 25th: a later day would never match anyone.
+			frappe.throw(_("{0} must be between 1 and 25 (0 = off)").format(self.meta.get_label("resigned_monthly_from_day")))
 		for field in ("read_only_days", "session_days", "max_files", "max_file_size_mb"):
 			if (self.get(field) or 0) < 0:
 				frappe.throw(_("{0} cannot be negative").format(self.meta.get_label(field)))

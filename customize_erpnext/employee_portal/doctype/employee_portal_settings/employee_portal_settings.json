@@ -16,6 +16,7 @@
   "payslip_section",
   "feature_payslip",
   "expected_pay_day",
+  "resigned_monthly_from_day",
   "column_break_payslip",
   "show_zero_lines",
   "attendance_section",
@@ -50,6 +51,7 @@
   "cb_chat_id_by_oa",
   "column_break_cb_chat",
   "cb_chat_name",
+  "link_request_chat_enabled",
   "oa_section",
   "oa_id",
   "oa_chat_enabled",
@@ -123,6 +125,15 @@
    "non_negative": 1,
    "description": "Day of the month after the period ends on which salary is paid. Shown as the expected pay date of unpublished payslips",
    "depends_on": "eval:doc.feature_payslip"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.feature_payslip",
+   "description": "Download Template (Resigned Employees Only unticked) also lists those whose relieving date (first day off) is from this day of the period's last month to the 25th - e.g. 20: 20/10 - 25/10 for period 2026-10 - so they are paid with the monthly payroll (Pay Date = Pay Day of Month) and left out of the Resigned template. 0 = off. Final settlement is due within 14 working days of leaving: a day too early pushes it past that",
+   "fieldname": "resigned_monthly_from_day",
+   "fieldtype": "Int",
+   "label": "Resigned on Monthly Template From Day",
+   "non_negative": 1
   },
   {
    "fieldname": "column_break_payslip",
@@ -328,6 +339,14 @@
    "description": "Shown on the button, e.g. \"Ms. Lan - Payroll\""
   },
   {
+   "default": "0",
+   "depends_on": "eval:doc.cb_chat_id_by_oa",
+   "description": "After an employee sends a Link Request, the Mini App opens a Zalo chat with this person, the message holding the employee's name, code and the ERP link of the request (link_employee_request: link_request_chat + approval_url). Off = no chat, the request only waits on ERP. The link needs an ERP login; still call the Zalo phone back before approving - the employee types the message",
+   "fieldname": "link_request_chat_enabled",
+   "fieldtype": "Check",
+   "label": "Chat with C&B After a Link Request"
+  },
+  {
    "fieldname": "oa_section",
    "fieldtype": "Section Break",
    "label": "Zalo Official Account"
@@ -386,7 +405,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-28 17:00:00.000000",
+ "modified": "2026-10-31 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "Employee Portal Settings",
