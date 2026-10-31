@@ -89884,3 +89884,31 @@ msgstr "Quyền mở cửa dòng {0}: không tìm thấy người dùng: {1}"
 msgid "These users do not have the Door Control role and cannot open /door_control yet: {0}"
 msgstr "Những người dùng này chưa có quyền Door Control nên chưa vào được /door_control: {0}"
 
+
+#. source: tiqn
+msgid "Resigned on Monthly Template From Day"
+msgstr "Gom người nghỉ vào mẫu tháng từ ngày"
+
+#. source: tiqn
+msgid "Download Template (Resigned Employees Only unticked) also lists those whose relieving date (first day off) is from this day of the period's last month to the 25th - e.g. 20: 20/10 - 25/10 for period 2026-10 - so they are paid with the monthly payroll (Pay Date = Pay Day of Month) and left out of the Resigned template. 0 = off. Final settlement is due within 14 working days of leaving: a day too early pushes it past that"
+msgstr "Tải xuống mẫu (bỏ tick Chỉ nhân viên nghỉ việc) liệt kê thêm những người có ngày nghỉ việc (ngày đầu tiên nghỉ) từ ngày này của tháng cuối kỳ đến ngày 25 - ví dụ 20: 20/10 - 25/10 cho kỳ 2026-10 - để trả chung đợt lương tháng (Pay Date = Ngày trả lương trong tháng) và bỏ khỏi mẫu nghỉ việc. 0 = tắt. Luật buộc thanh toán cho người nghỉ việc trong 14 ngày làm việc kể từ ngày nghỉ: đặt ngày quá sớm sẽ trễ hạn"
+
+#. source: tiqn
+msgid "{0} must be between 1 and 25 (0 = off)"
+msgstr "{0} phải từ 1 đến 25 (0 = tắt)"
+
+#. source: tiqn
+msgid "Chat with C&B After a Link Request"
+msgstr "Chat với C&B sau khi gửi yêu cầu liên kết"
+
+#. source: tiqn
+msgid "After an employee sends a Link Request, the Mini App opens a Zalo chat with this person, the message holding the employee's name, code and the ERP link of the request (link_employee_request: link_request_chat + approval_url). Off = no chat, the request only waits on ERP. The link needs an ERP login; still call the Zalo phone back before approving - the employee types the message"
+msgstr "Nhân viên gửi Yêu cầu liên kết xong, Mini App mở chat Zalo với người này, tin nhắn có tên, mã nhân viên và link yêu cầu trên ERP (link_employee_request: link_request_chat + approval_url). Tắt = không mở chat, yêu cầu chỉ chờ trên ERP. Link cần đăng nhập ERP; vẫn phải gọi lại SĐT Zalo trước khi duyệt vì tin nhắn do nhân viên tự soạn"
+
+#. source: tiqn
+msgid "Those leaving from day {0} of the period's last month on are on the monthly template too."
+msgstr "Người nghỉ từ ngày {0} của tháng cuối kỳ trở đi cũng nằm trong mẫu tháng."
+
+#. source: tiqn
+msgid "Included all the same: those whose relieving date is from day {0} of the period's last month to the 25th (Employee Portal Settings), paid on the monthly pay day."
+msgstr "Vẫn có: những người có ngày nghỉ việc từ ngày {0} của tháng cuối kỳ đến ngày 25 (Cài đặt Cổng nhân viên), trả vào ngày trả lương tháng."
