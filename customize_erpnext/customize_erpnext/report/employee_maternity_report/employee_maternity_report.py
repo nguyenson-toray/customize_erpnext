@@ -23,6 +23,8 @@ from frappe.utils import add_days, cint, getdate, nowdate
 
 from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity import (
 	_gestational_age_months,
+	overtime_status,
+	seventh_month_date,
 )
 
 GROUPS = ("Pregnant", "Maternity Leave", "Young Child", "Returned to Work", "Left")
@@ -75,6 +77,13 @@ def execute(filters=None):
 	show = filters.get("show")
 	if show in _GROUP_FLAG:
 		rows = [r for r in rows if r[_GROUP_FLAG[show]]]
+
+	# Filter Overtime chỉ có nghĩa khi đang xem nhóm Pregnant (JS ẩn nó ở nhóm khác,
+	# nhưng giá trị cũ vẫn có thể được gửi lên → bỏ qua). Cột Overtime tính tại To Date.
+	overtime = filters.get("overtime")
+	if show == "Pregnant" and overtime in ("Allowed", "Not Allowed"):
+		blocked = int(overtime == "Not Allowed")
+		rows = [r for r in rows if r["overtime_status"] and r["ot_blocked"] == blocked]
 
 	# ⚠ Không được default 1: query_report.js (get_filter_values) BỎ mọi filter có giá trị
 	# falsy → bỏ tick Compact View thì key "compact" KHÔNG được gửi lên. Thiếu key = đầy đủ;
@@ -173,6 +182,8 @@ def _build_row(rec, from_date, to_date, owns_left_event):
 		"pregnancy_notified_date": rec.pregnancy_notified_date,
 		"estimated_due_date": rec.estimated_due_date,
 		"gestational_age": _gestational_age(rec, to_date, relieving),
+		"seventh_month_date": seventh_month_date(rec.estimated_due_date),
+		**_overtime(rec, to_date, relieving),
 		"maternity_from_date": rec.mat_from,
 		"maternity_to_date": rec.maternity_to_date,
 		"leave_months": rec.leave_months or None,
@@ -209,6 +220,22 @@ def _gestational_age(rec, day, relieving):
 	if not _in_period(rec.pregnant_from_date, rec.pregnant_to_date, day, day, relieving):
 		return None
 	return _gestational_age_months(rec.estimated_due_date, day)
+
+
+def _overtime(rec, day, relieving):
+	"""Cột Overtime tại `day` (= To Date, cùng mốc với Tuổi thai) — cùng hàm với form.
+
+	Chỉ có giá trị khi `day` nằm trong giai đoạn Mang thai; đã nghỉ việc tới `day` → trống.
+	Trả cả nhãn đã dịch (để Export Excel ra đúng chữ) lẫn cờ `ot_blocked` cho formatter tô màu.
+	"""
+	status = overtime_status(
+		rec.estimated_due_date, rec.pregnant_from_date, rec.pregnant_to_date,
+		day, has_left=bool(relieving and relieving <= day),
+	)
+	return {
+		"overtime_status": _(status) if status else None,
+		"ot_blocked": int(status == "Not Allowed"),
+	}
 
 
 def _left_record_by_employee(records):
@@ -285,6 +312,9 @@ def get_columns(compact=1):
 		col("is_twins", "Twins", "Check", 60),
 		col("events", "In Period", width=200),
 		col("pregnant_from_date", "Pregnant From", "Date"),
+		# = Ngày dự sinh - 3 tháng; Overtime tính tại To Date. Hiện ở CẢ 2 chế độ (user chốt 02/11/2026).
+		col("seventh_month_date", "7th Month Start Date", "Date", 120),
+		col("overtime_status", "Overtime", width=110),
 		col("pregnant_to_date", "Pregnant To", "Date"),
 		col("pregnancy_notified_date", "Pregnancy Notified Date", "Date", 130),
 		col("estimated_due_date", "Estimated Due Date", "Date", 120),

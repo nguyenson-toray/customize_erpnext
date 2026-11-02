@@ -53,6 +53,10 @@ frappe.ui.form.on("Employee Maternity", {
 	},
 
 	estimated_due_date(frm) {
+		// = EDATE(Ngày dự sinh; -3) — mirror seventh_month_date() trong employee_maternity.py.
+		// overtime_status phụ thuộc "hôm nay" + nhiều ngày khác → server tính khi lưu.
+		frm.set_value("seventh_month_date",
+			frm.doc.estimated_due_date ? frappe.datetime.add_months(frm.doc.estimated_due_date, -3) : "");
 		if (!frm.doc.pregnant_to_date && frm.doc.estimated_due_date) {
 			frm.set_value("pregnant_to_date", frm.doc.estimated_due_date);
 		}
@@ -294,6 +298,11 @@ function show_employee_maternity_help() {
 			<tr><td><b>Young Child To Date / Ngày kết thúc chế độ con nhỏ</b></td>
 				<td>= Date of Birth + 364 ngày (con đủ 12 tháng). <b>Chưa nhập ngày sinh con thì để trống</b>
 				và chưa được tính là Con nhỏ.</td></tr>
+			<tr><td><b>7th Month Start Date / Ngày bắt đầu tháng thứ 7</b></td>
+				<td>= Estimated Due Date − 3 tháng (giống Excel <code>EDATE(Ngày dự sinh; -3)</code>).</td></tr>
+			<tr><td><b>Overtime / Tăng ca</b></td>
+				<td>Chỉ có khi đang <b>Mang thai</b>: từ ngày bắt đầu tháng thứ 7 là <b>Not Allowed / Không được</b>,
+				trước đó là <b>Allowed / Được</b>. Tính theo hôm nay, tự cập nhật mỗi đêm.</td></tr>
 			<tr><td><b>Status / Trạng thái</b>, <b>Gestational Age / Tuổi thai</b>, <b>Seniority / Thâm niên</b></td>
 				<td>Tính theo ngày hôm nay, tự cập nhật mỗi đêm. Tuổi thai chỉ có khi đang Mang thai.</td></tr>
 		</table>

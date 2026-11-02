@@ -10,6 +10,8 @@ from frappe.utils import getdate
 
 from customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity import (
 	maternity_end_date,
+	overtime_status,
+	seventh_month_date,
 	whole_leave_months,
 )
 from customize_erpnext.customize_erpnext.report.employee_maternity_report.employee_maternity_report import (
@@ -96,3 +98,41 @@ class TestPeriod(unittest.TestCase):
 		# status "Left " có dấu cách (1.393 bản ghi trên site) vẫn phải nhận
 		records[0].employee_status = "Left "
 		self.assertEqual(_left_record_by_employee(records), {"E1": "R1"})
+
+
+class TestSeventhMonthOvertime(unittest.TestCase):
+	"""Tháng thứ 7 = EDATE(Ngày dự sinh; -3); Overtime CHỈ tính trong giai đoạn Mang thai."""
+
+	def test_seventh_month_date(self):
+		self.assertEqual(seventh_month_date("2027-03-15"), D("2026-12-15"))
+		self.assertEqual(seventh_month_date("2027-05-31"), D("2027-02-28"))  # kẹp cuối tháng như EDATE
+		self.assertIsNone(seventh_month_date(None))
+
+	def ot(self, on, has_left=False, **kw):
+		args = dict(estimated_due_date="2027-03-15", pregnant_from_date="2026-08-01",
+			pregnant_to_date="2027-03-14")
+		args.update(kw)
+		return overtime_status(**args, on_date=on, has_left=has_left)
+
+	def test_boundary(self):
+		self.assertEqual(self.ot("2026-12-14"), "Allowed")
+		self.assertEqual(self.ot("2026-12-15"), "Not Allowed")  # đúng ngày bắt đầu tháng 7
+		self.assertEqual(self.ot("2027-03-14"), "Not Allowed")  # ngày cuối Mang thai
+
+	def test_outside_pregnant_is_blank(self):
+		self.assertIsNone(self.ot("2026-07-31"))  # chưa mang thai
+		self.assertIsNone(self.ot("2027-03-15"))  # đã sang nghỉ thai sản
+		self.assertIsNone(self.ot("2027-12-01"))  # con nhỏ
+
+	def test_pregnant_to_empty_uses_due_date(self):
+		self.assertEqual(self.ot("2027-03-15", pregnant_to_date=None), "Not Allowed")
+		self.assertIsNone(self.ot("2027-03-16", pregnant_to_date=None))
+
+	def test_miscarriage(self):
+		self.assertEqual(self.ot("2027-01-10", pregnant_to_date="2027-01-10"), "Not Allowed")
+		self.assertIsNone(self.ot("2027-01-11", pregnant_to_date="2027-01-10"))
+
+	def test_blank(self):
+		self.assertIsNone(self.ot("2026-12-20", estimated_due_date=None))
+		self.assertIsNone(self.ot("2026-12-20", has_left=True))
+		self.assertIsNone(self.ot("2026-12-20", pregnant_from_date=None))

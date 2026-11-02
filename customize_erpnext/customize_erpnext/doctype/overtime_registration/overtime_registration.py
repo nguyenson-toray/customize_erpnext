@@ -1078,6 +1078,33 @@ def get_maternity_flags(employees):
 	)
 
 
+@frappe.whitelist()
+def get_ot_blocked_employees(employees):
+	"""{employee: reason} — NV KHÔNG được chọn trong dialog "Select Employees for Overtime
+	Registration" (user chốt 02/11/2026). Đọc ĐÚNG giá trị đang lưu trên hồ sơ Employee
+	Maternity (job 00:10 + mỗi lần lưu giữ chúng cập nhật theo hôm nay), không tính theo ngày:
+	  - status = "Maternity Leave"                          → "Maternity Leave"
+	  - status = "Pregnant" và overtime_status = "Not Allowed" → "Pregnant"
+	Như `get_maternity_flags`: không cần quyền đọc Employee Maternity, chỉ trả mã NV + lý do.
+	"""
+	if isinstance(employees, str):
+		employees = frappe.parse_json(employees)
+	if not employees:
+		return {}
+
+	result = {}
+	for rec in frappe.get_all(
+		"Employee Maternity",
+		filters={"employee": ["in", employees], "status": ["in", ["Maternity Leave", "Pregnant"]]},
+		fields=["employee", "status", "overtime_status"],
+	):
+		if rec.status == "Maternity Leave":
+			result[rec.employee] = "Maternity Leave"
+		elif rec.overtime_status == "Not Allowed":
+			result.setdefault(rec.employee, "Pregnant")
+	return result
+
+
 def get_owner_only_condition(alias="parent", user=None):
     """SQL condition limiting raw-SQL reads to what the user may open.
 

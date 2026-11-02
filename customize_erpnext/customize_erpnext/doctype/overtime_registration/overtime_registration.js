@@ -117,7 +117,8 @@ function _get_dialog_state(frm) {
             weekOffset: 0,
             searchTerm: '',
             loadingEmployees: false,
-            addedBatches: []              // batches written this session (for ledger + undo)
+            addedBatches: [],             // batches written this session (for ledger + undo)
+            otBlocked: {}                 // employee -> reason (maternity, no OT) — get_ot_blocked_employees
         };
     }
     return frm._ot_dialog_state;
@@ -174,6 +175,17 @@ function ot_format_ymd(date) {
     return date.getFullYear() + '-'
         + String(date.getMonth() + 1).padStart(2, '0') + '-'
         + String(date.getDate()).padStart(2, '0');
+}
+
+// ── Thai sản: NV KHÔNG được tăng ca (user chốt 02/11/2026) ──────────────
+// Nguồn: get_ot_blocked_employees — đọc đúng giá trị đang lưu trên hồ sơ thai sản:
+// Status = Maternity Leave, hoặc Status = Pregnant và Overtime = Not Allowed.
+function ot_hidden_reason(state, employee) {
+    return state.otBlocked[employee] || null;
+}
+
+function ot_blocked_label(reason) {
+    return reason === 'Maternity Leave' ? __('Maternity Leave') : __('Pregnant from 7th month');
 }
 
 function ot_time_to_minutes(time_str) {
@@ -337,6 +349,11 @@ html[data-theme="dark"] .ot-help-banner {
 .ot-roster-row.checked .ot-emp-id { color: var(--ot-accent-text); }
 .ot-emp-name { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ot-roster-empty { padding: 18px 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.ot-roster-hidden {
+    padding: 5px 10px; font-size: 12px; cursor: help;
+    color: var(--text-muted); background: var(--subtle-fg, rgba(0, 0, 0, 0.03));
+    border-bottom: 1px solid var(--border-color);
+}
 
 .ot-chips-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 6px; }
 .ot-chips-head > span { font-size: var(--text-sm, 12px); color: var(--text-muted); }
@@ -704,8 +721,20 @@ function update_ot_roster(frm) {
         return;
     }
 
+    const hidden = state.employeeList.filter(emp => ot_hidden_reason(state, emp.name));
+    const hidden_note = hidden.length
+        ? `<div class="ot-roster-hidden" title="${ot_esc(hidden.map(e =>
+            e.name + ' ' + (e.employee_name || '') + ' — ' + ot_blocked_label(ot_hidden_reason(state, e.name))).join('\n'))}">
+            ${ot_esc(__('{0} employee(s) hidden: maternity leave / pregnant from 7th month', [hidden.length]))}</div>`
+        : '';
+    const available = state.employeeList.filter(emp => !ot_hidden_reason(state, emp.name));
+    if (!available.length) {
+        $roster.html(hidden_note + '<div class="ot-roster-empty">' + ot_esc(__('No employees available for overtime.')) + '</div>');
+        return;
+    }
+
     const term = (state.searchTerm || '').trim().toLowerCase();
-    const employees = !term ? state.employeeList : state.employeeList.filter(emp => {
+    const employees = !term ? available : available.filter(emp => {
         const empName = (emp.employee_name || emp.name || '').toLowerCase();
         const empId = (emp.name || '').toLowerCase();
         return empName.includes(term) || empId.includes(term);
@@ -720,7 +749,7 @@ function update_ot_roster(frm) {
     let html = `<div class="ot-roster-head">
         <label><input type="checkbox" class="ot-roster-all" ${all_visible_selected ? 'checked' : ''}> ${ot_esc(__('Select All'))}</label>
         <span class="ot-roster-count">${ot_esc(__('Showing {0} employee(s)', [employees.length]))}</span>
-    </div>`;
+    </div>` + hidden_note;
 
     employees.forEach(emp => {
         const checked = state.selectedEmployees.has(emp.name);
@@ -838,9 +867,25 @@ function on_dialog_group_changed(frm) {
             callback: function (r) {
                 // Ignore stale responses if the group changed while loading
                 if (dialog.get_value('selected_group') !== groupValue) return;
-                state.loadingEmployees = false;
-                state.employeeList = r.message || [];
-                update_ot_roster(frm);
+                const list = r.message || [];
+                const done = (blocked) => {
+                    if (dialog.get_value('selected_group') !== groupValue) return;
+                    state.otBlocked = blocked || {};
+                    state.loadingEmployees = false;
+                    state.employeeList = list;
+                    update_ot_roster(frm);
+                };
+                if (!list.length) return done({});
+                frappe.xcall(
+                    'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.get_ot_blocked_employees',
+                    { employees: list.map(e => e.name) }
+                ).then(done).catch(() => {
+                    done({});
+                    frappe.show_alert({
+                        message: __('Could not check maternity status — pregnant / maternity leave employees are not filtered'),
+                        indicator: 'red'
+                    }, 10);
+                });
             },
             error: function () {
                 state.loadingEmployees = false;

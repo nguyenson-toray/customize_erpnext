@@ -27,6 +27,8 @@
   "estimated_due_date",
   "is_miscarriage",
   "gestational_age",
+  "seventh_month_date",
+  "overtime_status",
   "seniority",
   "column_break_ytbx",
   "maternity_from_date",
@@ -130,35 +132,37 @@
    "label": "Apply Hour Reduction"
   },
   {
+   "description": "Ng\u00e0y B\u0110 ch\u1ebf \u0111\u1ed9",
    "fieldname": "pregnant_from_date",
    "fieldtype": "Date",
    "label": "Pregnant From Date",
    "reqd": 1
   },
   {
-   "description": "Date HR received the pregnancy information",
+   "description": "Ng\u00e0y nh\u1eadn th\u00f4ng tin",
    "fieldname": "pregnancy_notified_date",
    "fieldtype": "Date",
    "label": "Pregnancy Notified Date"
   },
   {
-   "description": "Required. Empty → copied from Estimated Due Date. Entering Maternity From Date sets this to the day before.",
+   "description": "Ng\u00e0y k\u1ebft th\u00fac ch\u1ebf \u0111\u1ed9 mang thai.\nRequired. Empty \u2192 copied from Estimated Due Date. Entering Maternity From Date sets this to the day before.",
    "fieldname": "pregnant_to_date",
    "fieldtype": "Date",
    "label": "Pregnant To Date",
    "reqd": 1
   },
   {
+   "description": "Ng\u00e0y d\u1ef1 sinh",
    "fieldname": "estimated_due_date",
    "fieldtype": "Date",
    "label": "Estimated Due Date"
   },
   {
+   "default": "0",
+   "description": "\u0110\u00e1nh d\u1ea5u \u0111\u1ec3 nh\u1eadp ng\u00e0y s\u1ea9y thai: th\u00f4ng tin n\u00e0y s\u1ebd \u0111\u01b0\u1ee3c c\u1eadp nh\u1eadt v\u00e0o m\u1ee5c Pregnant To Date, c\u00e1c giai \u0111o\u1ea1n sau \u0111\u00f3 s\u1ebd b\u1ecb x\u00f3a, \u0111\u1ed3ng th\u1eddi m\u1ed9t d\u00f2ng ghi ch\u00fa s\u1ebd \u0111\u01b0\u1ee3c th\u00eam v\u00e0o ph\u1ea7n Ghi ch\u00fa (Note).",
    "fieldname": "is_miscarriage",
    "fieldtype": "Check",
-   "label": "Miscarriage",
-   "default": "0",
-   "description": "Tick to enter the miscarriage date: it becomes Pregnant To Date, later phases are cleared and a line is added to Note."
+   "label": "Miscarriage"
   },
   {
    "depends_on": "eval:doc.status==\"Pregnant\"",
@@ -166,6 +170,22 @@
    "fieldname": "gestational_age",
    "fieldtype": "Data",
    "label": "Gestational Age",
+   "read_only": 1
+  },
+  {
+   "description": "= Estimated Due Date - 3 months",
+   "fieldname": "seventh_month_date",
+   "fieldtype": "Date",
+   "label": "7th Month Start Date",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.status==\"Pregnant\"",
+   "description": "Pregnant only: Not Allowed from 7th Month Start Date",
+   "fieldname": "overtime_status",
+   "fieldtype": "Select",
+   "label": "Overtime",
+   "options": "\nAllowed\nNot Allowed",
    "read_only": 1
   },
   {
@@ -180,7 +200,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "= Pregnant To Date + 1. Enter the official leave start here when known — Pregnant To Date moves to the day before. Miscarriage / no birth: clear this field and write it in Note — later phases are not calculated.",
+   "description": "= Pregnant To Date + 1. Enter the official leave start here when known \u2014 Pregnant To Date moves to the day before. Miscarriage / no birth: clear this field and write it in Note \u2014 later phases are not calculated.",
    "fieldname": "maternity_from_date",
    "fieldtype": "Date",
    "label": "Maternity From Date",
@@ -193,8 +213,8 @@
    "fieldtype": "Int",
    "label": "Leave Months",
    "non_negative": 1,
-   "reqd": 1,
-   "read_only_depends_on": "eval:doc.is_miscarriage"
+   "read_only_depends_on": "eval:doc.is_miscarriage",
+   "reqd": 1
   },
   {
    "description": "= Maternity From Date + Leave Months - 1 day",
@@ -229,7 +249,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-07 15:00:00.000000",
+ "modified": "2026-11-02 16:29:59.756652",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Maternity",

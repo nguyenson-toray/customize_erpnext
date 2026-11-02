@@ -45,6 +45,20 @@ frappe.query_reports["Employee Maternity Report"] = {
 			],
 			"width": "80px"
 		},
+		{
+			// Chỉ hiện khi Maternity Status = Pregnant (user chốt 02/11/2026); server cũng
+			// bỏ qua filter này khi show khác Pregnant (giá trị cũ còn sót lại khi ẩn).
+			"fieldname": "overtime",
+			"label": __("Overtime"),
+			"fieldtype": "Select",
+			"options": [
+				{ value: "", label: "" },
+				{ value: "Allowed", label: __("Allowed") },
+				{ value: "Not Allowed", label: __("Not Allowed") },
+			],
+			"depends_on": "eval:doc.show==\"Pregnant\"",
+			"width": "80px"
+		},
 
 		{
 			"fieldname": "department",
@@ -69,6 +83,15 @@ frappe.query_reports["Employee Maternity Report"] = {
 			report.set_filter_value({ from_date: today, to_date: today });
 		});
 		report.page.add_inner_button(__("Help"), show_maternity_report_help);
+	},
+
+	// Overtime: server trả nhãn đã dịch + cờ ot_blocked → tô đỏ "Not Allowed", xanh "Allowed".
+	formatter: function (value, row, column, data, default_formatter) {
+		if (column.fieldname === "overtime_status" && data && data.overtime_status) {
+			const color = data.ot_blocked ? "red" : "green";
+			return `<span class="indicator-pill ${color}">${frappe.utils.escape_html(data.overtime_status)}</span>`;
+		}
+		return default_formatter(value, row, column, data);
 	},
 
 	// Thẻ số bấm được → lọc theo nhóm; bấm lại thẻ đang chọn → bỏ lọc.
@@ -112,6 +135,8 @@ function show_maternity_report_help() {
 			<li>Muốn chỉ xem <b>một nhóm</b>: bấm vào <b>thẻ số</b> của nhóm đó (VD thẻ <b>Return to Work / Đi làm lại</b>).
 				Bấm lại thẻ đó để xem tất cả.</li>
 			<li>Hoặc: ở ô lọc <b>Maternity Status / Tình trạng thai sản</b>, chọn tên nhóm. Để trống ô này = xem tất cả.</li>
+			<li>Khi chọn nhóm <b>Pregnant / Mang thai</b> sẽ hiện thêm ô <b>Overtime / Tăng ca</b>:
+				chọn <b>Not Allowed / Không được</b> để xem ai đã tới tháng thứ 7 (tính tại <b>To Date / Đến ngày</b>).</li>
 			<li>Lọc thêm theo <b>Department / Phòng ban</b>, <b>Group / Nhóm</b> nếu cần.</li>
 			<li><b>Compact View / Rút gọn</b> (mặc định bật): chỉ hiện 4 mốc của chu kỳ —
 				<b>Pregnant From / Mang thai từ</b>, <b>Maternity From / Nghỉ thai sản từ</b>,
@@ -138,6 +163,10 @@ function show_maternity_report_help() {
 		<h5>Các cột cần lưu ý</h5>
 		<table class="table table-bordered table-condensed">
 			<tr><td style="width:30%"><b>In Period / Trong kỳ</b></td><td>Hồ sơ thuộc những nhóm nào trong kỳ đã chọn.</td></tr>
+			<tr><td><b>7th Month Start Date / Ngày bắt đầu tháng thứ 7</b></td><td>= Ngày dự sinh − 3 tháng (giống Excel <code>EDATE(Ngày dự sinh; -3)</code>).</td></tr>
+			<tr><td><b>Overtime / Tăng ca</b></td><td>Tính tại <b>To Date / Đến ngày</b>:
+				chỉ có khi đang <b>Mang thai</b> — từ ngày bắt đầu tháng thứ 7 là <b>Not Allowed / Không được</b>,
+				trước đó là <b>Allowed / Được</b>. Trống khi không ở giai đoạn Mang thai, chưa có ngày dự sinh hoặc đã nghỉ việc. Muốn xem đúng hôm nay thì bấm <b>Today / Hôm nay</b>.</td></tr>
 			<tr><td><b>Young Child From / Con nhỏ từ</b></td><td>Ngày đi làm lại = ngày hết nghỉ thai sản + 1.</td></tr>
 			<tr><td><b>Young Child To / Con nhỏ đến</b></td><td>Kết thúc chu kỳ = ngày hết chế độ con nhỏ (con đủ 12 tháng). Để trống khi chưa nhập ngày sinh con.</td></tr>
 			<tr><td><b>Leave Months / Số tháng nghỉ thai sản</b></td><td>Mặc định 6; con thứ 2 được 7; sinh đôi cộng thêm 1 (con thứ 2 sinh đôi = 8).</td></tr>

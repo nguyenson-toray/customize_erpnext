@@ -25,7 +25,8 @@
 //   Young Child From / Ngày BĐ chế độ con nhỏ · Young Child To / Ngày KT chế độ con nhỏ ·
 //   Gestational Age (months) / Tuổi thai (tháng) · Seniority (months) / Thâm niên (tháng) ·
 //   Child Number / Con thứ mấy · Twins / Sinh đôi ·
-//   Pregnancy Notified Date / Ngày nhận thông tin mang thai · Leave Months / Số tháng nghỉ thai sản
+//   Pregnancy Notified Date / Ngày nhận thông tin mang thai · Leave Months / Số tháng nghỉ thai sản ·
+//   7th Month Start Date / Ngày bắt đầu tháng thứ 7 · Overtime / Tăng ca
 //
 // Ý NGHĨA DỮ LIỆU (quy tắc hiện tại của hồ sơ)
 //   • 3 giai đoạn liên tục: Maternity From = Pregnant To + 1; Young Child From = Maternity To + 1.
@@ -35,6 +36,11 @@
 //   • Sẩy thai / không sinh: Maternity From … Young Child To đều trống, Ghi chú có
 //     "Sẩy thai ngày dd/mm/yyyy", Trạng thái = Inactive sau ngày đó.
 //   • Tuổi thai chỉ có ở hồ sơ đang "Pregnant"; các trạng thái khác để trống.
+//   • Ngày bắt đầu tháng thứ 7 = Ngày dự sinh − 3 tháng (= EDATE(Ngày dự sinh; -3)).
+//   • Tăng ca: "Allowed" | "Not Allowed" — giá trị ĐANG LƯU trên hồ sơ lúc gọi API
+//     (hệ thống tính lại mỗi đêm 00:10 và mỗi lần lưu hồ sơ, theo ngày hôm đó).
+//     Chỉ có khi đang "Pregnant": từ ngày bắt đầu tháng thứ 7 là "Not Allowed".
+//     Các trạng thái khác, chưa có ngày dự sinh hoặc đã nghỉ việc → trống.
 //   • Trạng thái: Pregnant | Maternity Leave | Young Child | Inactive | (trống).
 // ============================================================
 let
@@ -132,11 +138,12 @@ let
         "date_of_birth",
         "youg_child_from_date",
         "youg_child_to_date",
-        "pregnancy_notified_date"
+        "pregnancy_notified_date",
+        "seventh_month_date"
     },
     NumberKeys = {"gestational_age"},
     IntKeys = {"seniority", "apply_hour_reduction", "child_order", "is_twins", "leave_months"},
-    TextKeys = {"name", "employee", "employee_name", "group", "designation", "status", "note"},
+    TextKeys = {"name", "employee", "employee_name", "group", "designation", "status", "note", "overtime_status"},
     Typed = Table.TransformColumnTypes(
         Blanked,
         List.Transform(List.Intersect({ColKeys, DateKeys}), each {_, type date})

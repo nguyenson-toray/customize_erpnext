@@ -44839,7 +44839,7 @@ msgstr "Sổ cái đã đăng"
 
 #. source: erpnext2vi
 msgid "Left"
-msgstr "Chờ thôi việc"
+msgstr "Đã nghỉ việc"
 
 #. source: erpnext2vi
 msgid "Left At"

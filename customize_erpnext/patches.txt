@@ -119,3 +119,6 @@ customize_erpnext.patches.employee_portal_drop_sc_fields
 # post_model_sync: TIQN Payslip Structure PSS-<valid_from> -> PSS-01, PSS-02... (Valid From order), series
 # PSS- set past them, Valid To Period filled. Idempotent.
 customize_erpnext.patches.employee_portal_structure_numbered
+# post_model_sync: Employee Maternity 7th Month Start Date (= due date - 3 months) + Overtime
+# (Allowed / Not Allowed today) for existing records. Idempotent.
+customize_erpnext.patches.backfill_maternity_overtime_status

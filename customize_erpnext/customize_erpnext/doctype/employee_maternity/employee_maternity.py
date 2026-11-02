@@ -51,6 +51,37 @@ def _gestational_age_display(estimated_due_date, status, on_date=None):
 	return f"{_gestational_age_months(estimated_due_date, on_date):.1f}"
 
 
+def seventh_month_date(estimated_due_date):
+	"""Ngày bắt đầu tháng thứ 7 của thai kỳ = Ngày dự sinh - 3 tháng.
+
+	Khớp công thức Excel của HR `=EDATE([@[Ngày dự sinh]],-3)` (user chốt 02/11/2026).
+	Cuối tháng kẹp giống EDATE: 31/05 → 28/02 (`add_months` dùng relativedelta).
+	"""
+	if not estimated_due_date:
+		return None
+	return add_months(getdate(estimated_due_date), -3)
+
+
+def overtime_status(estimated_due_date, pregnant_from_date, pregnant_to_date, on_date, has_left=False):
+	"""Được bố trí tăng ca tại `on_date` không: "Allowed" | "Not Allowed" | None.
+
+	Quy tắc (user chốt 02/11/2026): CHỈ tính trong giai đoạn Mang thai — từ ngày bắt đầu
+	tháng thứ 7 thì "Not Allowed", trước đó "Allowed". Giống Tuổi thai: ngoài giai đoạn
+	Mang thai (chưa mang thai / nghỉ thai sản / con nhỏ / hết chu kỳ), chưa có Ngày dự
+	sinh, hoặc NV đã nghỉ việc → None (để trống).
+	Giai đoạn Mang thai = Pregnant From .. Pregnant To (trống thì tới Ngày dự sinh).
+	Report gọi với `on_date` = To Date.
+	"""
+	m7 = seventh_month_date(estimated_due_date)
+	if not m7 or has_left or not pregnant_from_date:
+		return None
+	on_date = getdate(on_date)
+	end = pregnant_to_date or estimated_due_date
+	if on_date < getdate(pregnant_from_date) or on_date > getdate(end):
+		return None
+	return "Not Allowed" if on_date >= m7 else "Allowed"
+
+
 def _has_left(relieving_date, employee_status, on_date):
 	"""Nhân viên đã rời công ty tính đến `on_date` chưa?
 
@@ -154,16 +185,23 @@ class EmployeeMaternity(Document):
 	#
 	# Cả hai phụ thuộc "hôm nay" nên phải tính lại HẰNG NGÀY cùng `status`:
 	# `calculate_all_maternity_statuses()` (job 00:10) gọi `calculate_derived_metrics()`
-	# cho MỌI record, không chỉ record đổi giai đoạn.
+	# cho MỌI record, không chỉ record đổi giai đoạn. `overtime_status` (02/11/2026)
+	# cũng vậy.
 
-	def calculate_derived_metrics(self):
-		"""Tính `seniority` và `gestational_age`. Gọi SAU `calculate_status()`.
+	def calculate_derived_metrics(self, employment=None):
+		"""Tính `seniority`, `gestational_age`, `overtime_status`. Gọi SAU `calculate_status()`.
 
 		Thứ tự bắt buộc: `gestational_age` chỉ có nghĩa khi `status == "Pregnant"`,
 		mà `status` do `calculate_status()` đặt.
+		`employment`: như `employee_has_left()` — batch truyền vào để khỏi query từng record.
 		"""
+		today_date = date.today()
 		self.seniority = _seniority_months(self.date_of_joining)
 		self.gestational_age = _gestational_age_display(self.estimated_due_date, self.status)
+		self.overtime_status = overtime_status(
+			self.estimated_due_date, self.pregnant_from_date, self.pregnant_to_date, today_date,
+			has_left=self.employee_has_left(today_date, employment),
+		)
 
 	# =========================================================================
 	# Naming
@@ -232,6 +270,8 @@ class EmployeeMaternity(Document):
 		khi tạo hồ sơ mới hoặc khi HR sửa Pregnant To; HR xoá trống Maternity From thì
 		tôn trọng, kể cả khi cùng lúc sửa Pregnant To.
 		"""
+		self.seventh_month_date = seventh_month_date(self.estimated_due_date)
+
 		if self.get("is_miscarriage"):
 			self.apply_miscarriage()
 			return
@@ -771,13 +811,16 @@ def calculate_all_maternity_statuses(names=None):
 		# `seniority` và `gestational_age` phụ thuộc "hôm nay" nên phải tính lại cho MỌI
 		# record, kể cả record không đổi giai đoạn — thâm niên tăng mỗi tháng và tuổi thai
 		# tăng mỗi ngày. Đây là lý do hai field bỏ virtual mà vẫn luôn đúng.
-		old_seniority, old_gest = doc.seniority, doc.gestational_age
-		doc.calculate_derived_metrics()
+		old_seniority, old_gest, old_ot = doc.seniority, doc.gestational_age, doc.overtime_status
+		doc.calculate_derived_metrics(employment=employment.get(doc.employee) or {})
 		changes = {}
 		if doc.seniority != old_seniority:
 			changes["seniority"] = doc.seniority
 		if doc.gestational_age != old_gest:
 			changes["gestational_age"] = doc.gestational_age
+		# Cột Select rỗng đọc ra là "" còn hàm trả None → so theo `or ""` để khỏi ghi thừa.
+		if (doc.overtime_status or "") != (old_ot or ""):
+			changes["overtime_status"] = doc.overtime_status
 		if changes:
 			doc.db_set(changes, update_modified=False)
 			metrics_updated += 1
@@ -831,6 +874,9 @@ _MATERNITY_FIELDS = [
 	"gestational_age", "seniority",
 	# Thêm 07/10/2026 — để CUỐI để Power Query đang map theo vị trí cột không lệch.
 	"child_order", "is_twins", "pregnancy_notified_date", "leave_months",
+	# Thêm 02/11/2026 — cũng để CUỐI. Đọc thẳng cột đã lưu: overtime_status do job 00:10
+	# và mỗi lần lưu hồ sơ tính lại (chỉ có giá trị khi đang Pregnant).
+	"seventh_month_date", "overtime_status",
 ]
 
 _MATERNITY_LABELS_EN = {
@@ -857,6 +903,8 @@ _MATERNITY_LABELS_EN = {
 	"is_twins":           "Twins",
 	"pregnancy_notified_date": "Pregnancy Notified Date",
 	"leave_months":       "Leave Months",
+	"seventh_month_date": "7th Month Start Date",
+	"overtime_status":    "Overtime",
 }
 
 _MATERNITY_LABELS_VI = {
@@ -883,6 +931,8 @@ _MATERNITY_LABELS_VI = {
 	"is_twins":           "Sinh đôi",
 	"pregnancy_notified_date": "Ngày nhận thông tin mang thai",
 	"leave_months":       "Số tháng nghỉ thai sản",
+	"seventh_month_date": "Ngày bắt đầu tháng thứ 7",
+	"overtime_status":    "Tăng ca",
 }
 
 
@@ -957,7 +1007,8 @@ def get_employee_maternity_for_excel(
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date,
 				em.gestational_age, em.seniority,
-				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months
+				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months,
+				em.seventh_month_date, em.overtime_status
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -982,7 +1033,8 @@ def get_employee_maternity_for_excel(
 				em.maternity_from_date, em.maternity_to_date, em.date_of_birth,
 				em.youg_child_from_date, em.youg_child_to_date,
 				em.gestational_age, em.seniority,
-				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months
+				em.child_order, em.is_twins, em.pregnancy_notified_date, em.leave_months,
+				em.seventh_month_date, em.overtime_status
 			FROM `tabEmployee Maternity` em
 			LEFT JOIN `tabEmployee` emp ON emp.name = em.employee
 			{where_sql}
@@ -993,7 +1045,7 @@ def get_employee_maternity_for_excel(
 			as_dict=True,
 		)
 
-	# Chỉ sanitize — hai field dẫn xuất đã nằm sẵn trong cột, job 00:10 giữ chúng đúng.
+	# Chỉ sanitize — các field dẫn xuất đã nằm sẵn trong cột, job 00:10 giữ chúng đúng.
 	cleaned = []
 	for row in rows:
 		r = {}
