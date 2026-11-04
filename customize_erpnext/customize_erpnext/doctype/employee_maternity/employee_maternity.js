@@ -35,7 +35,7 @@ frappe.ui.form.on("Employee Maternity", {
 	//   Pregnant To trống → copy Estimated Due Date
 	//   Maternity From = Pregnant To + 1  (HR nhập Maternity From → Pregnant To = -1)
 	//   Maternity To   = Maternity From + Leave Months - 1 ngày
-	//   Young Child    = Maternity To + 1 → Date of Birth + 364 (chưa có ngày sinh → trống)
+	//   Young Child    = Maternity To + 1 → trước sinh nhật 1 tuổi 1 ngày (chưa có ngày sinh → trống)
 	// Hai handler pregnant_to_date ⇄ maternity_from_date gọi lẫn nhau nhưng tự dừng:
 	// set_value cùng giá trị thì Frappe không bắn lại sự kiện.
 	pregnant_to_date(frm) {
@@ -104,7 +104,8 @@ frappe.ui.form.on("Employee Maternity", {
 
 	date_of_birth(frm) {
 		frm.set_value("youg_child_to_date",
-			frm.doc.date_of_birth ? frappe.datetime.add_days(frm.doc.date_of_birth, 364) : "");
+			/* Mirror young_child_end_date() trong employee_maternity.py */
+			frm.doc.date_of_birth ? frappe.datetime.add_days(frappe.datetime.add_months(frm.doc.date_of_birth, 12), -1) : "");
 	},
 
 	youg_child_to_date(frm) {
@@ -296,7 +297,7 @@ function show_employee_maternity_help() {
 			<tr><td><b>Young Child From Date / Ngày bắt đầu chế độ con nhỏ</b></td>
 				<td>= Maternity To Date + 1 = <b>ngày đi làm lại</b>.</td></tr>
 			<tr><td><b>Young Child To Date / Ngày kết thúc chế độ con nhỏ</b></td>
-				<td>= Date of Birth + 364 ngày (con đủ 12 tháng). <b>Chưa nhập ngày sinh con thì để trống</b>
+				<td>= Ngày trước sinh nhật 1 tuổi của con, tính từ Date of Birth (sinh 10/03/2027 → hết 09/03/2028). <b>Chưa nhập ngày sinh con thì để trống</b>
 				và chưa được tính là Con nhỏ.</td></tr>
 			<tr><td><b>7th Month Start Date / Ngày bắt đầu tháng thứ 7</b></td>
 				<td>= Estimated Due Date − 3 tháng (giống Excel <code>EDATE(Ngày dự sinh; -3)</code>).</td></tr>

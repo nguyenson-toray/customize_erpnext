@@ -122,6 +122,15 @@ def maternity_end_date(mat_from, leave_months):
 	return add_days(add_months(getdate(mat_from), int(leave_months)), -1)
 
 
+def young_child_end_date(date_of_birth):
+	"""Ngày cuối chế độ con nhỏ = trước sinh nhật 1 tuổi 1 ngày: sinh 10/03/2027 → hết 09/03/2028.
+
+	Tính theo lịch, KHÔNG cộng 364 ngày: khoảng có 29/02 thì +364 hụt mất 1 ngày.
+	Sinh 29/02 → sinh nhật 1 tuổi tính là 28/02 năm sau → hết 27/02.
+	"""
+	return add_days(add_months(getdate(date_of_birth), 12), -1)
+
+
 def whole_leave_months(mat_from, mat_to):
 	"""Số tháng TRÒN giữa 2 ngày theo đúng quy ước `maternity_end_date`, 0 nếu lệch.
 
@@ -260,7 +269,7 @@ class EmployeeMaternity(Document):
 		  maternity_from_date  = pregnant_to_date + 1
 		  maternity_to_date    = maternity_from + leave_months - 1 ngày (leave_months mặc định 6)
 		  youg_child_from_date = maternity_to_date + 1
-		  youg_child_to_date   = date_of_birth + 364; chưa có ngày sinh → trống
+		  youg_child_to_date   = trước sinh nhật 1 tuổi 1 ngày; chưa có ngày sinh → trống
 
 		Bên nào thắng khi cả 2 ngày nối nhau đều có giá trị: maternity_from_date nếu nó
 		vừa ĐỔI (HR nhập ngày nghỉ chính thức), ngược lại pregnant_to_date.
@@ -304,7 +313,7 @@ class EmployeeMaternity(Document):
 			add_days(getdate(self.maternity_to_date), 1) if self.maternity_to_date else None
 		)
 		self.youg_child_to_date = (
-			add_days(getdate(self.date_of_birth), 364) if self.date_of_birth else None
+			young_child_end_date(self.date_of_birth) if self.date_of_birth else None
 		)
 
 	def apply_miscarriage(self):

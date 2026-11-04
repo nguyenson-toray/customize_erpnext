@@ -324,7 +324,7 @@ def get_columns(compact=1):
 		col("leave_months", "Leave Months", "Int", 90),
 		# = Maternity To + 1 = ngày đi làm lại
 		col("return_date", "Young Child From", "Date"),
-		# = Date of Birth + 364 = hết chu kỳ. Chưa có ngày sinh con thì để trống
+		# = trước sinh nhật 1 tuổi 1 ngày = hết chu kỳ. Chưa có ngày sinh con thì để trống
 		# — user chốt không tạm tính theo ngày dự sinh.
 		col("youg_child_to_date", "Young Child To", "Date"),
 		col("relieving_date", "Relieving Date", "Date"),

@@ -239,7 +239,6 @@
    "read_only": 1
   },
   {
-   "description": "= Date of Birth + 364 days. Empty until Date of Birth is entered.",
    "fieldname": "youg_child_to_date",
    "fieldtype": "Date",
    "label": "Young Child To Date",
@@ -249,7 +248,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-02 16:29:59.756652",
+ "modified": "2026-11-04 09:36:20.216915",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Maternity",

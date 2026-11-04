@@ -32,7 +32,7 @@
 //   • 3 giai đoạn liên tục: Maternity From = Pregnant To + 1; Young Child From = Maternity To + 1.
 //   • Maternity To = Maternity From + Leave Months − 1 ngày.
 //     Leave Months mặc định: 6; con thứ 2 = 7; sinh đôi +1 (con thứ 2 sinh đôi = 8).
-//   • Young Child To = ngày sinh con + 364; CHƯA có ngày sinh → trống.
+//   • Young Child To = trước sinh nhật 1 tuổi của con 1 ngày; CHƯA có ngày sinh → trống.
 //   • Sẩy thai / không sinh: Maternity From … Young Child To đều trống, Ghi chú có
 //     "Sẩy thai ngày dd/mm/yyyy", Trạng thái = Inactive sau ngày đó.
 //   • Tuổi thai chỉ có ở hồ sơ đang "Pregnant"; các trạng thái khác để trống.

@@ -39,7 +39,7 @@ Mỗi hồ sơ chứa 3 giai đoạn dưới dạng 3 cặp ngày, **luôn liên
 | `maternity_from_date` | `pregnant_to_date + 1` |
 | `maternity_to_date` | `maternity_from_date + leave_months − 1 ngày` (`maternity_end_date()`; nghỉ 19/01, 6 tháng → hết 18/07) |
 | `youg_child_from_date` | `maternity_to_date + 1` |
-| `youg_child_to_date` | `date_of_birth + 364`; chưa có ngày sinh → trống |
+| `youg_child_to_date` | Trước sinh nhật 1 tuổi 1 ngày (`young_child_end_date()`; sinh 10/03/2027 → hết 09/03/2028); chưa có ngày sinh → trống |
 
 - Khi cả `pregnant_to_date` và `maternity_from_date` cùng có giá trị, bên **vừa đổi** (`has_value_changed`) thắng.
 - `maternity_from_date` chỉ **tự điền** khi: tạo hồ sơ mới, HR sửa `pregnant_to_date`, hoặc bỏ tick sẩy thai.
