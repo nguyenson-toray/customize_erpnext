@@ -2,6 +2,7 @@
  "actions": [],
  "allow_bulk_edit": 1,
  "allow_import": 1,
+ "allow_rename": 1,
  "autoname": "naming_series:",
  "creation": "2026-09-24 14:12:20.958062",
  "default_view": "List",
@@ -10,9 +11,9 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
-  "request_by_group",
   "request_date",
   "column_break_vede",
+  "request_by_group",
   "total_employees",
   "total_hours",
   "employees_section",
@@ -30,7 +31,6 @@
    "default": "Today",
    "fieldname": "request_date",
    "fieldtype": "Date",
-   "hidden": 1,
    "in_standard_filter": 1,
    "label": "Request Date",
    "print_hide": 1,
@@ -90,7 +90,9 @@
   {
    "fieldname": "request_by_group",
    "fieldtype": "Data",
-   "hidden": 1,
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Group",
    "read_only": 1
   },
@@ -135,7 +137,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-28 12:51:13.804532",
+ "modified": "2026-11-06 16:58:49.578979",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
@@ -157,6 +159,7 @@
   },
   {
    "create": 1,
+   "delete": 1,
    "email": 1,
    "export": 1,
    "if_owner": 1,
@@ -198,6 +201,7 @@
   },
   {
    "create": 1,
+   "delete": 1,
    "email": 1,
    "export": 1,
    "print": 1,

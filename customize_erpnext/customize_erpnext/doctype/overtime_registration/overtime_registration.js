@@ -1196,8 +1196,8 @@ function show_ot_pivot_dialog(frm) {
         emp.cells[d.date].push({
             time: (d.begin_time && d.end_time)
                 ? '<span class="ot-t">' + ot_esc(String(d.begin_time).slice(0, 5)) + '</span>'
-                  + '<span class="ot-t-dash">-</span>'
-                  + '<span class="ot-t">' + ot_esc(String(d.end_time).slice(0, 5)) + '</span>'
+                + '<span class="ot-t-dash">-</span>'
+                + '<span class="ot-t">' + ot_esc(String(d.end_time).slice(0, 5)) + '</span>'
                 : '',
             hours: hours,
             reason: d.reason || ''
@@ -1780,6 +1780,8 @@ function apply_ot_tour_element_selectors(frm) {
 function add_sync_to_mongodb_button(frm) {
     if (frm.is_new() || frm.doc.docstatus === 2) return;
     if (!frappe.user.has_role(['System Manager', 'HR Manager', 'HR User'])) return;
+    // Imported from MongoDB: same check as sync_to_mongodb, which refuses these on the server
+    if ((frm.doc.ot_employees || []).some(row => (row.reason || '').includes('Request number:'))) return;
     frm.add_custom_button(__('Sync to MongoDB'), () => {
         if (frm.is_dirty()) {
             frappe.msgprint(__('Please save the document before syncing.'));
