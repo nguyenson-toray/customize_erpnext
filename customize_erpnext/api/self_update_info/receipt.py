@@ -80,20 +80,20 @@ def _hr_receipt_html(doc, sign_config):
 	saved = _fill_from_employee(sign_config, json.loads(doc.data_json or "{}"), doc.employee)
 	# Phiếu có bản chụp hồ sơ → in đúng bản đó; phiếu cũ (trước 27/10/2026) → danh sách Setting, chưa tick.
 	documents = _clean_documents(saved.get(DOCUMENTS_KEY)) if DOCUMENTS_KEY in saved else _setting_documents()
-	checklist = _document_checklist_html(documents)
+	checklist = _document_checklist_html(documents, doc.missing_documents_deadline)
 	return _build_submission_html(
 		doc, saved, sign_config, sign_on_paper=True, checklist_html=checklist, compact=True,
 		side_margin=HR_RECEIPT_SIDE_MARGIN, tb_margin=HR_RECEIPT_TB_MARGIN,
 	)
 
 
-def _document_checklist_html(items):
+def _document_checklist_html(items, deadline=None):
 	"""Bảng hồ sơ cuối phiếu HR: `items` = [{document, required, checked}] (bản chụp trong phiếu; phiếu cũ chưa
 	có → danh sách Setting, chưa tick). Trống → "".
 	4 cột Hồ sơ | Tình trạng | Hồ sơ | Tình trạng: nửa đầu ở cặp cột trái, nửa sau ở cặp cột phải;
 	số hồ sơ lẻ → hồ sơ cuối 1 hàng trải ngang. Ô ☐ trước tên hồ sơ = NV đã tick nộp (☑);
-	Đạt / Không đạt / Quá hạn / Khác để HR đánh tay. Cuối bảng: "Tình trạng hồ sơ" (chỉ khi phiếu có bản chụp)
-	+ "Thông tin khác về hồ sơ" + dòng chấm viết tay.
+	Đạt / Không đạt / Quá hạn / Khác để HR đánh tay. Cuối bảng: "Tình trạng hồ sơ" (chỉ khi phiếu có bản chụp),
+	kèm `deadline` = hạn nộp hồ sơ còn thiếu nếu có, + "Thông tin khác về hồ sơ" + dòng chấm viết tay.
 	Ô ☐ / ☑ vẽ bằng CSS (span.cb / span.cb.on) — không phụ thuộc font của wkhtmltopdf."""
 	items = [d for d in items or [] if str(d.get("document") or "").strip()]
 	if not items:
@@ -122,9 +122,10 @@ def _document_checklist_html(items):
 			f"<td class='cst' colspan='2'>{marks}&nbsp; Khác: <span class='fill w'></span></td></tr>"
 		)
 	if any("checked" in d for d in items):
+		due = f". <b>Hạn nộp hồ sơ còn thiếu:</b> {_fmt_date_vn(deadline)}" if deadline else ""
 		rows.append(
 			"<tr><td colspan='4' class='cnote'><b>Tình trạng hồ sơ (NV tự khai, * = bắt buộc):</b> "
-			f"{esc(_status_text_vi(items))}</td></tr>"
+			f"{esc(_status_text_vi(items))}{due}</td></tr>"
 		)
 	rows.append(
 		"<tr><td colspan='4' class='cnote'>Thông tin khác về hồ sơ (nếu có):"

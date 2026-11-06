@@ -6,6 +6,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import add_days
 
 from customize_erpnext.api.employee.cccd_expiry import DOB_FIELD as CCCD_DOB_FIELD
 from customize_erpnext.api.employee.cccd_expiry import EXPIRY_FIELD as CCCD_EXPIRY_FIELD
@@ -63,9 +64,13 @@ def download_pdf_for_hr(name):
 	frappe.response["content_type"] = "application/pdf"
 
 
+# Hạn nộp hồ sơ còn thiếu = ngày nhận việc + 5 tuần.
+_MISSING_DOCUMENTS_DEADLINE_DAYS = 5 * 7
+
+
 def apply_document_status(doc):
-	"""Tình trạng hồ sơ của phiếu (document_status, missing_documents) tính lại từ data_json.
-	Gọi ở EmployeeSelfUpdateInfo.validate — mọi đường lưu (trang www, Desk, API)."""
+	"""Tình trạng hồ sơ của phiếu (document_status, missing_documents, missing_documents_deadline)
+	tính lại từ data_json. Gọi ở EmployeeSelfUpdateInfo.validate — mọi đường lưu (trang www, Desk, API)."""
 	try:
 		saved = json.loads(doc.data_json or "{}")
 	except ValueError:
@@ -73,6 +78,11 @@ def apply_document_status(doc):
 	status, missing = _document_status(_clean_documents(saved.get(DOCUMENTS_KEY)))
 	doc.document_status = status
 	doc.missing_documents = "\n".join(missing)
+	doc.missing_documents_deadline = (
+		add_days(doc.date_of_joining, _MISSING_DOCUMENTS_DEADLINE_DAYS)
+		if missing and doc.date_of_joining
+		else None
+	)
 
 
 # Bản sao trên Employee (tab Profile) — custom field chỉ đọc, phiếu là nguồn duy nhất.

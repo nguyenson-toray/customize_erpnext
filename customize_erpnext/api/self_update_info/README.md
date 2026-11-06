@@ -89,7 +89,7 @@ Phụ thuộc **1 chiều** theo thứ tự dưới (module dưới import modul
 | `status` | Draft / Submitted / Reviewed / Synced |
 | `submitted_on`, `reviewed_on/by`, `synced_on/by` | mốc thời gian |
 | `date_of_birth`, `date_of_joining` | lấy từ Employee (lọc / in đầu phiếu HR) |
-| `document_status`, `missing_documents` | **Tình trạng hồ sơ** (Documents Complete / Documents Missing + danh sách thiếu) — tính lại mỗi lần lưu |
+| `document_status`, `missing_documents`, `missing_documents_deadline` | **Tình trạng hồ sơ** (Documents Complete / Documents Missing + danh sách thiếu + hạn nộp = `date_of_joining` + 5 tuần) — tính lại mỗi lần lưu |
 | `commitment_confirmed`, `signed_on`, `signature` | chỉ trang www ghi được (`validate_desk_edit` chặn đường khác) |
 | `device_info` | IP + model + platform (Client Hints), nối thêm mỗi lần gửi |
 | `data_view` | HTML: bảng xem / sửa cho HR |
@@ -112,6 +112,11 @@ Khoá đặc biệt trong `data_json`:
 | `filter_date`, `department`, `custom_section`, `group` + nút **Add Employees** / **Clear All** | thêm NV Active theo bộ lọc (AND); không lọc gì → hỏi rồi thêm toàn bộ NV Active. Bảng `employees` có nút **Paste Codes** (dán danh sách mã NV); tự bỏ dòng trùng |
 | `info_html` | QR + link `/employee-self-update-info` để gửi NV |
 | `validate_by_dob`, `bypass_code` (0–99, chỉ Administrator thấy) | xác thực bằng 2 số ngày sinh |
+
+**Tab Form Display** (tab cuối: cài đặt hiển thị của trang, ít thay đổi)
+
+| Field | Mô tả |
+|---|---|
 | `allow_browser_local_storage` | cho lưu nháp cục bộ |
 | `force_open_devices_browser` | trong Zalo → bắt mở bằng trình duyệt thiết bị |
 | `allow_receipt_download` | NV được tải phiếu PDF / ảnh sau khi gửi (mặc định bật). Tắt → màn hình "Đã gửi" không có nút tải, server chặn cả lượt tải có token (`_gate_receipt`); HR đăng nhập vẫn tải được |

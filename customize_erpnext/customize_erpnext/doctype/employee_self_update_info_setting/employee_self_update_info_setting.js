@@ -346,8 +346,6 @@ function show_setting_help() {
     <li><b>Validate by DOB</b>: NV phải nhập <b>2 chữ số ngày sinh</b> trước khi xem/gửi (chống spam, tránh sửa nhầm người). Gõ đủ 2 số đúng là vào thẳng, không cần bấm nút.</li>
     <li><b>Áp dụng cho MỌI người, kể cả HR/Admin</b> — không có ngoại lệ theo quyền.</li>
     <li><b>Bypass Code</b> (mã 2 chữ số, chỉ Administrator thấy): dùng thay ngày sinh. <b>HR dùng mã này để mở bất kỳ nhân viên nào</b> mà không cần biết ngày sinh từng người; cũng dùng khi ngày sinh trong hệ thống bị sai.</li>
-    <li><b>Allow Browser Local Storage</b>: lưu bản nháp cục bộ trên máy NV (tránh mất dữ liệu khi tải lại / thoát giữa chừng).</li>
-    <li><b>Lock After Submit</b> + <b>Bypass Code For Unlock</b> (mã mở khoá, mặc định 88, chỉ Administrator thấy): sau khi NV gửi, trang <b>tự khoá</b>. Muốn sửa lại, NV phải nhập <b>cả 2 số ngày sinh VÀ mã mở khoá</b> do HR cấp. (Người vừa gửi vẫn tải được phiếu của mình trong ~15–30 phút mà không cần mã.)</li>
   </ul>
 
   <h5>3. Fields shown to employees (Selected Fields) — <i>quyết định field hiển thị</i></h5>
@@ -386,7 +384,18 @@ function show_setting_help() {
   <ul>
     <li>Chọn record ở List view  Employee Self Update Info
 → có thể chọn những record cần xuất file hoặc không chọn để xuất tất cả. File bao gồm 2 sheet (New/Old) dùng import ngược vào Employee được.</li>
-   
+
+  </ul>
+
+  <h5>7. Form Display (tab riêng, ít thay đổi)</h5>
+  <ul>
+    <li><b>Allow Browser Local Storage</b>: lưu bản nháp cục bộ trên máy NV (tránh mất dữ liệu khi tải lại / thoát giữa chừng).</li>
+    <li><b>Force Open Device's Browser</b>: mở trang trong Zalo sẽ hiện hướng dẫn chuyển sang trình duyệt của thiết bị.</li>
+    <li><b>Allow Receipt Download</b> + <b>Save File Type</b>: cho NV tải phiếu đã gửi, dạng PDF hoặc PNG.</li>
+    <li><b>Lock After Submit</b> + <b>Bypass Code For Unlock</b> (mã mở khoá, mặc định 88, chỉ Administrator thấy): sau khi NV gửi, trang <b>tự khoá</b>. Muốn sửa lại, NV phải nhập <b>cả 2 số ngày sinh VÀ mã mở khoá</b> do HR cấp. (Người vừa gửi vẫn tải được phiếu của mình trong ~15–30 phút mà không cần mã.)</li>
+    <li><b>Disable Review</b>: bỏ bước Reviewed, HR Sync thẳng từ Submitted.</li>
+    <li><b>Start Button Delay (seconds)</b>: số giây chờ trước khi mở nút Bắt đầu ở lần đầu mở trên một máy; 0 = không chờ.</li>
+    <li><b>Start Screen Notes</b>: ghi chú ở màn hình đầu. <b>Commitment Text</b>: câu cam kết phía trên chữ ký.</li>
   </ul>
 
   <p style="color:#b45309"><b>Lưu ý:</b> mọi thay đổi trong Setting phải bấm <b>Save</b> mới có hiệu lực. Dữ liệu NV khai <b>không tự động</b> ghi vào Employee — chỉ ghi khi HR bấm <b>Sync to Employee</b> (sau khi Review).</p>

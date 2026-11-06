@@ -1040,6 +1040,9 @@ def test_document_checklist():
 	check("bản chụp: hồ sơ đã tick → ô ☑ (cb on), chưa tick → ô trống",
 		"1 <span class='cb on'></span> A *<" in hs and "<span class='cb'></span> B *<" in hs and "C<" in hs and "C *" not in hs, hs)
 	check("bản chụp: dòng Tình trạng hồ sơ liệt kê bắt buộc còn thiếu", "Thiếu: B</td>" in hs, hs)
+	check("có hạn → in ngay sau Thiếu, dd/mm/yyyy", "Thiếu: B. <b>Hạn nộp hồ sơ còn thiếu:</b> 08/12/2026</td>" in H(snap, "2026-12-08"))
+	check("không có hạn → không in", "Hạn nộp" not in hs and "Hạn nộp" not in H(snap[:1] + snap[2:]))
+	check("phiếu cũ (chưa tick) → không in hạn", "Hạn nộp" not in H(L(["A"]), "2026-12-08"))
 	check("bản chụp: ô Đạt / Không đạt / Quá hạn vẫn để HR đánh tay", "Quá hạn <span class='cb'>" in hs)
 	check("bản chụp đủ → Đủ", "Tình trạng hồ sơ (NV tự khai, * = bắt buộc):</b> Đủ<" in H(snap[:1] + snap[2:]))
 
@@ -1217,10 +1220,23 @@ def test_document_status():
 			api.apply_document_status(doc)
 			check("apply: Documents Missing + liệt kê", doc.document_status == "Documents Missing" and doc.missing_documents == "Khám SK",
 				(doc.document_status, doc.missing_documents))
+			doc.date_of_joining = "2026-11-03"
+			api.apply_document_status(doc)
+			check("apply: thiếu → hạn = ngày nhận việc + 5 tuần", str(doc.missing_documents_deadline) == "2026-12-08", doc.missing_documents_deadline)
+			doc.date_of_joining = None
+			api.apply_document_status(doc)
+			check("apply: thiếu nhưng chưa có ngày nhận việc → không có hạn", doc.missing_documents_deadline is None, doc.missing_documents_deadline)
+			doc.date_of_joining = "2026-11-03"
+			saved[K] = api._documents_snapshot(["CCCD", "Khám SK"], fake)
+			doc.data_json = json.dumps(saved, ensure_ascii=False)
+			api.apply_document_status(doc)
+			check("apply: đủ hồ sơ → xoá hạn", doc.document_status == "Documents Complete" and doc.missing_documents_deadline is None,
+				(doc.document_status, doc.missing_documents_deadline))
 			saved.pop(K)
 			doc.data_json = json.dumps(saved, ensure_ascii=False)
 			api.apply_document_status(doc)
-			check("apply: phiếu cũ không có bản chụp → trống", doc.document_status == "" and doc.missing_documents == "")
+			check("apply: phiếu cũ không có bản chụp → trống", doc.document_status == "" and doc.missing_documents == ""
+				and doc.missing_documents_deadline is None)
 
 			# Desk: HR tick hồ sơ — được cả khi Synced; sửa field khác khi Synced vẫn bị chặn.
 			def desk(status, new_saved):

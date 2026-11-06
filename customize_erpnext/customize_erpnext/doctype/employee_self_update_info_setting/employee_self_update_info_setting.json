@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-10-28 08:27:40.997879",
+ "creation": "2026-10-28 15:29:43.792521",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -20,20 +20,6 @@
   "validate_by_dob",
   "col_break_security",
   "bypass_code",
-  "column_break_xyjl",
-  "allow_browser_local_storage",
-  "force_open_devices_browser",
-  "allow_receipt_download",
-  "save_file_type",
-  "column_break_uhie",
-  "lock_after_submit",
-  "bypass_code_for_unlock",
-  "disable_review",
-  "section_break_phjn",
-  "commitment_text",
-  "column_break_lwvb",
-  "start_notes",
-  "start_button_delay",
   "tab_form_setup",
   "section_hr_pdf",
   "document_checklist",
@@ -45,7 +31,22 @@
   "section_new_join",
   "new_join_intro",
   "btn_apply_new_join_preset",
-  "selected_fields_for_new_join"
+  "selected_fields_for_new_join",
+  "tab_form_display",
+  "allow_browser_local_storage",
+  "force_open_devices_browser",
+  "column_break_xyjl",
+  "allow_receipt_download",
+  "save_file_type",
+  "column_break_uhie",
+  "lock_after_submit",
+  "bypass_code_for_unlock",
+  "disable_review",
+  "start_button_delay",
+  "section_break_jenf",
+  "start_notes",
+  "section_break_phjn",
+  "commitment_text"
  ],
  "fields": [
   {
@@ -244,7 +245,7 @@
   },
   {
    "default": "1",
-   "description": "Skip the Reviewed step — HR can Sync submissions straight from Submitted (no Mark Reviewed).",
+   "description": "Skip the Reviewed step \u2014 HR can Sync submissions straight from Submitted (no Mark Reviewed).",
    "fieldname": "disable_review",
    "fieldtype": "Check",
    "label": "Disable Review"
@@ -293,13 +294,18 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_lwvb",
-   "fieldtype": "Column Break"
+   "fieldname": "section_break_jenf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "tab_form_display",
+   "fieldtype": "Tab Break",
+   "label": "Form Display"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-28 15:28:08.354971",
+ "modified": "2026-11-06 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Self Update Info Setting",
