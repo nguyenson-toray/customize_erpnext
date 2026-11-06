@@ -1,0 +1,123 @@
+{% include "lms/www/_lms.html" %}
+{% raw %}
+<script>
+	// Adds "Export PDF" to the LMS lesson page. The LMS frontend has no extension point and is
+	// a built bundle, so the button is placed from outside Vue and re-placed when Vue re-renders.
+	(function () {
+		var BUTTON_ID = "tiqn-lesson-pdf";
+		var LESSON_PATH = /\/courses\/([^/]+)\/learn\/(\d+)-(\d+)\/?$/;
+		var EXPORT_URL = "/api/method/customize_erpnext.api.lms_lesson_pdf.download_lesson_pdf";
+		var exporting = false;
+
+		function translate(message) {
+			return window.__ ? window.__(message) : message;
+		}
+
+		function isLoggedIn() {
+			return /(?:^|;\s*)user_id=(?!Guest(?:;|$))[^;]/.test(document.cookie);
+		}
+
+		function buttonLabel() {
+			return translate(exporting ? "Exporting..." : "Export PDF");
+		}
+
+		function createButton() {
+			var button = document.createElement("button");
+			button.id = BUTTON_ID;
+			button.type = "button";
+			button.addEventListener("click", function () {
+				exportLesson(button);
+			});
+			return button;
+		}
+
+		function placeButton(button, heading) {
+			// Previous/Next row on desktop. It is not rendered on mobile.
+			var actions = heading.parentElement.nextElementSibling;
+			var sample = actions && actions.querySelector("button:last-of-type");
+			var parent = sample ? actions : heading.parentElement;
+
+			if (button.parentElement !== parent) {
+				parent.insertBefore(button, sample ? actions.firstChild : null);
+			}
+			if (sample) {
+				button.className = sample.className;
+				button.style.cssText = "padding: 0 8px; white-space: nowrap;";
+			} else {
+				button.style.cssText =
+					"display: block; margin-top: 8px; padding: 4px 8px; border: 1px solid currentColor; border-radius: 6px; font-size: 14px;";
+			}
+		}
+
+		function sync() {
+			var button = document.getElementById(BUTTON_ID);
+			var heading =
+				isLoggedIn() && LESSON_PATH.test(location.pathname) && document.querySelector("h1");
+
+			if (!heading) {
+				if (button) button.remove();
+				return;
+			}
+			button = button || createButton();
+			placeButton(button, heading);
+			if (button.textContent !== buttonLabel()) button.textContent = buttonLabel();
+		}
+
+		function saveFile(blob, fileName) {
+			var url = URL.createObjectURL(blob);
+			var link = document.createElement("a");
+			link.href = url;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(url);
+		}
+
+		function pdfFileName(chapter, lesson) {
+			var heading = document.querySelector("h1");
+			var title = heading ? heading.textContent.trim().replace(/[\\/:*?"<>|]+/g, " ") : "";
+			return chapter + "-" + lesson + (title ? " " + title : "") + ".pdf";
+		}
+
+		function exportLesson(button) {
+			var match = location.pathname.match(LESSON_PATH);
+			if (!match || exporting) return;
+
+			var fileName = pdfFileName(match[2], match[3]);
+			var query = new URLSearchParams({
+				course: decodeURIComponent(match[1]),
+				chapter: match[2],
+				lesson: match[3],
+			});
+
+			exporting = true;
+			button.disabled = true;
+			sync();
+			fetch(EXPORT_URL + "?" + query, { credentials: "same-origin" })
+				.then(function (response) {
+					if (!response.ok) throw new Error(response.status);
+					return response.blob();
+				})
+				.then(function (blob) {
+					saveFile(blob, fileName);
+				})
+				.catch(function () {
+					window.alert(translate("Could not export this lesson to PDF."));
+				})
+				.finally(function () {
+					exporting = false;
+					button.disabled = false;
+					sync();
+				});
+		}
+
+		var pending = null;
+		new MutationObserver(function () {
+			clearTimeout(pending);
+			pending = setTimeout(sync, 100);
+		}).observe(document.body, { childList: true, subtree: true });
+		sync();
+	})();
+</script>
+{% endraw %}
