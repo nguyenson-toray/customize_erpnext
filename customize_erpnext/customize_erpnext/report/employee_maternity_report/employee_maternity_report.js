@@ -136,14 +136,16 @@ function show_maternity_report_help() {
 				Bấm lại thẻ đó để xem tất cả.</li>
 			<li>Hoặc: ở ô lọc <b>Maternity Status / Tình trạng thai sản</b>, chọn tên nhóm. Để trống ô này = xem tất cả.</li>
 			<li>Khi chọn nhóm <b>Pregnant / Mang thai</b> sẽ hiện thêm ô <b>Overtime / Tăng ca</b>:
-				chọn <b>Not Allowed / Không được</b> để xem ai đã tới tháng thứ 7 (tính tại <b>To Date / Đến ngày</b>).</li>
+				chọn <b>Not Allowed / Không được phép</b> để xem ai đã tới tháng thứ 7, hoặc <b>Allowed / Được phép</b> để xem ai chưa tới.
+				Kết quả tính tại <b>To Date / Đến ngày</b> (xem mục <b>Overtime / Tăng ca</b> bên dưới).</li>
 			<li>Lọc thêm theo <b>Department / Phòng ban</b>, <b>Group / Nhóm</b> nếu cần.</li>
-			<li><b>Compact View / Rút gọn</b> (mặc định bật): chỉ hiện 4 mốc của chu kỳ —
+			<li><b>Compact View / Rút gọn</b> (mặc định tắt): tick để chỉ hiện 4 mốc của chu kỳ —
 				<b>Pregnant From / Mang thai từ</b>, <b>Maternity From / Nghỉ thai sản từ</b>,
 				<b>Young Child From / Con nhỏ từ</b> (= ngày đi làm lại), <b>Young Child To / Con nhỏ đến</b> (= kết thúc chu kỳ)
 				— và <b>Relieving Date / Ngày bắt đầu nghỉ việc</b>. Bỏ tick để xem đầy đủ: mỗi giai đoạn đủ 2 cột From – To,
 				thêm <b>Department / Phòng ban</b>, <b>Pregnancy Notified Date / Ngày nhận thông tin mang thai</b>,
 				<b>Estimated Due Date / Ngày dự sinh</b>, <b>Gestational Age (Months) / Tuổi thai (Tháng)</b>.
+					Hai cột <b>7th Month Start Date / Ngày bắt đầu tháng thứ 7</b> và <b>Overtime / Tăng ca</b> hiện ở cả 2 chế độ.</li>
 				
 		</ol>
 
@@ -165,8 +167,9 @@ function show_maternity_report_help() {
 			<tr><td style="width:30%"><b>In Period / Trong kỳ</b></td><td>Hồ sơ thuộc những nhóm nào trong kỳ đã chọn.</td></tr>
 			<tr><td><b>7th Month Start Date / Ngày bắt đầu tháng thứ 7</b></td><td>= Ngày dự sinh − 3 tháng (giống Excel <code>EDATE(Ngày dự sinh; -3)</code>).</td></tr>
 			<tr><td><b>Overtime / Tăng ca</b></td><td>Tính tại <b>To Date / Đến ngày</b>:
-				chỉ có khi đang <b>Mang thai</b> — từ ngày bắt đầu tháng thứ 7 là <b>Not Allowed / Không được</b>,
-				trước đó là <b>Allowed / Được</b>. Trống khi không ở giai đoạn Mang thai, chưa có ngày dự sinh hoặc đã nghỉ việc. Muốn xem đúng hôm nay thì bấm <b>Today / Hôm nay</b>.</td></tr>
+				chỉ có khi đang <b>Mang thai</b> — từ ngày bắt đầu tháng thứ 7 là <b>Not Allowed / Không được phép</b> (màu đỏ),
+				trước đó là <b>Allowed / Được phép</b> (màu xanh). Trống khi không ở giai đoạn Mang thai, chưa có ngày dự sinh hoặc đã nghỉ việc.
+				Xem thêm mục <b>Overtime / Tăng ca</b> bên dưới.</td></tr>
 			<tr><td><b>Young Child From / Con nhỏ từ</b></td><td>Ngày đi làm lại = ngày hết nghỉ thai sản + 1.</td></tr>
 			<tr><td><b>Young Child To / Con nhỏ đến</b></td><td>Kết thúc chu kỳ = ngày hết chế độ con nhỏ (con đủ 12 tháng). Để trống khi chưa nhập ngày sinh con.</td></tr>
 			<tr><td><b>Leave Months / Số tháng nghỉ thai sản</b></td><td>Mặc định 6; con thứ 2 được 7; sinh đôi cộng thêm 1 (con thứ 2 sinh đôi = 8).</td></tr>
@@ -185,6 +188,22 @@ function show_maternity_report_help() {
 				Ngày nghỉ việc 01/12 → <b>Did Not Return / Không quay lại làm</b>; ngày nghỉ việc 15/02 năm sau → <b>Young Child / Con nhỏ</b>.</div>
 			</td></tr>
 		</table>
+
+		<h5>Overtime / Tăng ca: đọc thế nào cho đúng</h5>
+		<ul>
+			<li><b>Report tính theo To Date / Đến ngày</b>, mà mặc định To Date là cuối tháng. Vì vậy:
+				<ul style="margin:4px 0 0 0">
+					<li>Người tới tháng thứ 7 vào cuối tháng đã hiện <b>Not Allowed / Không được phép</b>, dù hôm nay chưa tới.</li>
+					<li>Người hết giai đoạn Mang thai trước To Date có ô <b>trống</b>, dù hôm nay vẫn đang là Not Allowed.</li>
+				</ul>
+			</li>
+			<li><b>Muốn biết tình hình hôm nay</b> → bấm <b>Today / Hôm nay</b>, rồi mới đọc cột hoặc dùng ô lọc Overtime.</li>
+			<li><b>Liên quan Overtime Registration:</b> dialog <b>Select Employees</b> ẩn người có hồ sơ đang ở
+				<b>Maternity Leave / Nghỉ thai sản</b>, hoặc <b>Pregnant / Mang thai</b> kèm Overtime = <b>Not Allowed / Không được phép</b>.
+				Người ở giai đoạn <b>Young Child / Con nhỏ</b> không bị ẩn.</li>
+			<li>Dialog đọc giá trị <b>đang lưu trên hồ sơ</b> (tự cập nhật mỗi đêm và mỗi lần lưu hồ sơ), tức là theo <b>hôm nay</b>,
+				không theo ngày tăng ca đang đăng ký. Việc ẩn này chỉ áp dụng trong dialog đó.</li>
+		</ul>
 
 		<h5>Lưu ý</h5>
 		<ul>
