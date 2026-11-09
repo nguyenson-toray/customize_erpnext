@@ -44,6 +44,17 @@ frappe.query_reports["Overtime Registration"] = {
 		}
 	],
 
+	onload: function (report) {
+		// Hide the Status filter while Overtime Registration is not submittable
+		frappe.model.with_doctype("Overtime Registration", () => {
+			if (frappe.get_meta("Overtime Registration").is_submittable) return;
+			const status_filter = report.get_filter("status");
+			if (!status_filter) return;
+			if (status_filter.get_value()) status_filter.set_value("");
+			status_filter.toggle(false);
+		});
+	},
+
 	"formatter": function (value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 

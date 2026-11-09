@@ -6,9 +6,23 @@ from frappe import _
 from frappe.utils import formatdate, time_diff_in_hours
 
 def execute(filters=None):
-    columns = get_columns()
+    # Submitted/Draft split only means something while the DocType is submittable
+    submittable = bool(frappe.get_meta("Overtime Registration").is_submittable)
+    columns = get_columns() if submittable else get_columns_not_submittable()
     data = get_data(filters)
+    if not submittable:
+        # Every saved registration is docstatus 0, so the "draft" totals are the totals
+        for row in data:
+            row.total_employees = row.total_employees_draft
+            row.total_hours = row.total_hours_draft
     return columns, data
+
+def get_columns_not_submittable():
+    return [
+        {"fieldname": "group", "label": _("Group"), "fieldtype": "Data", "width": 120},
+        {"fieldname": "total_employees", "label": _("Total Employees"), "fieldtype": "Int", "width": 200},
+        {"fieldname": "total_hours", "label": _("Total Hours"), "fieldtype": "Float", "width": 200, "precision": 1},
+    ]
 
 def get_columns():
     return [

@@ -36,5 +36,14 @@ frappe.query_reports["Overtime Registration by Time Slot"] = {
 			"fieldtype": "Link",
 			"options": "Section"
 		}
-	]
+	],
+
+	onload: function (report) {
+		// Hide the Status filter while Overtime Registration is not submittable
+		frappe.model.with_doctype("Overtime Registration", () => {
+			if (frappe.get_meta("Overtime Registration").is_submittable) return;
+			const status_filter = report.get_filter("status");
+			if (status_filter) status_filter.toggle(false);
+		});
+	}
 };

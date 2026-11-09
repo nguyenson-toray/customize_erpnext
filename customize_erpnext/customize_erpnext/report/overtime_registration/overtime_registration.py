@@ -6,12 +6,14 @@ from frappe import _
 from frappe.utils import formatdate, format_time, time_diff_in_hours
 
 def execute(filters=None):
-    columns = get_columns()
-    data = get_data(filters)
+    # Status (Draft/Submitted/...) only means something while the DocType is submittable
+    submittable = bool(frappe.get_meta("Overtime Registration").is_submittable)
+    columns = get_columns(submittable)
+    data = get_data(filters, submittable)
     return columns, data
 
-def get_columns():
-    return [
+def get_columns(submittable=True):
+    columns = [
         {
             "fieldname": "overtime_registration",
             "label": _("Overtime Registration"),
@@ -69,15 +71,17 @@ def get_columns():
             "fieldtype": "Data",
             "width": 300
         },
-        {
+    ]
+    if submittable:
+        columns.append({
             "fieldname": "status",
             "label": _("Status"),
             "fieldtype": "Data",
             "width": 100
-        }
-    ]
+        })
+    return columns
 
-def get_data(filters=None):
+def get_data(filters=None, submittable=True):
     if not filters:
         filters = {}
     
@@ -105,10 +109,10 @@ def get_data(filters=None):
         values["employee"] = filters.get("employee")
     
     if filters.get("group"):
-        conditions.append("emp.group = %(group)s")
+        conditions.append("detail.`group` = %(group)s")
         values["group"] = filters.get("group")
     
-    if filters.get("status"):
+    if submittable and filters.get("status"):
         if filters.get("status") == "Draft":
             conditions.append("parent.docstatus = 0")
         elif filters.get("status") == "Submitted":

@@ -16,6 +16,8 @@ STATUS_DOCSTATUS = {
 	"Submitted": "parent.docstatus = 1 AND IFNULL(parent.workflow_state, '') != 'Rejected'",
 	"All (except Cancelled)": "parent.docstatus < 2 AND IFNULL(parent.workflow_state, '') != 'Rejected'",
 }
+# Not submittable: every saved registration is docstatus 0, Status filter is moot
+ALL_SAVED = "parent.docstatus < 2"
 
 
 def execute(filters=None):
@@ -50,7 +52,10 @@ def get_columns():
 
 
 def get_data(filters):
-	conditions = [STATUS_DOCSTATUS.get(filters.status, STATUS_DOCSTATUS["Draft"])]
+	if frappe.get_meta("Overtime Registration").is_submittable:
+		conditions = [STATUS_DOCSTATUS.get(filters.status, STATUS_DOCSTATUS["Draft"])]
+	else:
+		conditions = [ALL_SAVED]
 	values = {}
 
 	if filters.get("from_date"):
