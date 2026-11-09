@@ -11,10 +11,16 @@ import datetime
 
 from frappe.utils import flt
 
-from customize_erpnext.overrides.earned_leave.earned_leave import build_earned_leave_rows
+import frappe
+
+from customize_erpnext.overrides.earned_leave.earned_leave import (
+    build_earned_leave_rows,
+    get_leaves_for_passed_period_from_eligibility,
+)
 from customize_erpnext.overrides.earned_leave.earned_leave_config import (
     count_qualifying_months,
     get_period_entitlement,
+    get_period_max_annual,
     is_working_month,
     round_leaves_by_law,
 )
@@ -113,5 +119,50 @@ for years, want in [(3, 0), (5, 1), (9, 1), (10, 2), (16, 3)]:
     doj = datetime.date(2026 - years, 1, 1)
     got = calculate_seniority_bonus(doj, ref)
     check(f"{years:>2} năm -> +{want}", got == want, f"(got {got})")
+
+print("\n=== 8. Thâm niên áp từ đúng tháng đủ mốc (Điều 114), không theo ngày tạo allocation ===")
+# 8.1 Chị A: vào 01/03/2021, đủ 5 năm từ tháng 3/2026 -> 2 tháng x 14/12 + 10 tháng x 15/12 = 14,83 -> 15
+elig, rows, total = rows_for(datetime.date(2021, 3, 1), 30)
+by_month = {r["allocation_date"].month: r["number_of_leaves"] for r in rows}
+check("8.1 tháng 1-2 = 1,17", by_month.get(1) == 1.17 and by_month.get(2) == 1.17, f"(got {by_month.get(1)}, {by_month.get(2)})")
+check("8.1 tháng 3-11 = 1,25", all(by_month.get(m) == 1.25 for m in range(3, 12)))
+check("8.1 tổng = 15", total == 15.0, f"(got {total})")
+
+# 8.2 Không phụ thuộc ngày tạo: DOJ 13/12/2021, kỳ 26/12/2026-25/12/2027
+doj82 = datetime.date(2021, 12, 13)
+elig82, _ = calculate_eligibility_date(doj82, 30, 30)
+lpa = frappe._dict(employee="__test__", effective_from=datetime.date(2026, 12, 26),
+                   effective_to=datetime.date(2027, 12, 25))
+old_flag = frappe.flags.current_date
+totals, fulls = {}, {}
+try:
+    for cd in (datetime.date(2026, 12, 1), datetime.date(2027, 1, 10), datetime.date(2027, 12, 25)):
+        frappe.flags.current_date = cd
+        totals[cd] = get_leaves_for_passed_period_from_eligibility(lpa, ANNUAL, None, doj82, elig82)
+        fulls[cd] = rows_for(doj82, 30, lpa.effective_from, lpa.effective_to)[2]
+finally:
+    frappe.flags.current_date = old_flag
+print(f"  tổng phần đã qua theo ngày tạo: {totals}")
+_, _, full82 = rows_for(doj82, 30, datetime.date(2026, 12, 26), datetime.date(2027, 12, 25))
+check("8.2 cả kỳ = 15", full82 == 15.0, f"(got {full82})")
+check("8.2 tổng cả kỳ giống nhau với mọi ngày tạo (current_date)",
+      set(fulls.values()) == {15.0}, f"(got {fulls})")
+check("8.2 cùng nguồn: tạo ngày 25/12/2027 (đã qua hết) = 15",
+      totals[datetime.date(2027, 12, 25)] == 15.0, f"(got {totals[datetime.date(2027, 12, 25)]})")
+check("8.2 phần đã qua tăng dần, không phụ thuộc ngày tạo để quyết mức",
+      totals[datetime.date(2026, 12, 1)] <= totals[datetime.date(2027, 1, 10)] <= totals[datetime.date(2027, 12, 25)])
+
+# 8.3 Lứa 13/12/2021, kỳ 26/12/2025-25/12/2026: 11 x 14/12 + 15/12 = 14,08 -> 14
+_, _, t83 = rows_for(doj82, 30, datetime.date(2025, 12, 26), datetime.date(2026, 12, 25))
+check("8.3 kỳ 2026 (đủ mốc 13/12) = 14", t83 == 14.0, f"(got {t83})")
+
+# 8.4 Mốc 10 năm giữa kỳ: 6 x 15/12 + 6 x 16/12 = 15,5 -> 16
+_, _, t84 = rows_for(datetime.date(2016, 7, 1), 30)
+check("8.4 mốc 10 năm giữa kỳ = 16", t84 == 16.0, f"(got {t84})")
+
+# 8.5 Trần cả kỳ
+check("8.5 get_period_max_annual(14, 13/12/2021, 25/12/2027) = 15",
+      get_period_max_annual(14, doj82, datetime.date(2027, 12, 25)) == 15)
+check("8.5 không có DOJ -> mức nền", get_period_max_annual(14, None, datetime.date(2027, 12, 25)) == 14)
 
 print(f"\n{'=' * 60}\nPASS {_ok}   FAIL {_fail}\n{'=' * 60}")

@@ -195,10 +195,12 @@ bỏ qua kiểm số dư cho chúng.
 #### Phép năm — tích luỹ theo tháng
 
 `Phép năm` là **earned leave** (`is_earned_leave = 1`, `Monthly`, `allocate_on_day = 15th of
-Month`, `max_leaves_allowed = 14`), cộng **+1 ngày mỗi 5 năm thâm niên** (BLLĐ Đ.114).
+Month`), mức nền **14 ngày** lấy từ Leave Policy (`max_leaves_allowed = 0` — không giới hạn, xem
+`earned_leave_override.md` mục 5), cộng **+1 ngày mỗi 5 năm thâm niên** (BLLĐ Đ.114) **áp từ đúng
+tháng đủ 5/10/15… năm**, không theo ngày tạo allocation.
 
 > 🔴 **Nguồn sự thật cho phần này là [`earned_leave_override.md`](../earned_leave/earned_leave_override.md)**
-> (cập nhật 15/08/2026), kèm `test_earned_leave_law.py` — 47 assert. Mục dưới đây chỉ tóm tắt để
+> (cập nhật 09/11/2026), kèm `test_earned_leave_law.py` — 58 assert. Mục dưới đây chỉ tóm tắt để
 > đọc liền mạch với quy định nghỉ phép; **khi hai bên lệch thì file kia thắng**.
 
 ##### Ba quy tắc

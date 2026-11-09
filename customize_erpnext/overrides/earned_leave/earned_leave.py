@@ -338,10 +338,21 @@ def custom_get_new_leaves(self, annual_allocation, leave_details, date_of_joinin
 
     # leave allocation should not exceed annual allocation as per policy assignment
     # except when allocation is of earned type and yearly
-    if new_leaves_allocated > annual_allocation and not (
+    # Trần = mức nền + thâm niên tại cuối kỳ (phần đã qua có thể vượt mức nền do thâm niên)
+    from customize_erpnext.overrides.earned_leave.earned_leave_config import (
+        get_period_max_annual,
+    )
+
+    # Thâm niên (Điều 114) chỉ áp cho phép năm; loại phép khác giữ trần = mức policy
+    max_annual = (
+        get_period_max_annual(annual_allocation, date_of_joining, self.effective_to)
+        if leave_details.is_earned_leave
+        else annual_allocation
+    )
+    if new_leaves_allocated > max_annual and not (
         leave_details.is_earned_leave and leave_details.earned_leave_frequency == "Yearly"
     ):
-        new_leaves_allocated = annual_allocation
+        new_leaves_allocated = max_annual
 
     # Clean up
     if hasattr(self, '_current_leave_details'):
@@ -420,10 +431,21 @@ def custom_get_new_leaves_with_eligibility(self, annual_allocation, leave_detail
 
     # leave allocation should not exceed annual allocation as per policy assignment
     # except when allocation is of earned type and yearly
-    if new_leaves_allocated > annual_allocation and not (
+    # Trần = mức nền + thâm niên tại cuối kỳ (phần đã qua có thể vượt mức nền do thâm niên)
+    from customize_erpnext.overrides.earned_leave.earned_leave_config import (
+        get_period_max_annual,
+    )
+
+    # Thâm niên (Điều 114) chỉ áp cho phép năm; loại phép khác giữ trần = mức policy
+    max_annual = (
+        get_period_max_annual(annual_allocation, date_of_joining, self.effective_to)
+        if leave_details.is_earned_leave
+        else annual_allocation
+    )
+    if new_leaves_allocated > max_annual and not (
         leave_details.is_earned_leave and leave_details.earned_leave_frequency == "Yearly"
     ):
-        new_leaves_allocated = annual_allocation
+        new_leaves_allocated = max_annual
 
     # Clean up
     if hasattr(self, '_current_leave_details'):
@@ -456,22 +478,14 @@ def get_leaves_for_passed_period_from_eligibility(
     Returns:
         float: Number of leaves to allocate
     """
-    from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        get_annual_allocation_with_seniority,
-    )
-
     current_date = getdate(frappe.flags.current_date) or getdate()
     doj = getdate(date_of_joining)
-
-    total_annual = get_annual_allocation_with_seniority(
-        annual_allocation, doj, current_date
-    )
 
     # Dùng chung bộ dựng lịch với custom_get_earned_leave_schedule() để hai bên không lệch:
     # phần "đã qua" chính là tổng các kỳ có ngày cấp <= hôm nay.
     rows = build_earned_leave_rows(
         self.employee,
-        total_annual,
+        annual_allocation,
         self.effective_from,
         self.effective_to,
         doj,
@@ -519,8 +533,8 @@ def custom_allocate_earned_leaves():
         log_eligibility_skip,
     )
     from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        get_monthly_allocation_for_month,
-        get_annual_allocation_with_seniority,
+        get_monthly_rate_for_date,
+        get_period_max_annual,
     )
 
     e_leave_types = get_earned_leaves()
@@ -582,18 +596,21 @@ def custom_allocate_earned_leaves():
                 continue
 
             # ========== CALCULATE MONTHLY ALLOCATION WITH SENIORITY ==========
-            # Calculate annual allocation with seniority bonus
-            annual_allocation = get_annual_allocation_with_seniority(
-                base_annual_allocation, date_of_joining, today
-            ) if date_of_joining else base_annual_allocation
+            # Trần cả kỳ = mức nền + thâm niên tại CUỐI kỳ (thâm niên áp theo từng tháng,
+            # không theo ngày chạy job).
+            annual_allocation = get_period_max_annual(
+                base_annual_allocation, date_of_joining, allocation.to_date
+            )
 
-            # Ưu tiên số đã lên lịch trong Earned Leave Schedule: kỳ tháng 12 đã được
-            # điều chỉnh cho khớp tổng năm (_true_up_december), tính lại ở đây sẽ ra con số
-            # khác và làm cả năm cộng không đủ annual_allocation.
+            # Ưu tiên số đã lên lịch trong Earned Leave Schedule: kỳ cuối đã được điều chỉnh
+            # cho khớp quyền lợi cả kỳ (_true_up_last_period), tính lại ở đây sẽ ra con số
+            # khác và làm cả kỳ cộng không đủ quyền lợi.
             if allocation.earned_leave_schedule_exists and scheduled_leaves is not None:
                 earned_leaves = flt(scheduled_leaves)
             else:
-                earned_leaves = get_monthly_allocation_for_month(today.month, annual_allocation)
+                earned_leaves = get_monthly_rate_for_date(
+                    base_annual_allocation, date_of_joining, today
+                )
 
             try:
                 # Update allocation using custom logic
@@ -758,17 +775,10 @@ def custom_get_earned_leave_schedule(
     from customize_erpnext.overrides.earned_leave.earned_leave_eligibility import (
         is_employee_eligible_for_earned_leave,
     )
-    from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        get_annual_allocation_with_seniority,
-    )
 
     today = getdate(frappe.flags.current_date) or getdate()
     from_date = getdate(self.effective_from)
     doj = getdate(date_of_joining) if date_of_joining else None
-
-    total_annual = get_annual_allocation_with_seniority(
-        annual_allocation, doj, today
-    ) if doj else annual_allocation
 
     eligibility_result = is_employee_eligible_for_earned_leave(
         self.employee, from_date, leave_details.name
@@ -776,7 +786,7 @@ def custom_get_earned_leave_schedule(
     eligibility_date = eligibility_result["eligibility_date"] or from_date
 
     rows = build_earned_leave_rows(
-        self.employee, total_annual, from_date, self.effective_to, doj, eligibility_date
+        self.employee, annual_allocation, from_date, self.effective_to, doj, eligibility_date
     )
 
     schedule = []
@@ -808,7 +818,7 @@ def custom_get_earned_leave_schedule(
 
 
 def build_earned_leave_rows(
-    employee, annual_allocation, period_from, period_to, date_of_joining, eligibility_date
+    employee, base_annual, period_from, period_to, date_of_joining, eligibility_date
 ):
     """Nguồn sự thật DUY NHẤT cho lịch cấp phép năm của một kỳ.
 
@@ -821,15 +831,16 @@ def build_earned_leave_rows(
       2. Các tháng rơi vào thời gian thử việc KHÔNG mất — được **truy thu** gộp vào kỳ cấp
          đầu tiên sau ngày hết thử việc.
       3. Tổng cả lịch = quyền lợi cả kỳ đã làm tròn theo Điều 66; kỳ cuối gánh phần dư.
+      4. `base_annual` là mức NỀN của Leave Policy (chưa gồm thâm niên). Thâm niên cộng theo
+         từng tháng (tại ngày 15 của tháng đó), nên mức mỗi kỳ cấp phụ thuộc ngày của kỳ,
+         không phụ thuộc ngày dựng lịch.
 
     Trả về list[dict] đã sắp theo ngày, mỗi dict có allocation_date + number_of_leaves.
     """
-    from frappe.utils import add_months
     from customize_erpnext.overrides.earned_leave.earned_leave_config import (
-        QUALIFYING_DAY_OF_MONTH,
-        get_monthly_rate,
+        get_monthly_rate_for_date,
         get_period_entitlement,
-        is_working_month,
+        get_qualifying_dates,
     )
 
     period_from, period_to = getdate(period_from), getdate(period_to)
@@ -838,18 +849,13 @@ def build_earned_leave_rows(
     relieving_date = frappe.db.get_value("Employee", employee, "relieving_date")
 
     entitlement = get_period_entitlement(
-        annual_allocation, period_from, period_to, doj, relieving_date
+        base_annual, period_from, period_to, doj, relieving_date
     )
     if not entitlement:
         return []
 
     # Mọi kỳ cấp đủ điều kiện trong kỳ phép
-    qualifying = []
-    cursor = datetime.date(period_from.year, period_from.month, QUALIFYING_DAY_OF_MONTH)
-    while cursor <= period_to:
-        if cursor >= period_from and is_working_month(cursor, doj, relieving_date):
-            qualifying.append(cursor)
-        cursor = getdate(add_months(cursor, 1))
+    qualifying = get_qualifying_dates(period_from, period_to, doj, relieving_date)
 
     if not qualifying:
         return []
@@ -858,18 +864,26 @@ def build_earned_leave_rows(
     deferred = [d for d in qualifying if d < eligibility_date]
     payable = [d for d in qualifying if d >= eligibility_date]
 
-    if not payable:
+    def rate(d):
+        return get_monthly_rate_for_date(base_annual, doj, d)
+
+    fallback = not payable
+    if fallback:
         # Hết thử việc sau kỳ cấp cuối cùng (vd vào làm cuối tháng 11). Không được để mất:
         # cấp bù đúng ngày hết thử việc, miễn là còn nằm trong kỳ phép.
         if eligibility_date > period_to:
             return []
         payable = [eligibility_date]
 
-    monthly = get_monthly_rate(annual_allocation)
     rows = []
     for idx, d in enumerate(payable):
-        months = 1 + len(deferred) if idx == 0 else 1
-        rows.append({"allocation_date": d, "number_of_leaves": flt(monthly * months, 2)})
+        if idx == 0:
+            # Kỳ đầu gộp truy thu các tháng thử việc (mỗi tháng theo mức tại ngày 15 của nó)
+            first_dates = list(deferred) if fallback else deferred + [d]
+            leaves = sum(rate(x) for x in first_dates)
+        else:
+            leaves = rate(d)
+        rows.append({"allocation_date": d, "number_of_leaves": flt(leaves, 2)})
 
     _true_up_last_period(rows, entitlement)
     return rows

@@ -2,9 +2,12 @@
 
 > **Mục đích:** Tính phép năm theo Bộ luật Lao động 2019: tỷ lệ theo tháng thực làm, thử việc được hoãn chứ không mất, làm tròn trên tổng.
 > **Phạm vi:** Override HRMS/ERPNext
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-15
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-11-09
 
-**Cập nhật:** 2026-08-15 — viết lại toàn bộ sau khi rà soát pháp lý.
+**Cập nhật:** 2026-11-09 — thâm niên (Điều 114) áp từ đúng tháng đủ mốc, không theo ngày tạo
+allocation (mục 2.5); `max_leaves_allowed` = 0 (mục 5).
+
+**2026-08-15** — viết lại toàn bộ sau khi rà soát pháp lý.
 Bản trước (2026-02-05) mô tả chiến lược "tháng bonus" đã bị bỏ từ 10/08/2026 và ghi
 "không đủ điều kiện → bỏ qua, KHÔNG cộng dồn" như hành vi cố ý; điều đó **trái luật**.
 
@@ -67,12 +70,14 @@ xét điều kiện là **một**, không sinh ra trường hợp lệch.
 ### 2.3. Công thức và mức cấp từng tháng
 
 ```
-quyền lợi cả kỳ = LÀM_TRÒN_LUẬT( annual / 12 × số_tháng_đủ_điều_kiện )
-mức mỗi tháng   = annual / 12          (làm tròn 2 chữ số để lưu)
+quyền lợi cả kỳ = LÀM_TRÒN_LUẬT( Σ_{tháng đủ ĐK} (nền + thâm niên tại ngày 15 của tháng đó) / 12 )
+mức mỗi tháng   = (nền + thâm niên tại ngày 15 tháng đó) / 12   (làm tròn 2 chữ số để lưu)
 kỳ CUỐI CÙNG    = quyền lợi cả kỳ − tổng các kỳ trước
 ```
 
-`annual` = `Leave Type.max_leaves_allowed` + thâm niên (mục 2.4).
+`nền` = **Leave Policy `annual_allocation`** (không phải `Leave Type.max_leaves_allowed`), chưa gồm
+thâm niên. Thâm niên cộng theo từng tháng (mục 2.5). Phép tính cộng giá trị CHƯA làm tròn của từng
+tháng rồi mới làm tròn tổng.
 
 Kỳ cuối gánh phần dư để tổng khớp tuyệt đối với quyền lợi, kể cả khi có kỳ gộp (truy thu thử việc)
 hoặc kỳ không trọn năm.
@@ -102,7 +107,7 @@ Ví dụ với annual = 14:
 > ⚠ `Leave Type.rounding` đang để trống và hàm `round_earned_leaves()` **chưa từng được gọi ở đâu**
 > — code chết. Quy tắc làm tròn nay nằm ở `round_leaves_by_law()`.
 
-### 2.5. Thâm niên (Điều 114) — phần này bản cũ đã đúng
+### 2.5. Thâm niên (Điều 114) — áp từ đúng tháng đủ mốc
 
 | Thâm niên | Bonus | Annual (base 14) |
 |---|---|---|
@@ -111,7 +116,16 @@ Ví dụ với annual = 14:
 | 10–14 năm | +2 | 16 |
 | 15–19 năm | +3 | 17 |
 
-Tính từ DOJ (thời gian thử việc **được** tính vào thâm niên) đến ngày tham chiếu.
+Tính từ DOJ (thời gian thử việc **được** tính vào thâm niên) đến **ngày 15 của từng tháng** trong
+kỳ (cùng mốc xét tháng ở mục 2.1). Bonus **áp từ đúng tháng đủ 5/10/15… năm**, không phụ thuộc ngày
+HR tạo Leave Allocation.
+
+Ví dụ chị A, vào làm 01/03/2021, kỳ 2026 (nền 14): đủ 5 năm từ tháng 3/2026 →
+2 tháng × 14/12 + 10 tháng × 15/12 = 14,83 → **15 ngày**. Tạo allocation tháng 1 hay tháng 12 đều
+ra 15.
+
+Trần cả kỳ (kiểm lúc tạo LPA và lúc cấp hằng tháng) = nền + thâm niên tại **cuối kỳ**
+(`get_period_max_annual`).
 
 ---
 
@@ -189,6 +203,9 @@ overrides/earned_leave/
 | `get_monthly_rate(annual)` | `annual / 12`, 2 chữ số |
 | `get_period_entitlement(annual, from, to, doj, relieving)` | quyền lợi cả kỳ đã làm tròn |
 | `get_annual_allocation_with_seniority(base, doj, ref)` | cộng thâm niên (Điều 114) |
+| `get_qualifying_dates(from, to, doj, relieving)` | list ngày 15 của các tháng đủ điều kiện |
+| `get_monthly_rate_for_date(base, doj, ref_date)` | mức một tháng = (nền + thâm niên tại ref_date) / 12 |
+| `get_period_max_annual(base, doj, period_to)` | trần cả kỳ = nền + thâm niên tại cuối kỳ |
 
 ---
 
@@ -199,10 +216,17 @@ Phép năm/ Annual leave
 ├── is_earned_leave: ✓
 ├── earned_leave_frequency: Monthly
 ├── allocate_on_day: 15th of Month     ← phải giữ; mốc xét tháng bám vào đây
-├── max_leaves_allowed: 14
+├── max_leaves_allowed: 0              ← KHÔNG giới hạn (đặt 09/11/2026, trước là 14) — xem ghi chú dưới
+├── maximum_carry_forwarded_leaves: 0  ← hiện không giới hạn phần chuyển sang; muốn giới hạn thì đặt ở đây
 ├── applicable_after: 30               ← fallback khi Employee.custom_probation_days trống
 └── rounding: (để trống)               ← KHÔNG dùng; làm tròn theo round_leaves_by_law()
 ```
+
+> `max_leaves_allowed` là **trần số dư gồm cả phép chuyển từ năm trước**. Đường cấp hằng tháng
+> (`custom_update_leave_allocation`) **throw `OverAllocationError`** và bỏ trọn kỳ đó khi
+> `total_leaves_allocated + kỳ này > max_leaves_allowed`. Để 14 thì người có quyền lợi 15 ngày
+> (thâm niên) hoặc có phép chuyển sang sẽ bị bỏ kỳ cuối. Trần thật đã nằm ở chỗ khác: nền + thâm niên
+> tối đa của kỳ, và `Leave Type.maximum_carry_forwarded_leaves`. 🔴 Đừng đặt lại 14.
 
 `Employee.custom_probation_days`: 980 NV = 30 ngày, 62 NV = 60 ngày, 3 NV để trống (dùng fallback 30).
 
@@ -215,6 +239,7 @@ Phép năm/ Annual leave
 2. **Đừng làm tròn từng tháng.** Chỉ làm tròn tổng quyền lợi; kỳ cuối gánh phần dư.
 3. **Kiểm cả hai chiều** sau mỗi thay đổi: người làm hết kỳ (không được thừa) và người nghỉ
    giữa kỳ (không được thiếu hơn luật).
-4. **Thâm niên tính đến ngày tham chiếu**, không tính đến cuối kỳ — nhân viên đủ 5 năm giữa kỳ
-   thì bonus áp từ lần dựng lịch kế tiếp.
+4. **Thâm niên tính theo từng tháng** (ngày 15 của tháng đó), không theo ngày tạo allocation.
+   Hàm nhận `annual_allocation` / `base_annual` luôn là mức NỀN của policy; đừng truyền vào số đã
+   cộng thâm niên (sẽ cộng đôi).
 5. Script đối chiếu nhanh: `test_earned_leave_law.py` cùng thư mục.

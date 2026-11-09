@@ -8,11 +8,13 @@ Constants and helper functions for earned leave allocation.
 Centralized configuration to avoid hard-coding values.
 
 Allocation Rules (TIQN + Vietnamese Labor Law):
-- Base: From Leave Type.max_leaves_allowed (default 14 days)
-- Seniority: +1 day per 5 years (Điều 114 BLLĐ 2019)
-- Strategy: Bonus months (June, December get extra)
-- Eligibility: After probation period
-- If not eligible in a month, skip it (no accumulation)
+- Base: Leave Policy annual_allocation (14 days) — NOT Leave Type.max_leaves_allowed
+- Seniority: +1 day per 5 years (Điều 114 BLLĐ 2019), applied per month from the month
+  the employee reaches 5/10/15... years (get_period_entitlement / get_monthly_rate_for_date)
+- Monthly rate = (base + seniority at that month's 15th) / 12; last period absorbs the
+  remainder so the schedule totals the law-rounded entitlement (Điều 66)
+- Eligibility: probation months are deferred to the first allocation after probation, not lost
+- See earned_leave_override.md
 """
 
 import datetime
@@ -209,32 +211,56 @@ def is_working_month(any_date_in_month, date_of_joining, relieving_date=None):
     return True
 
 
-def count_qualifying_months(period_from, period_to, date_of_joining, relieving_date=None):
-    """Số tháng đủ điều kiện trong kỳ phép — mẫu số của công thức tỷ lệ.
+def get_qualifying_dates(period_from, period_to, date_of_joining, relieving_date=None):
+    """Danh sách NGÀY 15 của các tháng đủ điều kiện trong kỳ phép (theo thứ tự thời gian).
 
-    Chỉ đếm những tháng mà **mốc ngày 15 nằm trong kỳ** và người lao động còn biên chế
-    tại mốc đó.
+    Chỉ lấy những tháng mà **mốc ngày 15 nằm trong kỳ** và người lao động còn biên chế
+    tại mốc đó. Dùng chung cho `count_qualifying_months`, `get_period_entitlement` và
+    `build_earned_leave_rows` để không lặp vòng duyệt tháng.
     """
     from frappe.utils import add_months
 
     start, end = getdate(period_from), getdate(period_to)
-    months = 0
+    dates = []
     cursor = datetime.date(start.year, start.month, QUALIFYING_DAY_OF_MONTH)
 
     while cursor <= end:
         if cursor >= start and is_working_month(cursor, date_of_joining, relieving_date):
-            months += 1
+            dates.append(cursor)
         cursor = getdate(add_months(cursor, 1))
 
-    return months
+    return dates
+
+
+def count_qualifying_months(period_from, period_to, date_of_joining, relieving_date=None):
+    """Số tháng đủ điều kiện trong kỳ phép — mẫu số của công thức tỷ lệ."""
+    return len(get_qualifying_dates(period_from, period_to, date_of_joining, relieving_date))
+
+
+def get_monthly_rate_for_date(base_annual, date_of_joining, ref_date):
+    """Mức của MỘT tháng đủ điều kiện = (mức nền + thâm niên tại ref_date) / 12, 2 chữ số."""
+    bonus = calculate_seniority_bonus(date_of_joining, ref_date) if date_of_joining else 0
+    return flt((flt(base_annual) + bonus) / 12.0, 2)
+
+
+def get_period_max_annual(base_annual, date_of_joining, period_to):
+    """Trần cả kỳ = mức nền + thâm niên tại cuối kỳ (mức cao nhất có thể đạt trong kỳ)."""
+    if not date_of_joining:
+        return flt(base_annual)
+    return get_annual_allocation_with_seniority(base_annual, date_of_joining, period_to)
 
 
 def get_period_entitlement(
-    annual_allocation, period_from, period_to, date_of_joining, relieving_date=None
+    base_annual, period_from, period_to, date_of_joining, relieving_date=None
 ):
     """Quyền lợi phép của cả kỳ, đã làm tròn theo luật.
 
-        entitlement = LÀM_TRÒN_LUẬT( annual / 12 × số tháng đủ điều kiện )
+        entitlement = LÀM_TRÒN_LUẬT( Σ_{tháng đủ ĐK} (nền + thâm niên tại ngày 15 tháng đó) / 12 )
+
+    `base_annual` là mức NỀN của Leave Policy (chưa gồm thâm niên). Thâm niên được cộng
+    theo TỪNG THÁNG, từ đúng tháng người lao động đủ 5/10/15… năm (Điều 114 BLLĐ 2019),
+    không phụ thuộc ngày tạo Leave Allocation. Cộng giá trị chưa làm tròn của từng tháng
+    rồi mới làm tròn tổng.
 
     Điều 113 khoản 2 BLLĐ 2019: làm chưa đủ 12 tháng thì phép tính **theo tỷ lệ**.
 
@@ -242,12 +268,18 @@ def get_period_entitlement(
     `annual − tổng các kỳ khác` **vô điều kiện**, nên người làm 5 tháng vẫn nhận đủ 14 ngày.
     Đo trên production 15/08/2026: 379 NV, thừa ~2.022 ngày.
     """
-    months = count_qualifying_months(
-        period_from, period_to, date_of_joining, relieving_date
-    )
-    if months <= 0:
+    dates = get_qualifying_dates(period_from, period_to, date_of_joining, relieving_date)
+    if not dates:
         return 0.0
-    return round_leaves_by_law(flt(annual_allocation) / 12.0 * months)
+    total = sum(
+        (
+            flt(base_annual)
+            + (calculate_seniority_bonus(date_of_joining, d) if date_of_joining else 0)
+        )
+        / 12.0
+        for d in dates
+    )
+    return round_leaves_by_law(total)
 
 
 def get_annual_allocation_breakdown(annual_allocation=None):
