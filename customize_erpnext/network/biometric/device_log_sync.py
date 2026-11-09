@@ -23,6 +23,14 @@ from 23/10/2026. README.md in this folder has the decisions and traps.
   the cycle stops while queue "short" holds more than RECALC_QUEUE_GUARD jobs (in case
   per-checkin recalc is switched on), and QueueOverloaded defers instead of failing.
   Stopping early never loses a punch.
+- Unchanged machines are skipped (plan .claude/plans/biometric_pull_skip_unchanged.md):
+  read_sizes() first (0.03–0.3 s, machine NOT locked); log count equal to the last clean
+  full read -> no read at all. 267/271 machine-reads of 09/11/2026 had nothing new.
+  Full read anyway: no stored count, last full read >= FULL_READ_EVERY ago, device near
+  capacity, dry run. The count is stored only after a clean cycle (no error / deferral /
+  future punch / re-enable warning); otherwise it is dropped so the next cycle reads.
+  Switch: site_config "biometric_pull_skip_unchanged" (0/absent = shadow: always read,
+  log would_skip, flag "skip-would-miss" if a would-be-skipped read inserted punches).
 """
 
 import logging
@@ -35,7 +43,7 @@ from frappe.utils import cint, get_datetime, getdate, now_datetime
 
 from customize_erpnext.network.biometric.machines import get_machines
 from customize_erpnext.network.biometric.resync import QUEUE_OVERLOADED_MARK, _add_checkin
-from customize_erpnext.network.biometric.zk_device import bulk_read_cfg, read_attendance
+from customize_erpnext.network.biometric.zk_device import bulk_read_cfg, near_full, read_attendance_if_changed
 
 SETTING = "Attendance Machine Setting"
 QUEUE = "biometric"
@@ -56,6 +64,9 @@ RECALC_QUEUE = "short"                     # employee_checkin._recalculate_atten
 RECALC_QUEUE_GUARD = 400                   # Frappe limit is 550 per queue
 MAX_INSERTS_PER_MACHINE = 1000             # morning peak backlog: max 331/machine (Machine 7)
 PEAK_START_MARGIN = timedelta(seconds=60)   # no read may start < 60 s before a peak (slowest read ~22–35 s)
+COUNT_KEY = "biometric_device_log_sync:count:{}"   # {"count", "full_read_at"} of the last clean full read
+FULL_READ_EVERY = timedelta(minutes=30)     # safety net: full read at least this often even if unchanged
+SKIP_FLAG = "biometric_pull_skip_unchanged"  # site_config; 0/absent = shadow mode (always read)
 
 
 def _logger():
@@ -216,27 +227,43 @@ def _recalc_queue_busy():
         return True
 
 
-def _read_all(machines, clear_after):
+def _known_count(device_name, now):
+    """Log count of the last clean full read of this machine, or None when a full read is
+    due (never read, read FULL_READ_EVERY ago or more, unreadable cache value)."""
+    try:
+        state = frappe.cache().get_value(COUNT_KEY.format(device_name)) or {}
+        if now - get_datetime(state["full_read_at"]) >= FULL_READ_EVERY:
+            return None
+        return int(state["count"])
+    except Exception:
+        return None
+
+
+def _read_all(machines, clear_after, known_counts=None):
     """Phase 2: read every machine IN PARALLEL (one thread per machine).
 
     🔴 Threads only talk to the devices (zk_device.read_attendance is pure pyzk);
     every frappe.* call (db, cache, log_error) stays in the calling thread.
     Each machine is still locked only for its own read (8–22 s); the whole read
     phase takes as long as the slowest machine instead of the sum (~90 s).
-    Returns {device_name: (records | None, warning, error, seconds)}.
+    `known_counts` {device_name: count}: a machine whose log count still equals it is
+    not read (records None). Returns {device_name: (records | None, warning, error,
+    seconds, info)} — info from read_attendance_if_changed, None on error.
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    jobs = [(m.device_name, bulk_read_cfg(m)) for m in machines]
+    known_counts = known_counts or {}
+    jobs = [(m.device_name, bulk_read_cfg(m), known_counts.get(m.device_name)) for m in machines]
 
     def work(job):
-        name, cfg = job
+        name, cfg, known = job
         started = _time.time()
         try:
-            records, warning = read_attendance(cfg, name, clear_after=clear_after)
-            return name, (records, warning, None, round(_time.time() - started, 1))
+            records, warning, info = read_attendance_if_changed(
+                cfg, name, known_count=known, clear_after=clear_after)
+            return name, (records, warning, None, round(_time.time() - started, 1), info)
         except Exception as e:
-            return name, (None, None, e, round(_time.time() - started, 1))
+            return name, (None, None, e, round(_time.time() - started, 1), None)
 
     if not jobs:
         return {}
@@ -309,20 +336,32 @@ def _run_device_log_sync(dry_run=False, ignore_peak=False):
             logger.info(prefix + _format_row(row))
         return report
     cursors = {m.device_name: _cursor(m.device_name) for m in machines}
+    # last clean full read of each machine; dry runs always read (and never store)
+    known = {} if dry_run else {m.device_name: _known_count(m.device_name, now) for m in machines}
+    skip_unchanged = cint(frappe.conf.get(SKIP_FLAG))
 
     # Phase 2
-    reads = _read_all(machines, clear_after=bool(settings.clear_from_device_on_fetch) and not dry_run)
+    reads = _read_all(machines, clear_after=bool(settings.clear_from_device_on_fetch) and not dry_run,
+                      known_counts=known if skip_unchanged else None)
 
     # Phase 3
     report, errors = [], []
     stop_reason = None
     for machine in machines:
         name = machine.device_name
-        records, warning, err, seconds = reads[name]
+        records, warning, err, seconds, info = reads[name]
         fail_key = FAIL_KEY.format(name)
-        if err is not None:
+        count_key = COUNT_KEY.format(name)
+        if err is None and records is None:
+            # log count unchanged since the last clean full read: machine left alone;
+            # keep the stored count and its full_read_at (the 30-min net keeps running)
+            row = {"machine": name, "ok": True, "unchanged": True, "read": info["count"], "new": 0,
+                   "processed": 0, "skipped": 0, "seconds": seconds}
+            frappe.cache().delete_value(fail_key)
+        elif err is not None:
             row = {"machine": name, "ok": False, "error": str(err), "seconds": seconds}
             if not dry_run:
+                frappe.cache().delete_value(count_key)
                 fails = cint(frappe.cache().get_value(fail_key)) + 1
                 frappe.cache().set_value(fail_key, fails, expires_in_sec=24 * 3600)
                 row["consecutive_failures"] = fails
@@ -350,6 +389,8 @@ def _run_device_log_sync(dry_run=False, ignore_peak=False):
                 row["error"] = "; ".join(x for x in (row.get("error"), warning) if x)
                 errors.append(row)
                 frappe.log_error(title=f"Attendance log pull: {name}", message=warning)
+            if not dry_run:
+                _store_count(name, row, info, known.get(name), now)
         report.append(row)
         logger.info(prefix + _format_row(row))
 
@@ -360,6 +401,29 @@ def _run_device_log_sync(dry_run=False, ignore_peak=False):
     if errors and not dry_run:
         _send_error_email(settings, errors)
     return report
+
+
+def _store_count(name, row, info, known_count, now):
+    """After a full read: keep its log count only when the cycle finished the machine
+    cleanly, so a later "unchanged" can never hide a punch that was read but not
+    inserted. Also the shadow-mode check (would this read have been skipped?)."""
+    count_key = COUNT_KEY.format(name)
+    clean = (row.get("ok") and not row.get("skip_reason") and not row.get("deferred")
+             and not row.get("errors") and not row.get("future"))
+    if clean and info:
+        frappe.cache().set_value(count_key, {"count": info["count"], "full_read_at": str(now)})
+    else:
+        frappe.cache().delete_value(count_key)
+
+    if info and known_count is not None and info["pre_count"] == known_count \
+            and not near_full(info["pre_count"], info["rec_cap"]):
+        row["would_skip"] = True
+        if row.get("processed"):
+            message = (f"{name}: log count {known_count} unchanged since the last clean full read, "
+                       f"yet {row['processed']} punch(es) were inserted — skipping this machine "
+                       f"would have missed them. Keep site_config {SKIP_FLAG} = 0.")
+            _logger().warning(f"skip-would-miss {message}")
+            frappe.log_error(title="Attendance log pull: skip-would-miss", message=message)
 
 
 def check_heartbeat():
@@ -401,12 +465,15 @@ def _format_row(row):
     # "skipped" = duplicates count; "skip_reason" = the machine was not processed (peak, queue busy)
     if row.get("skip_reason"):
         return f"{row['machine']}: skipped ({row['skip_reason']})"
+    if row.get("unchanged"):
+        return f"{row['machine']}: unchanged ({row['read']} logs) {row['seconds']}s"
     if row.get("read") is None:
         return f"{row['machine']}: FAILED ({row.get('consecutive_failures', 1)}x, {row.get('seconds')}s) {row['error']}"
     return (f"{row['machine']}: cursor={row['cursor']} read={row['read']} new={row['new']} "
             f"inserted={row['processed']} dup={row['skipped']} no_employee={row['skipped_no_employee']} "
             f"errors={row['errors']} junk={row['junk']} future={row['future']} {row['seconds']}s"
             + (f" deferred={row['deferred']}" if row.get("deferred") else "")
+            + (" would_skip=1" if row.get("would_skip") else "")
             + (f" — {row['error']}" if row.get("error") else ""))
 
 

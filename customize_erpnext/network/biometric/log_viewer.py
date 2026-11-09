@@ -85,6 +85,7 @@ def get_sync_status():
             "ok": r.get("ok"),
             "error": r.get("error"),
             "deferred": r.get("deferred"),
+            "unchanged": bool(r.get("unchanged")),
             "duplicates": r.get("skipped") if not isinstance(r.get("skipped"), str) else None,
             # cycles stored before 23/10 12:30 used "skipped" for the reason too
             "skip_reason": r.get("skip_reason") or (r.get("skipped") if isinstance(r.get("skipped"), str) else None),

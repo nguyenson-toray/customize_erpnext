@@ -783,6 +783,7 @@ bsync.setup = function (root) {
                     cls = 'style="background:#fef2f2;"';
                     status = `<span class="badge-unmatched">❌ ${escapeHtml(m.error || 'error')}</span>`;
                 } else if (m.deferred) status = `<span style="color:#b45309;">⏸ ${escapeHtml(m.deferred)}</span>`;
+                else if (m.unchanged) status = '<span class="badge-matched" title="Log count unchanged since the last full read — the machine was not locked">✅ No new logs</span>';
                 else status = '<span class="badge-matched">✅ OK</span>';
                 const num = v => (v === null || v === undefined) ? '—' : Number(v).toLocaleString('en-US');
                 return `<tr ${cls}>

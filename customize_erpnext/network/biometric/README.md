@@ -39,6 +39,20 @@ Plan + quyết định: `.claude/plans/biometric_tool_slimdown.md`. UI: trang `/
   Đo 23/10: cả pha đọc **23 s** (= máy chậm nhất, Machine 7) thay vì ~90 s đọc lần lượt; mỗi máy vẫn chỉ bị khoá
   trong lúc đọc chính nó (9–23 s). 🔴 Code trong thread KHÔNG được gọi `frappe.*` (db/cache/log_error là thread-local).
   Không bắt đầu đọc trong giờ cao điểm hoặc < 60 s trước giờ cao điểm (`PEAK_START_MARGIN`).
+- **Bỏ qua máy không có log mới** (09/11/2026, plan `.claude/plans/biometric_pull_skip_unchanged.md`):
+  mỗi chu kỳ `read_sizes()` trước (0,03–0,3 s, KHÔNG khoá máy); số log == số của lần đọc toàn bộ sạch gần nhất
+  (cache `biometric_device_log_sync:count:<máy>`) → không đọc, báo `unchanged` / "✅ No new logs".
+  Vẫn đọc toàn bộ khi: chưa có số, lần đọc toàn bộ cách ≥ 30 phút, số log ≥ 95% `rec_cap` (máy ghi vòng có thể
+  giữ số đứng yên), dry run. Chỉ lưu số khi chu kỳ xong sạch (không lỗi / deferred / lượt tương lai / lỗi
+  re-enable / queue bận), ngược lại xoá → chu kỳ sau đọc lại. Số đếm lấy LÚC MÁY ĐANG KHOÁ nên lượt đến sau đó
+  luôn làm số khác đi.
+  Cờ `site_config.json → biometric_pull_skip_unchanged`: 0/không có = **shadow** (vẫn đọc toàn bộ, log
+  `would_skip=1`; nếu lượt `would_skip` mà ghi được checkin → Error Log `skip-would-miss`, giữ cờ 0).
+  Bật: `bench --site erp.tiqn.local set-config biometric_pull_skip_unchanged 1` (không cần restart).
+- **Đọc log không qua `pyzk.get_attendance`** (`zk_device._read_logs` + `_parse_attendance`): đo 09/11 cả 7 máy
+  dùng bản ghi 40 byte (có sẵn user_id) → không tải danh sách user (pyzk luôn tải: 0,75–2,2 s/máy), và giải mã
+  SAU khi `enable_device` (bớt 0,2–1,2 s khoá). Parse copy từ pyzk 0.9 + dùng hàm private `_ZK__decode_time`:
+  🔴 nâng pyzk → chạy lại `test_device_log_sync.py` (mục 19 so với pyzk).
 - Bỏ qua: uid 0 / user_id rỗng (log rác năm 2000 của máy 6/7), giờ > hiện tại + 10 phút (đồng hồ máy sai
   không được kéo mốc ra tương lai).
 - Lỗi ghi bất thường → **dừng máy đó ở chu kỳ này** (mốc không vượt qua lượt lỗi), chu kỳ sau thử lại.

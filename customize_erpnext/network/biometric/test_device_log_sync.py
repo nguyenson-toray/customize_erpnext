@@ -25,7 +25,7 @@ _prod_saved = {k: frappe.cache().get_value(k) for k in _PROD_KEYS}
 _queue_patch = patch.object(dls, "_recalc_queue_busy", lambda: False)
 _queue_patch.start()
 _real_logger = dls._logger
-dls._logger = lambda: NS(info=lambda *a: None)  # keep test lines out of the real log
+dls._logger = lambda: NS(info=lambda *a: None, warning=lambda *a: None)  # keep test lines out of the real log
 
 
 def check(label, cond, extra=""):
@@ -38,10 +38,16 @@ def check(label, cond, extra=""):
         print(f"  FAIL  {label} {extra}")
 
 
+def INFO(n):
+    return {"pre_count": n, "count": n, "rec_cap": 100000}
+
+
 def W(fetch):
-    """old-style fetch(cfg, label, clear_after) -> read_attendance(...) returning (records, warning)."""
-    def read(cfg, label, clear_after=False):
-        return fetch(cfg, label, clear_after=clear_after), None
+    """old-style fetch(cfg, label, clear_after) -> read_attendance_if_changed(...)
+    returning (records, warning, info); always a full read."""
+    def read(cfg, label, known_count=None, clear_after=False):
+        records = fetch(cfg, label, clear_after=clear_after)
+        return records, None, INFO(len(records))
     return read
 
 
@@ -63,8 +69,9 @@ def settings(**kw):
 
 
 def clear_cache():
-    for m in MACHINES:
+    for m in MACHINES + [{"device_name": "ZZ Test 3"}]:
         frappe.cache().delete_value(dls.FAIL_KEY.format(m["device_name"]))
+        frappe.cache().delete_value(dls.COUNT_KEY.format(m["device_name"]))
     frappe.cache().delete_value(dls.LAST_EMAIL_KEY)
 
 
@@ -108,7 +115,7 @@ def fake_fetch(cfg, label, clear_after=False):
 
 clear_cache()
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES), \
-     patch.object(dls, "read_attendance", W(fake_fetch)), \
+     patch.object(dls, "read_attendance_if_changed", W(fake_fetch)), \
      patch.object(dls, "_add_checkin", fake_add), \
      patch.object(dls, "_cursor", lambda name: NOW - timedelta(hours=1)), \
      patch.object(dls, "now_datetime", lambda: NOW), \
@@ -132,7 +139,7 @@ def offline_fetch(cfg, label, clear_after=False):
 mails = []
 clear_cache()
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", W(offline_fetch)), \
+     patch.object(dls, "read_attendance_if_changed", W(offline_fetch)), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings(send_error_email=1, error_email_recipients="son.nt@tiqn.com.vn")), \
      patch.object(frappe, "log_error", lambda **kw: None), \
@@ -145,7 +152,7 @@ check("mail gửi đúng người nhận test", mails and mails[0]["recipients"]
 
 print("5. kết nối lại → reset bộ đếm; dry_run không ghi")
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", W(lambda cfg, label, clear_after=False: [rec("200", NOW)])), \
+     patch.object(dls, "read_attendance_if_changed", W(lambda cfg, label, clear_after=False: [rec("200", NOW)])), \
      patch.object(dls, "_add_checkin", lambda *a: ("processed", None)), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings()):
@@ -161,7 +168,7 @@ def dry_fetch(cfg, label, clear_after=False):
 
 
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", W(dry_fetch)), \
+     patch.object(dls, "read_attendance_if_changed", W(dry_fetch)), \
      patch.object(dls, "_add_checkin", lambda *a: (_ for _ in ()).throw(AssertionError("must not insert"))), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings(auto_sync_logs=0, clear_from_device_on_fetch=1)):
@@ -186,7 +193,7 @@ print("7. sắp tới giờ cao điểm (trong PEAK_START_MARGIN) → không b�
 fetched = []
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES), \
      patch.object(dls, "in_peak", side_effect=[False, True]), \
-     patch.object(dls, "read_attendance", W(lambda cfg, label, clear_after=False: fetched.append(label) or [])), \
+     patch.object(dls, "read_attendance_if_changed", W(lambda cfg, label, clear_after=False: fetched.append(label) or [])), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings()):
     rows = dls._run_device_log_sync()
@@ -199,7 +206,7 @@ _cap.start()
 many = [rec(str(1000 + i), NOW - timedelta(minutes=60) + timedelta(seconds=i)) for i in range(120)]
 inserted = []
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", W(lambda cfg, label, clear_after=False: many)), \
+     patch.object(dls, "read_attendance_if_changed", W(lambda cfg, label, clear_after=False: many)), \
      patch.object(dls, "_add_checkin", lambda u, ts, d: inserted.append(ts) or ("processed", None)), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(dls, "now_datetime", lambda: NOW), \
@@ -214,7 +221,7 @@ print("9. queue short đầy → không đọc máy nào")
 fetched = []
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES), \
      patch.object(dls, "_recalc_queue_busy", lambda: True), \
-     patch.object(dls, "read_attendance", W(lambda cfg, label, clear_after=False: fetched.append(label) or [])), \
+     patch.object(dls, "read_attendance_if_changed", W(lambda cfg, label, clear_after=False: fetched.append(label) or [])), \
      patch.object(frappe, "get_single", lambda name: settings()):
     rows = dls._run_device_log_sync()
 check("không đọc máy nào, cả 2 skipped", not fetched and all(r.get("skip_reason") == "queue short busy" for r in rows), rows)
@@ -222,7 +229,7 @@ check("không đọc máy nào, cả 2 skipped", not fetched and all(r.get("skip
 print("10. QueueOverloaded khi ghi → hoãn, không tính lỗi")
 logged = []
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", W(lambda cfg, label, clear_after=False: many[:3])), \
+     patch.object(dls, "read_attendance_if_changed", W(lambda cfg, label, clear_after=False: many[:3])), \
      patch.object(dls, "_add_checkin", lambda u, ts, d: ("error", dls.QUEUE_OVERLOADED_MARK + " Quá nhiều công việc nền (550)")), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(dls, "now_datetime", lambda: NOW), \
@@ -253,14 +260,14 @@ MACH3 = MACHINES + [{"name": "ZZ Test 3", "device_name": "ZZ Test 3", "ip_addres
 threads = []
 
 
-def slow_read(cfg, label, clear_after=False):
+def slow_read(cfg, label, known_count=None, clear_after=False):
     threads.append(threading.current_thread() is threading.main_thread())
     _t.sleep(0.5)
-    return [rec("200", NOW)], None
+    return [rec("200", NOW)], None, INFO(1)
 
 
 with patch.object(dls, "get_machines", lambda enabled_only: MACH3), \
-     patch.object(dls, "read_attendance", slow_read), \
+     patch.object(dls, "read_attendance_if_changed", slow_read), \
      patch.object(dls, "_add_checkin", lambda *a: ("skipped", None)), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings()):
@@ -275,7 +282,7 @@ print("13. không mở khoá lại được máy → lỗi + Error Log + mail")
 logged, mails = [], []
 clear_cache()
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", lambda cfg, label, clear_after=False: ([], "Failed to re-enable device ZZ Test 1: timeout")), \
+     patch.object(dls, "read_attendance_if_changed", lambda cfg, label, known_count=None, clear_after=False: ([], "Failed to re-enable device ZZ Test 1: timeout", INFO(0))), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings(send_error_email=1, error_email_recipients="son.nt@tiqn.com.vn")), \
      patch.object(frappe, "log_error", lambda **kw: logged.append(kw)), \
@@ -343,7 +350,7 @@ with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
     dls._run_device_log_sync()
 check("queue bận (không đọc) → không ghi mốc", frappe.cache().get_value(dls.HEARTBEAT_KEY) is None)
 with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
-     patch.object(dls, "read_attendance", lambda cfg, label, clear_after=False: ([], None)), \
+     patch.object(dls, "read_attendance_if_changed", lambda cfg, label, known_count=None, clear_after=False: ([], None, INFO(0))), \
      patch.object(dls, "_cursor", lambda name: None), \
      patch.object(frappe, "get_single", lambda name: settings()):
     dls._run_device_log_sync()
@@ -378,6 +385,242 @@ from customize_erpnext.network.biometric.resync import _add_checkin
 for v in ("", "  ", None):
     st, msg = _add_checkin(v, NOW, "ZZ Test 1")
     check(f"user_id {v!r} → skipped_no_employee, không ghi", st == "skipped_no_employee", msg)
+
+print("19. (2) parse riêng == pyzk 0.9 get_attendance (8 / 16 / 40 byte)")
+from struct import pack
+from zk import ZK
+from zk.base import User as ZKUser
+import customize_erpnext.network.biometric.zk_device as zkd
+
+_zk = ZK("192.0.2.1")
+enc = _zk._ZK__encode_time
+USERS = [ZKUser(1, "A", 0, "", "", "501"), ZKUser(2, "B", 0, "", "", "502"), ZKUser(7, "C", 0, "", "", "7")]
+T1, T2 = datetime(2026, 11, 9, 7, 55, 3), datetime(2026, 11, 9, 17, 1, 59)
+
+
+def body(size):
+    rows = []
+    if size == 8:
+        rows = [pack("<HB4sB", 1, 0, pack("<I", enc(T1)), 0), pack("<HB4sB", 9, 1, pack("<I", enc(T2)), 1)]
+    elif size == 16:
+        rows = [pack("<I4sBB2sI", 501, pack("<I", enc(T1)), 0, 0, b"\0\0", 0),
+                pack("<I4sBB2sI", 999, pack("<I", enc(T2)), 1, 1, b"\0\0", 0)]
+    else:
+        rows = [pack("<H24sB4sB8s", 1, b"501", 1, pack("<I", enc(T1)), 0, b""),
+                pack("<H24sB4sB8s", 0, b"", 0, pack("<I", enc(T2)), 255, b"")]
+    data = b"".join(rows)
+    return pack("I", len(data)) + data, len(rows)
+
+
+def akey(a):
+    return (str(a.user_id), a.timestamp, a.status, a.punch, str(a.uid))
+
+
+for size in (8, 16, 40):
+    buf, n = body(size)
+    ref_zk = ZK("192.0.2.1")
+    ref_zk.records = n
+    ref_zk.read_sizes = lambda: True
+    ref_zk.get_users = lambda: USERS
+    ref_zk.read_with_buffer = lambda *a, **k: (buf, len(buf))
+    ref = ref_zk.get_attendance()
+    mine = zkd._parse_attendance(_zk, buf[4:], len(buf[4:]) / n, USERS)
+    check(f"{size} byte: giống pyzk từng bản ghi", [akey(a) for a in mine] == [akey(a) for a in ref],
+          [akey(a) for a in mine])
+
+
+class FakeConn(ZK):
+    """Device double: records calls, serves one 40-byte buffer."""
+
+    def __init__(self, n_records, buf=None, rec_cap=100000):
+        super().__init__("192.0.2.1")
+        self.n, self.buf, self.cap, self.calls = n_records, buf, rec_cap, []
+
+    def read_sizes(self):
+        self.calls.append("sizes")
+        self.records, self.rec_cap = self.n, self.cap
+        return True
+
+    def disable_device(self):
+        self.calls.append("disable")
+
+    def enable_device(self):
+        self.calls.append("enable")
+
+    def get_users(self):
+        self.calls.append("users")
+        return USERS
+
+    def read_with_buffer(self, *a, **k):
+        self.calls.append("buffer")
+        return self.buf, len(self.buf)
+
+    def clear_attendance(self):
+        self.calls.append("clear")
+
+    def disconnect(self):
+        self.calls.append("disconnect")
+
+
+buf40, n40 = body(40)
+conn = FakeConn(n40, buf40)
+_real_parse = zkd._parse_attendance
+with patch.object(zkd, "_parse_attendance", lambda *a: conn.calls.append("parse") or _real_parse(*a)):
+    atts, warn, cnt = zkd._read_logs(conn, "ZZ")
+check("40 byte: không tải danh sách user", "users" not in conn.calls, conn.calls)
+check("(2b) giải mã SAU khi mở khoá máy", conn.calls.index("enable") < conn.calls.index("parse"), conn.calls)
+check("trả số log lúc khoá + đủ bản ghi", cnt == n40 and len(atts) == n40 and warn is None)
+buf16, n16 = body(16)
+conn = FakeConn(n16, buf16)
+zkd._read_logs(conn, "ZZ")
+check("16 byte: có tải danh sách user, trong lúc khoá", conn.calls.index("users") < conn.calls.index("enable"), conn.calls)
+conn = FakeConn(n40, buf40)
+atts, warn, cnt = zkd._read_logs(conn, "ZZ", clear_after=True)
+check("clear_after: giải mã TRƯỚC khi xoá, count = 0", len(atts) == n40 and cnt == 0
+      and conn.calls.index("clear") < conn.calls.index("enable"), conn.calls)
+
+print("20. (1) read_attendance_if_changed")
+for label, known, cap, want_read in [("số log bằng known → bỏ qua", n40, 100000, False),
+                                     ("số log khác → đọc", n40 - 1, 100000, True),
+                                     ("known None → đọc", None, 100000, True),
+                                     ("gần đầy (≥95% rec_cap) → đọc dù bằng", n40, 2, True),
+                                     ("không rõ rec_cap (0) → đọc", n40, 0, True)]:
+    conn = FakeConn(n40, buf40, rec_cap=cap)
+    with patch.object(zkd, "_connect_with_retry", lambda cfg, lbl: conn):
+        recs, warn, info = zkd.read_attendance_if_changed({}, "ZZ", known_count=known)
+    did_read = "disable" in conn.calls
+    check(label, did_read is want_read and (recs is None) is (not want_read) and "disconnect" in conn.calls,
+          conn.calls)
+conn = FakeConn(n40, buf40)
+with patch.object(zkd, "_connect_with_retry", lambda cfg, lbl: conn):
+    zkd.read_attendance_if_changed({}, "ZZ", known_count=n40)
+check("bỏ qua: chỉ sizes + disconnect", conn.calls == ["sizes", "disconnect"], conn.calls)
+
+print("21. (1) job: lưu số log, bỏ qua máy không đổi, lưới an toàn")
+DEV = {"ZZ Test 1": {"count": 3, "recs": [rec("200", NOW - timedelta(minutes=1))]}}
+got_known = []
+
+
+def counting_reader(cfg, label, known_count=None, clear_after=False):
+    got_known.append(known_count)
+    c = DEV[label]["count"]
+    if known_count is not None and c == known_count:
+        return None, None, INFO(c)
+    return DEV[label]["recs"], None, INFO(c)
+
+
+inserted, logged = [], []
+
+
+def run(flag, now=NOW, add=lambda *a: ("skipped", None), dry=0, recs=None):
+    if recs is not None:
+        DEV["ZZ Test 1"]["recs"] = recs
+    got_known.clear()
+    with patch.dict(frappe.conf, {dls.SKIP_FLAG: flag}), \
+         patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
+         patch.object(dls, "read_attendance_if_changed", counting_reader), \
+         patch.object(dls, "_add_checkin", lambda u, ts, d: inserted.append(u) or add(u, ts, d)), \
+         patch.object(dls, "_cursor", lambda name: NOW - timedelta(hours=1)), \
+         patch.object(dls, "now_datetime", lambda: now), \
+         patch.object(frappe, "get_single", lambda name: settings()), \
+         patch.object(frappe, "log_error", lambda **kw: logged.append(kw)):
+        return dls._run_device_log_sync(dry_run=dry)[0]
+
+
+CK = dls.COUNT_KEY.format("ZZ Test 1")
+clear_cache()
+row = run(1)
+check("lần đầu (chưa có số) → đọc toàn bộ", got_known == [None] and not row.get("unchanged"), got_known)
+check("chu kỳ sạch → lưu số log + giờ đọc", (frappe.cache().get_value(CK) or {}).get("count") == 3)
+row = run(1, now=NOW + timedelta(minutes=4))
+check("số không đổi → unchanged, không ghi", row.get("unchanged") and row["read"] == 3 and row["processed"] == 0, row)
+check("unchanged không làm mới full_read_at", frappe.cache().get_value(CK)["full_read_at"] == str(NOW))
+check("format log unchanged", dls._format_row(row) == "ZZ Test 1: unchanged (3 logs) " + str(row["seconds"]) + "s")
+DEV["ZZ Test 1"]["count"] = 4
+row = run(1, now=NOW + timedelta(minutes=8))
+check("số tăng → đọc toàn bộ", not row.get("unchanged") and "read" in row and row["read"] == 1, row)
+check("lưu số mới 4", frappe.cache().get_value(CK)["count"] == 4)
+row = run(1, now=NOW + timedelta(minutes=8 + 30))
+check("quá 30 phút → đọc toàn bộ dù không đổi", got_known == [None] and not row.get("unchanged"), got_known)
+DEV["ZZ Test 1"]["count"] = 2
+row = run(1, now=NOW + timedelta(minutes=40))
+check("số GIẢM (máy bị xoá log) → đọc toàn bộ", not row.get("unchanged"))
+
+print("22. (1) chu kỳ không sạch → xoá số đã lưu")
+for label, kw in [("lỗi ghi", dict(add=lambda *a: ("error", "boom"))),
+                  ("lượt giờ tương lai", dict(recs=[rec("200", NOW + timedelta(hours=3))])),
+                  ]:
+    frappe.cache().set_value(CK, {"count": 2, "full_read_at": str(NOW)})
+    DEV["ZZ Test 1"]["count"] = 5
+    run(1, **kw)
+    DEV["ZZ Test 1"]["recs"] = [rec("200", NOW - timedelta(minutes=1))]
+    check(f"{label} → xoá số", frappe.cache().get_value(CK) is None)
+_cap = patch.object(dls, "MAX_INSERTS_PER_MACHINE", 1)
+_cap.start()
+frappe.cache().set_value(CK, {"count": 2, "full_read_at": str(NOW)})
+run(1, add=lambda *a: ("processed", None), recs=[rec("200", NOW - timedelta(minutes=2)), rec("201", NOW - timedelta(minutes=1))])
+_cap.stop()
+DEV["ZZ Test 1"]["recs"] = [rec("200", NOW - timedelta(minutes=1))]
+check("deferred (insert cap) → xoá số", frappe.cache().get_value(CK) is None)
+
+
+def offline_reader(cfg, label, known_count=None, clear_after=False):
+    raise ConnectionError("offline")
+
+
+frappe.cache().set_value(CK, {"count": 2, "full_read_at": str(NOW)})
+with patch.dict(frappe.conf, {dls.SKIP_FLAG: 1}), \
+     patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
+     patch.object(dls, "read_attendance_if_changed", offline_reader), \
+     patch.object(dls, "_cursor", lambda name: None), \
+     patch.object(frappe, "get_single", lambda name: settings()):
+    dls._run_device_log_sync()
+check("mất kết nối → xoá số", frappe.cache().get_value(CK) is None)
+
+print("23. (1) dry_run luôn đọc, không lưu số")
+clear_cache()
+frappe.cache().set_value(CK, {"count": 5, "full_read_at": str(NOW)})
+DEV["ZZ Test 1"]["count"] = 5
+row = run(1, dry=1)
+check("dry_run: reader nhận known=None (đọc toàn bộ)", got_known == [None], got_known)
+check("dry_run: không đổi số đã lưu", frappe.cache().get_value(CK) == {"count": 5, "full_read_at": str(NOW)})
+
+print("24. (1) chế độ shadow (cờ 0): luôn đọc, đánh dấu would_skip, báo skip-would-miss")
+clear_cache()
+DEV["ZZ Test 1"]["count"] = 6
+run(0)
+row = run(0, now=NOW + timedelta(minutes=4))
+check("cờ 0: reader luôn nhận known=None", got_known == [None], got_known)
+check("số không đổi → would_skip, vẫn đọc", row.get("would_skip") and not row.get("unchanged"), row)
+check("format có would_skip=1", "would_skip=1" in dls._format_row(row))
+logged.clear()
+row = run(0, now=NOW + timedelta(minutes=8), add=lambda *a: ("processed", None))
+check("would_skip mà có lượt mới được ghi → Error Log skip-would-miss",
+      row.get("would_skip") and any("skip-would-miss" in (k.get("title") or "") for k in logged), logged)
+with patch.dict(frappe.conf, {}):
+    frappe.conf.pop(dls.SKIP_FLAG, None)
+    run_flagless = got_known.clear() or None
+    with patch.object(dls, "get_machines", lambda enabled_only: MACHINES[:1]), \
+         patch.object(dls, "read_attendance_if_changed", counting_reader), \
+         patch.object(dls, "_add_checkin", lambda *a: ("skipped", None)), \
+         patch.object(dls, "_cursor", lambda name: NOW - timedelta(hours=1)), \
+         patch.object(dls, "now_datetime", lambda: NOW + timedelta(minutes=12)), \
+         patch.object(frappe, "get_single", lambda name: settings()):
+        dls._run_device_log_sync()
+    check("không có cờ trong site_config → shadow (known=None)", got_known == [None], got_known)
+
+print("25. Log Viewer: unchanged")
+_saved_rep = frappe.cache().get_value(dls.LAST_REPORT_KEY)
+frappe.cache().set_value(dls.LAST_REPORT_KEY, {"finished": str(NOW), "rows": [
+    {"machine": "ZZ Test 1", "ok": True, "unchanged": True, "read": 3, "new": 0, "processed": 0, "skipped": 0, "seconds": 0.2}]})
+with patch("customize_erpnext.network.biometric.machines.get_machines", lambda enabled_only: MACHINES[:1]), \
+     patch.object(dls, "_cursor", lambda name: None):
+    m1 = lv.get_sync_status()["machines"][0]
+check("unchanged=True, read=3, seconds=0.2", m1["unchanged"] is True and m1["read"] == 3 and m1["seconds"] == 0.2, m1)
+if _saved_rep is None:
+    frappe.cache().delete_value(dls.LAST_REPORT_KEY)
+else:
+    frappe.cache().set_value(dls.LAST_REPORT_KEY, _saved_rep)
 
 clear_cache()
 _queue_patch.stop()
