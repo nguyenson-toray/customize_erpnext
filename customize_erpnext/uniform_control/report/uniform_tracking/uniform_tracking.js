@@ -20,6 +20,7 @@ frappe.query_reports['Uniform Tracking'] = {
 		},
 		{ fieldname: 'due_from', label: __('Due Date From'), fieldtype: 'Date' },
 		{ fieldname: 'due_to', label: __('Due Date To'), fieldtype: 'Date' },
+		{ fieldname: 'include_left', label: __('Include Left Employees'), fieldtype: 'Check' },
 	],
 	formatter(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);

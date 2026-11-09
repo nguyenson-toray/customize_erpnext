@@ -1,6 +1,33 @@
-"""Weekly scheduler for Uniform Control — stock vs upcoming demand + due employees."""
+"""Scheduled jobs for Uniform Control:
+  - daily_uniform_refresh (00:30): missing profiles, Employee fields copied on the
+    profile, rule assignments, due dates / status;
+  - run_tracking_refresh: the same re-sync, queued after a Uniform Rule changes;
+  - send_weekly_uniform_alert (Monday 08:30): stock vs upcoming demand + due employees."""
 import frappe
 from frappe.utils import flt, cint, today, getdate, add_days
+
+
+def daily_uniform_refresh():
+    """Nightly — runs after auto_mark_employees_as_left (00:00), so people who
+    left yesterday already show as Left on their profile."""
+    from customize_erpnext.uniform_control.utils import daily_refresh
+    try:
+        daily_refresh()
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "Uniform Daily Refresh Error")
+
+
+def run_tracking_refresh():
+    """Background job queued by Uniform Rule on_update / on_trash."""
+    from customize_erpnext.uniform_control.utils import refresh_tracking
+    try:
+        refresh_tracking()
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "Uniform Tracking Refresh Error")
 
 
 def send_weekly_uniform_alert(force=False):
@@ -157,7 +184,7 @@ def send_weekly_uniform_alert(force=False):
 @frappe.whitelist()
 def send_uniform_alert_now():
     """Manual trigger for the alert (Uniform Setting button)."""
-    frappe.only_for(("System Manager", "Uniform Manager"))
+    frappe.only_for(("System Manager", "Uniform Manager", "HR Manager"))
     return send_weekly_uniform_alert(force=True) or {"sent": False, "reason": "disabled"}
 
 

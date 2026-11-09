@@ -1,7 +1,21 @@
 """Uniform Tracking report — current issuance state per employee per
-garment, read from the Issuance Tracking child table (Employee Uniform Item)."""
+garment, read from the Issuance Tracking child table (Employee Uniform Item).
+
+Status is computed from the dates at query time (same rule and scope as the
+dashboard cards: managed employees, Active unless "Include Left Employees"),
+so clicking a dashboard card shows the same numbers."""
 import frappe
 from frappe import _
+from frappe.utils import today
+
+from customize_erpnext.uniform_control.utils import get_employee_id_prefix, get_reminder_days
+
+STATUS_SQL = """CASE
+    WHEN eui.last_issue_date IS NULL THEN 'Not Issued'
+    WHEN eui.next_due_date IS NULL THEN 'Active'
+    WHEN eui.next_due_date < %(today)s THEN 'Overdue'
+    WHEN DATEDIFF(eui.next_due_date, %(today)s) <= %(reminder)s THEN 'Due Soon'
+    ELSE 'Active' END"""
 
 
 def execute(filters=None):
@@ -33,10 +47,16 @@ def get_columns():
 
 
 def get_data(filters):
+    values = {"today": today(), "reminder": get_reminder_days()}
     conditions = []
-    values = {}
+    prefix = get_employee_id_prefix()
+    if prefix:
+        conditions.append("p.employee LIKE %(prefix)s")
+        values["prefix"] = f"{prefix}%"
+    if not filters.get("include_left"):
+        conditions.append("e.status = 'Active'")
     if filters.get("status"):
-        conditions.append("eui.status = %(status)s")
+        conditions.append(f"({STATUS_SQL}) = %(status)s")
         values["status"] = filters.status
     if filters.get("employee"):
         conditions.append("p.employee = %(employee)s")
@@ -76,12 +96,12 @@ def get_data(filters):
             eui.last_issue_qty,
             eui.total_issued_qty,
             eui.next_due_date,
-            eui.status
+            {STATUS_SQL} AS status
         FROM `tabEmployee Uniform Item` eui
         INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
-        LEFT JOIN `tabEmployee` e ON e.name = p.employee
+        INNER JOIN `tabEmployee` e ON e.name = p.employee
         LEFT JOIN `tabItem` i ON i.name = eui.item_template
-        WHERE 1 = 1 {where}
+        WHERE eui.parenttype = 'Employee Uniform Profile' {where}
         ORDER BY e.department, e.custom_section, p.employee, item
         """,
         values, as_dict=True,

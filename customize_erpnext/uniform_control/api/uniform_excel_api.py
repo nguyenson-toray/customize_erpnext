@@ -1,4 +1,4 @@
-"""Phase A — Read / Excel Power Query APIs for Uniform Control."""
+"""Read APIs used by the Uniform Dashboard (stock list, issued qty by period / group)."""
 import frappe
 from frappe import _
 from frappe.utils import flt, getdate, today, date_diff
@@ -76,81 +76,6 @@ def get_uniform_stock_excel(company=None, item_template=None):
             "stock_value": actual * flt(it.valuation_rate),
             "low_stock": low_stock,
             "warehouse": warehouse,
-        })
-
-    return results
-
-
-@frappe.whitelist()
-def get_due_employees_excel(allocation_type=None, department=None, uniform_type=None):
-    """
-    Return employees due for new issue or supplement, with their profile info.
-    """
-    _check_permission()
-    from customize_erpnext.uniform_control.utils import get_eligible_employees_for_allocation
-
-    alloc_type = allocation_type or "New Issue"
-    rows = get_eligible_employees_for_allocation(alloc_type, uniform_type, department)
-    return rows
-
-
-@frappe.whitelist()
-def get_allocation_history_excel(from_date=None, to_date=None, employee=None, department=None):
-    """Return allocation history with stock entry details."""
-    _check_permission()
-
-    alloc_filters = {"docstatus": 1}
-    if from_date and to_date:
-        alloc_filters["posting_date"] = ["between", [from_date, to_date]]
-    elif from_date:
-        alloc_filters["posting_date"] = [">=", from_date]
-    elif to_date:
-        alloc_filters["posting_date"] = ["<=", to_date]
-
-    allocations = frappe.get_all(
-        "Uniform Allocation",
-        filters=alloc_filters,
-        fields=["name", "posting_date", "allocation_type", "company", "stock_entry", "total_qty"],
-        order_by="posting_date desc",
-    )
-    if not allocations:
-        return []
-    headers = {a.name: a for a in allocations}
-
-    item_filters = {
-        "parent": ["in", list(headers.keys())],
-        "parenttype": "Uniform Allocation",
-    }
-    if employee:
-        item_filters["employee"] = employee
-    if department:
-        item_filters["department"] = department
-
-    items = frappe.get_all(
-        "Uniform Allocation Item",
-        filters=item_filters,
-        fields=[
-            "parent", "employee", "employee_name", "department",
-            "item_code", "item_name", "qty", "issue_reason",
-        ],
-        order_by="parent desc, idx asc",
-    )
-
-    results = []
-    for item in items:
-        alloc = headers[item.parent]
-        results.append({
-            "allocation": alloc.name,
-            "posting_date": alloc.posting_date,
-            "allocation_type": alloc.allocation_type,
-            "employee": item.employee,
-            "employee_name": item.employee_name,
-            "department": item.department,
-            "item_code": item.item_code,
-            "item_name": item.item_name,
-            "qty": item.qty,
-            "issue_reason": item.issue_reason,
-            "stock_entry": alloc.stock_entry,
         })
 
     return results

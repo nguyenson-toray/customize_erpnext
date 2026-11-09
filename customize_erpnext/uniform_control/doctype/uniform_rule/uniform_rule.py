@@ -18,3 +18,21 @@ class UniformRule(Document):
             frappe.throw(_("Cap item must be an exact variant, got template {0}.").format(self.item))
         elif self.category == "Bottle" and has_variants:
             frappe.throw(_("Bottle item must be a single stock item, got template {0}.").format(self.item))
+
+    def on_update(self):
+        queue_tracking_refresh()
+
+    def on_trash(self):
+        queue_tracking_refresh()
+
+
+def queue_tracking_refresh():
+    """A rule change can move items and reissue cycles: re-sync every profile
+    (Shirt / Cap without Manual Override, next due date, status) in the
+    background once the change is committed. Idempotent, so repeated edits just
+    run it again."""
+    frappe.enqueue(
+        "customize_erpnext.uniform_control.api.uniform_scheduler.run_tracking_refresh",
+        queue="long",
+        enqueue_after_commit=True,
+    )

@@ -10,11 +10,15 @@
   "last_issue_qty",
   "total_issued_qty",
   "next_due_date",
-  "status"
+  "status",
+  "base_item",
+  "base_last_issue_date",
+  "base_last_issue_qty",
+  "base_total_qty"
  ],
  "fields": [
   {
-   "description": "The exact variant issued (e.g. \u00c1o thun n\u1eef S, M\u0169 \u0110\u1ecf).",
+   "description": "The exact variant issued (e.g. Áo thun nữ S, Mũ Đỏ).",
    "fieldname": "item_template",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -52,11 +56,48 @@
    "in_list_view": 1,
    "label": "Status",
    "options": "Not Issued\nActive\nDue Soon\nOverdue"
+  },
+  {
+   "fieldname": "base_item",
+   "fieldtype": "Link",
+   "label": "Before ERP: Item",
+   "options": "Item",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Imported history kept when the first Uniform Allocation updates this row (restored on cancel)."
+  },
+  {
+   "fieldname": "base_last_issue_date",
+   "fieldtype": "Date",
+   "label": "Before ERP: Last Issue Date",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Imported history kept when the first Uniform Allocation updates this row (restored on cancel)."
+  },
+  {
+   "fieldname": "base_last_issue_qty",
+   "fieldtype": "Int",
+   "label": "Before ERP: Last Issue Qty",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Imported history kept when the first Uniform Allocation updates this row (restored on cancel)."
+  },
+  {
+   "fieldname": "base_total_qty",
+   "fieldtype": "Int",
+   "label": "Before ERP: Total Issued Qty",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Imported history kept when the first Uniform Allocation updates this row (restored on cancel)."
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-07-11 15:57:39.201207",
+ "modified": "2026-11-09 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Employee Uniform Item",

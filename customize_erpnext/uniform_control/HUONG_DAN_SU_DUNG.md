@@ -2,12 +2,13 @@
 
 > **Mục đích:** Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNext/HRMS v16, app `customize_erpnext`).
 > **Phạm vi:** Module Đồng phục
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-30
-
-Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNext/HRMS v16, app `customize_erpnext`).
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-11-09 (đơn giản hoá: 1 loại phiếu, size lấy từ Employee, Manual Override, tự đồng bộ)
+> **Triển khai bản 09/11:** code đã commit; các bước còn lại ở **§1.10**.
 
 - **Phần 1 — IT Admin**: thiết lập một lần (master data, kho, cấu hình, phân quyền).
-- **Phần 2 — HR (Uniform Manager)**: sử dụng hàng ngày (nhập kho, cấp phát, theo dõi).
+- **Phần 2 — HR**: sử dụng hằng ngày (nhập kho, cấp phát, theo dõi).
+
+HR chỉ cần 3 màn hình: **Uniform Dashboard** (ai đến hạn, cần mua gì, nhập kho), **Uniform Allocation** (phiếu cấp phát), **Employee Uniform Profile** (xem từng người).
 
 ---
 
@@ -16,7 +17,7 @@ Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNex
 ## 1.1 Nguyên tắc thiết kế item
 
 - Mỗi template chỉ dùng **1 variant attribute** (`Size` cho áo/dép, `Color` cho mũ).
-- **Giới tính tách thành template riêng** (áo nam / áo nữ) — không dùng attribute giới tính. Việc cấp đúng giới tính do **Rule** quyết định (điều kiện Gender, xem §2.2) + áo gán trên hồ sơ.
+- **Giới tính tách thành template riêng** (áo nam / áo nữ). Cấp đúng giới tính do **Rule** quyết định (điều kiện Gender, §2.2).
 - **Mỗi màu Mũ gắn 1 vai trò** (vd "Đỏ - Qc", "Xanh Dương Đậm - May") → gán theo Rule.
 - Item Group: **`U-Uniform`** — mọi item đồng phục thuộc nhóm này; `name = item_name`.
 
@@ -26,116 +27,125 @@ Module quản lý tồn kho & cấp phát đồng phục cho nhân viên (ERPNex
 |---|---|---|
 | `Áo sơ mi nam`, `Áo sơ mi nữ` | Size | S, M, L, Xl |
 | `Áo thun nam`, `Áo thun nữ` | Size | S, M, L, Xl |
-| `Dép` | Size | 26 – 32 |
+| `Dép` | Size | `Free Size` (cho NV chưa khai size) + `2-3`, `4-5`, `6-7`, `8-9`, `10-11` (đúng các size trên Employee — tạo khi triển khai, §1.10) |
 | `Mũ` | Color | 15 màu, mỗi màu gắn vai trò (Đỏ-Qc, Vàng-Trưởng Phòng, Xanh Lá-Nv Văn Phòng...) |
 | `Bình nước` | — (item đơn) | — |
 
 Cấu hình chung: Item Group = `U-Uniform`, `Maintain Stock = 1`, không bật Serial/Batch.
 
-> ⚠️ Hồ sơ nhân viên chọn size áo `S/M/L/XL` → code tự map sang attribute `S/M/L/Xl`. Nếu tạo size mới (vd `2Xl`) thì báo IT cập nhật options field Shirt Size / Shoe Size trong Employee Uniform Profile.
+> **Size lấy từ Employee**: `Shirt Size` (`custom_shirt_size`: S/M/L/XL/2XL/3XL) và `Shoe Size` (`custom_shoe_size`: 2-3…10-11) — nhân viên tự khai qua cổng tự cập nhật thông tin, hoặc HR sửa trên form Employee. Code tự map `XL → Xl`, `2XL → 2Xl`. **Nhân viên chưa khai size dép → cấp `Dép Free Size`.** Chưa có variant 2Xl/3Xl cho áo → dòng đó bị bỏ qua kèm cảnh báo.
 
 ## 1.3 Thêm size/màu mới sau này
 
-1. Thêm Attribute Value vào attribute `Size` hoặc `Color`.
+1. Thêm Attribute Value vào attribute `Size` hoặc `Color` (attribute `Size` dùng chung toàn công ty).
 2. Mở template → **Create Variants** cho giá trị mới (đặt `name = item_name` cho rõ).
-3. Cập nhật options field tương ứng trong Employee Uniform Profile (Shirt Size / Shoe Size) nếu giá trị mới chưa có.
+3. Nếu là size mới mà Employee chưa có lựa chọn → thêm vào options field `Shirt Size` / `Shoe Size` của **Employee** (Customize Form) — giá trị phải giống hệt attribute value (áo: theo bảng map ở trên).
 
 ## 1.4 Tạo Warehouse
 
-Tạo kho leaf: **`Uniform - TIQN`** (cha: All Warehouses hoặc theo cây kho hiện tại). Toàn bộ tồn đồng phục nằm tại kho này.
+Kho leaf: **`Uniform - TIQN`**. Toàn bộ tồn đồng phục nằm tại kho này.
+
+> 🔴 **Bắt buộc gắn tài khoản kho**: công ty bật perpetual inventory nhưng `Uniform - TIQN` chưa có **Account** và công ty chưa có **Default Inventory Account** → mọi phiếu nhập kho / phiếu cấp phát sẽ báo *"Please set Account in Warehouse Uniform - TIQN"*. Kế toán chọn tài khoản rồi điền vào Warehouse → field **Account**.
 
 ## 1.5 Đặt Reorder Level (ngưỡng cảnh báo tồn thấp)
 
-Trên **từng variant** (không phải template): mở Item → tab Inventory → bảng **Reorder level**, thêm dòng:
-- `Check in (warehouse)` = Uniform - TIQN
-- `Reorder Level` = ngưỡng cảnh báo (ví dụ 10)
-- `Reorder Qty` = số lượng đề nghị nhập (ví dụ 50)
-
-Email cảnh báo hàng tuần sẽ liệt kê variant có `tồn ≤ Reorder Level`. **Không** bật auto Material Request.
+Trên **từng variant** (không phải template): Item → tab Inventory → bảng **Reorder level**: `Check in (warehouse)` = Uniform - TIQN, `Reorder Level` = ngưỡng (vd 10), `Reorder Qty` = số đề nghị nhập. Thẻ **Low Stock** và email tuần dùng ngưỡng này. **Không** bật auto Material Request.
 
 ## 1.6 Cấu hình Uniform Setting
-
-Vào **Uniform Setting** (DocType Single):
-
-Chỉ còn cấu hình chung (Rules đã tách sang DocType riêng — xem dưới):
 
 | Field | Giá trị khuyến nghị |
 |---|---|
 | Uniform Warehouse | Uniform - TIQN |
-| Uniform Item Group | U-Uniform — quyết định bộ lọc item trên Hồ sơ đồng phục (Áo được gán, Uniform Type) và trên Uniform Rule |
-| Default Shirt Item | `Áo thun nữ M` — variant áo dùng khi **không có dữ liệu để suy** (vd chức danh mới hoàn toàn trong Dự toán) |
-| Deduct Attrition | ✅ — bật cột **Est. for Leavers** (dùng chung Dự toán & Dashboard), **ĐO từ thực tế**: số suất cấp lại đến hạn nhưng người nhận đã nghỉ trước hạn trong N tháng qua → TB/tháng × số tháng kỳ, làm tròn lên |
-| Attrition Window (Months) | 3 — độ dài cửa sổ đo (N tháng đầy đủ gần nhất); nên ≥ 12 khi đã có đủ lịch sử để bắt cả chu kỳ áo sơ mi |
+| Uniform Item Group | U-Uniform — bộ lọc item trên Hồ sơ, Rule, Phiếu cấp phát |
+| Default Shirt Item | `Áo thun nữ M` — áo dùng trong Dự toán khi chức danh mới chưa có ai để suy |
+| Deduct Attrition / Attrition Window (Months) | cột **Est. for Leavers** (Dashboard + Dự toán), xem §2.8 |
 | Employee ID Prefix | `TIQN` — chỉ quản lý NV có mã bắt đầu bằng prefix này |
-| Reminder Days Before | 30 (cảnh báo trước hạn 30 ngày) |
-| Enable Weekly Alert | ✅ |
-| Alert Recipients | email HR, phân tách dấu phẩy: `hr@tiqn.com.vn, it@tiqn.com.vn` |
+| Remind Days Before Due | 30 — "sắp đến hạn" và mặc định của ô *Due On or Before* trên phiếu |
+| Enable Weekly Alert / Alert Recipients | email thứ Hai 08:30 (người nhận phân tách dấu phẩy) |
 
-Nút trên form Setting: **Manage Uniform Rules** (mở danh sách Uniform Rule), **Send Alert Now** (gửi email cảnh báo ngay).
-
-> **Quy tắc cấp phát (Uniform Rule) do HR thiết lập**, không thuộc phần IT — xem **§2.2** ở Phần 2.
+Nút trên form Setting: **Manage Uniform Rules**, **Send Alert Now**.
 
 ## 1.7 Phân quyền
 
-- Gán role **`Uniform Manager`** cho user HR (User → Roles).
-- Role này có quyền read/write/create/submit/cancel trên: Uniform Setting, Uniform Allocation, Employee Uniform Profile (không có quyền delete).
-- HR cần thêm quyền tạo **Stock Entry** nếu nhập kho qua Desk (hoặc dùng API `receive_stock`).
+| Role | Quyền |
+|---|---|
+| **HR Manager** | Phiếu cấp phát (tạo/submit/cancel), Hồ sơ, Dashboard, nhập kho, Dự toán, **sửa Uniform Rule + Uniform Setting** |
+| **HR User** | Như HR Manager nhưng **chỉ xem** Uniform Rule và Uniform Setting |
+| Uniform Manager | Giữ như cũ (không bắt buộc gán) |
+
+Nhập kho đồng phục làm trên Dashboard (§2.4) — **không cần quyền Stock Entry**; hệ thống tự tạo phiếu Material Receipt / Material Issue.
 
 ## 1.8 Các tự động hóa đã cài (không cần thao tác)
 
-| Sự kiện | Hành vi |
+| Khi | Hệ thống làm |
 |---|---|
-| Tạo Employee mới | Tự tạo **Employee Uniform Profile** (link 2 chiều qua field Uniform Profile trên Employee), tự điền giới tính từ Employee. **Không** tự tạo Uniform Allocation — HR tạo thủ công (gộp nhiều người) khi cần |
-| Thứ Hai 08:30 hàng tuần | Gửi email tới Alert Recipients: bảng tồn thấp + bảng nhân viên đến hạn cấp bổ sung |
-| Submit Uniform Allocation | Sinh 1 Stock Entry Material Issue (bỏ qua dòng **Tái sử dụng đồ cũ**), cập nhật hồ sơ từng nhân viên |
-| Cancel Uniform Allocation | Cancel Stock Entry liên quan, tính lại hồ sơ từ các đợt cấp còn lại |
-| Lưu hồ sơ đồng phục | Tự tính lại **hạn kế tiếp (next_due) + trạng thái** theo Chu kỳ trong Rule (single source of truth) |
+| Bấm Get Employees / mỗi đêm 00:30 | Tự tạo **Employee Uniform Profile** còn thiếu cho NV Active (không dùng hook khi tạo Employee) |
+| Mỗi đêm 00:30 | Cập nhật các ô chép từ Employee trên hồ sơ (tên, bộ phận, chức danh, tổ, trạng thái, ngày nghỉ, giới tính, size, vị trí dép); Áo/Mũ theo Rule (hồ sơ không tick Manual Override); **hạn cấp lại + trạng thái** |
+| Lưu / xoá một **Uniform Rule** | Chạy nền (vài giây) đúng việc trên cho toàn bộ hồ sơ — **không còn nút Recompute** |
+| Submit Uniform Allocation | Sinh 1 Stock Entry Material Issue (bỏ qua dòng *Reuse Old Item*), cập nhật lịch sử cấp từng người |
+| Cancel Uniform Allocation | Cancel Stock Entry, tính lại lịch sử từ các phiếu còn lại **+ khôi phục lịch sử import trước ERP** |
+| Thứ Hai 08:30 | Email cảnh báo (tồn thiếu + NV đến hạn) — bật/tắt ở Uniform Setting và Scheduled Job Type |
 
 ## 1.9 Xử lý sự cố thường gặp
 
 | Triệu chứng | Nguyên nhân / cách xử lý |
 |---|---|
-| `Profile missing Shirt Size` (hoặc Shoe Size) | Hồ sơ nhân viên chưa điền thông số đó → HR bổ sung profile |
-| `No variant for X with size/color Y` | Variant chưa được tạo cho giá trị đó → tạo thêm variant (§1.3) |
-| Submit Allocation báo "Insufficient stock" | Tổng SL theo từng variant (cộng dồn nhiều dòng) vượt tồn kho Uniform → nhập kho trước (dòng **Tái sử dụng đồ cũ** không tính vào) |
-| Email weekly không gửi | Kiểm tra Enable Weekly Alert + Alert Recipients trong Uniform Setting; xem Error Log với title "Uniform Weekly Alert Error" |
-| Forecast báo "chưa đủ đồ" (cam) cho một số người | Thường do **thiếu Grade** trên NV/dòng tuyển, **thiếu Rule** cho tổ hợp Grade×Gender, hoặc **size chưa có variant** → xem cảnh báo (ghi rõ ai/bao nhiêu) rồi bổ sung, Forecast lại |
-| Đổi **Chu kỳ cấp lại (tháng)** nhưng Tracking/hạn không đổi | `next_due` lưu sẵn trên hồ sơ → bấm **Tính lại hạn cấp** (danh sách Employee Uniform Profile) |
-| Dashboard: chọn Forecast mà tổng bị lệch | Forecast kiểu Re-issue/Both đã gồm cấp lại → dashboard tự ẩn cột Cần re-issue (có ghi chú cam). Đúng, không phải lỗi |
+| Get Employees bỏ qua dòng: `Employee has no Shirt Size` | NV chưa khai size áo → điền **Shirt Size trên Employee** (Dashboard có link danh sách NV thiếu size) |
+| `No variant for X with size/color Y` | Chưa có variant cho size đó → tạo variant (§1.3) |
+| `Please set Account in Warehouse Uniform - TIQN…` | Kho chưa gắn tài khoản (§1.4) |
+| Submit báo "Insufficient stock" | Tổng SL theo variant (cộng dồn nhiều dòng) vượt tồn → nhập kho trước (dòng *Reuse Old Item* không tính) |
+| Error Log "Uniform Profile name conflict" | Mã NV từng bị đổi, hồ sơ cũ còn mang mã cũ trùng NV khác → mở hồ sơ cũ → ⋯ **Rename** thành mã NV hiện tại của nó |
+| Email tuần không gửi | Enable Weekly Alert + Alert Recipients; Scheduled Job Type của `send_weekly_uniform_alert` không bị Stopped; Error Log "Uniform Weekly Alert Error" |
+| Dự toán báo "chưa đủ đồ" (cam) | Thiếu Grade trên NV/dòng tuyển, thiếu Rule, hoặc size chưa có variant → bổ sung rồi Forecast lại |
 
-Lỗi nền được ghi vào **Error Log** (Desk → Error Log).
+Lỗi nền ghi vào **Error Log** ("Uniform Daily Refresh Error", "Uniform Tracking Refresh Error"...).
+
+## 1.10 Triển khai bản đơn giản hoá (09/11/2026)
+
+| | Việc | Ghi chú |
+|---|---|---|
+| ✅ | Code đã commit | |
+| ✅ | Nạp cấu trúc 5 DocType + 2 báo cáo (`reload_doc`) | chưa gồm quyền HR |
+| ✅ | Tạo 130 hồ sơ còn thiếu, đổi tên 7 hồ sơ mã cũ, điền link trên Employee | |
+| ⬜ | **Kế toán chọn tài khoản cho kho `Uniform - TIQN`** (§1.4) | bắt buộc trước khi nhập kho / cấp phát |
+| ⬜ | Tạo variant `Dép 2-3`, `Dép 4-5`, `Dép 6-7`, `Dép 8-9`, `Dép 10-11` (attribute `Size`, tên item = "Dép" + size); disable `Dép 26`…`Dép 32` (chưa từng nhập/cấp) | NV đã khai size dép mới nhận đúng size |
+| ⬜ | Nạp quyền HR Manager/HR User, chạy patch `uniform_manual_override_from_assignments`, đăng ký job đêm → `bench migrate` rồi `bench restart` | ⚠️ lần `bench migrate` kế tiếp (do bất kỳ ai chạy) sẽ tự làm bước này |
+| ⬜ | Dịch vi.po các chuỗi mới (sau khi test giao diện) | |
 
 ---
 
-# PHẦN 2 — HR (UNIFORM MANAGER)
+# PHẦN 2 — HR
 
 ## 2.1 Khái niệm nhanh
 
-- **Uniform Allocation** (Chứng từ cấp phát) = **nguồn sự thật** của lịch sử cấp: 1 chứng từ cho nhiều NV, có Stock Entry, audit đầy đủ. Submit → tự trừ kho & cập nhật hồ sơ.
-- **Employee Uniform Profile → Issuance Tracking** = **bảng tổng hợp tự động (read-only)** suy ra từ các Allocation: loại đã cấp, ngày gần nhất, **hạn kế tiếp + trạng thái** — phục vụ tính điều kiện cấp & nhắc hạn. Không sửa tay; nếu nghi lệch, bấm **Rebuild Tracking** trên hồ sơ để dựng lại từ Allocation.
-  - Tracking chia làm **2 bảng** cho dễ nhìn: **Shirts (Áo)** = các item category *Shirt*; **Other Items** = mũ, dép, bình nước… Việc phân loại tự động theo category của Uniform Rule; báo cáo/dashboard/email vẫn gộp chung tất cả item.
-- **Employee Uniform Profile** còn lưu: size áo, giới tính, áo/mũ được gán, vị trí để dép.
+- **Uniform Allocation** (phiếu cấp phát) = **nguồn sự thật** của lịch sử cấp: 1 phiếu cho nhiều NV, có Stock Entry. Submit → trừ kho & cập nhật hồ sơ.
+- **Employee Uniform Profile** (hồ sơ đồng phục, 1 NV 1 hồ sơ):
+  - **Size và giới tính**: chỉ hiển thị, lấy từ Employee.
+  - **Áo / Mũ** được cấp: theo Rule; tick **Manual Override** để chọn tay.
+  - **What This Employee Gets**: bảng tóm tắt mỗi loại sẽ cấp món gì, size nào, chu kỳ.
+  - **Issuance Tracking** (lịch sử cấp, chỉ đọc): 2 bảng *Shirts* và *Other Items* — loại đã cấp, ngày gần nhất, tổng SL, **hạn kế tiếp + trạng thái**.
+- Hồ sơ của NV đã nghỉ vẫn giữ (lưu lịch sử); danh sách hồ sơ mặc định chỉ hiện NV đang làm.
 
-## 2.2 Quy tắc cấp phát (Uniform Rule) — HR thiết lập
+## 2.2 Quy tắc cấp phát (Uniform Rule)
 
-**HR** (Uniform Manager) là người thiết lập quy tắc cấp phát — đây là quyết định nghiệp vụ, không phải việc của IT. **Mỗi quy tắc là một record** trong DocType **Uniform Rule**. Vào **Uniform Setting → nút "Manage Uniform Rules"** hoặc sidebar **Uniform Rule**.
+HR Manager thiết lập. **Mỗi quy tắc là một record** Uniform Rule (sidebar hoặc Uniform Setting → *Manage Uniform Rules*).
 
 Mỗi rule trả lời: AI (Grade/Designation/Group/Section/Gender) nhận **MÓN GÌ**, **MẤY CÁI**, **CHU KỲ** nào. Mỗi **Category** (Shirt/Cap/Shoe/Bottle) chỉ cấp 1 món/người — rule cụ thể thắng rule chung.
 
 | Field | Ý nghĩa |
 |---|---|
-| **Category** | Shirt / Cap / Shoe / Bottle — "khe" đồng phục (1 món/người/category) |
-| **Item** | Kết quả: Shirt/Shoe → **template**; Cap → **variant Mũ cụ thể**; Bottle → item đơn |
-| **Grades** / **Designations** | **Chọn nhiều** (popup) — rule áp dụng cho mọi grade/chức danh trong danh sách. **Để trống = tất cả**. (Vd 1 rule áo sơ mi nữ chọn cả Staff/Leader/Sub Leader/Manager/Factory Manager thay vì 5 rule.) |
-| Group / Section / Gender | Điều kiện đơn. **Để trống = áp dụng tất cả**. Group = `custom_group` (tổ, vd Line 01); Section = `custom_section` (bộ phận, chứa nhiều Group) |
-| First Issue Qty / Eligible After (Days) | SL cấp lần đầu / đủ ĐK sau N ngày làm việc |
-| Reissue Cycle (Months) / Reissue Qty | chu kỳ + SL cấp bổ sung (**0 = không cấp bổ sung**) |
-| One-Time Issue | ✅ = cấp 1 lần (mũ/dép/bình nước): không cấp bổ sung định kỳ; cấp lại qua Replacement |
-| Priority / Active | ưu tiên khi hoà / bật-tắt |
+| **Category** | Shirt / Cap / Shoe / Bottle |
+| **Item** | Shirt/Shoe → **template** (size tự chọn theo Employee); Cap → **variant mũ cụ thể**; Bottle → item đơn |
+| **Grades** / **Designations** | **Chọn nhiều**. Để trống = tất cả |
+| Group / Section / Gender | Điều kiện đơn. Để trống = tất cả. Group = tổ (`custom_group`), Section = bộ phận (`custom_section`) |
+| First Issue Qty / Eligible After (Days) | SL cấp lần đầu / đủ điều kiện sau N ngày làm việc |
+| Reissue Cycle (Months) / Reissue Qty | chu kỳ + SL cấp lại (**0 = không cấp lại**) |
+| One-Time Issue | ✅ = cấp 1 lần (mũ/dép/bình nước) — không cấp lại định kỳ; hỏng/mất thì thêm tay trên phiếu |
+| Active | bật/tắt mà không cần xoá |
 
-### Cách chọn rule khi nhân viên khớp nhiều dòng (cùng Category)
+### Rule nào thắng khi NV khớp nhiều rule (cùng Category)
 
-Mỗi điều kiện **được điền VÀ khớp** với nhân viên cộng một "điểm cụ thể"; điều kiện để trống = áp dụng mọi người (không tính điểm). **Grades/Designations là danh sách** → khớp nếu grade/chức danh của NV **nằm trong** danh sách (vẫn tính đủ điểm như khớp 1 giá trị):
+Mỗi điều kiện **được điền VÀ khớp** cộng điểm; rule **tổng điểm cao nhất thắng**:
 
 | Điều kiện | Điểm |
 |---|---|
@@ -145,206 +155,129 @@ Mỗi điều kiện **được điền VÀ khớp** với nhân viên cộng m�
 | Section | 2 |
 | Gender | 1 |
 
-- `rank` của 1 rule = **tổng điểm** các điều kiện khớp. Trong cùng 1 Category, rule có **rank cao nhất thắng** (cụ thể hơn → thắng), và mỗi nhân viên chỉ nhận **1 món/Category**.
-- **Designation nặng nhất (16)** — nặng hơn cả Grade+Group+Section+Gender cộng lại (8+4+2+1 = 15). Nên rule theo Designation luôn thắng các rule theo tầng tổ chức.
-- **Grade (8) cao hơn Group (4) và Section (2)**: vai trò (Leader/Manager…) quan trọng hơn tổ/bộ phận → **Leader luôn đội mũ Leader** dù ở QC hay bộ phận nào (trừ khi có rule theo Designation riêng).
-- Vì là **tổng điểm**: rule khớp `Designation+Gender` (16+1=17) thắng rule khớp `Grade+Group+Section` (8+4+2=14).
-- Field **Priority chỉ phá hoà** khi 2 rule có **cùng rank** (hiếm, vd 2 rule cùng theo Designation) — **KHÔNG đè** được rule cụ thể hơn. Muốn một rule "thắng tuyệt đối" → thêm điều kiện Designation hoặc tách rule riêng cho nhóm hẹp đó.
+- Designation (16) nặng hơn cả Grade+Group+Section+Gender cộng lại (15) → rule theo chức danh luôn thắng.
+- Grade (8) > Group/Section: **Tổ trưởng luôn đội mũ Tổ trưởng** dù ở bộ phận nào (trừ khi có rule theo Designation).
+- Hai rule **cùng điểm**: rule có mã (UNI-RULE-…) lớn hơn thắng — nên tránh, thêm điều kiện để tách.
 
-> **Ví dụ 1 — Designation thắng** (Category = Cap): Rule X `Designation = QC Worker` (rank 16) vs Rule Y `Group = Line 03, Gender = Female` (rank 4+1=5). Nhân viên QC Worker ở Line 03 nữ → nhận **Rule X** (Mũ QC) vì 16 > 5.
->
-> **Ví dụ 2 — Grade thắng Section** (Category = Cap): một **Tổ trưởng QC** khớp cả `Grade = Leader` (rank 8, Mũ Tổ Trưởng) và `Section = QC` (rank 2, Mũ QC) → nhận **Mũ Tổ Trưởng** vì 8 > 2. Vai trò (Leader) quan trọng hơn bộ phận. Nhưng **QC Worker thường** (không phải Leader) vẫn nhận **Mũ QC** (chỉ khớp Section).
+> **Ví dụ** (Category = Cap): Tổ trưởng QC khớp `Grade = Leader` (8, Mũ Tổ Trưởng) và `Section = QC` (2, Mũ QC) → nhận **Mũ Tổ Trưởng**. QC Worker thường chỉ khớp Section → **Mũ QC**.
 
 **Bộ Rules mẫu (đã cài sẵn):**
 
 | Category | Item | Grade | Designation | Gender | Qty | Cycle | One-Time |
 |---|---|---|---|---|---|---|---|
-| Shirt | Áo sơ mi nam | Staff/Leader/Sub Leader/Manager | | Male | 2 | 6 | |
-| Shirt | Áo sơ mi nữ | Staff/Leader/Sub Leader/Manager | | Female | 2 | 6 | |
-| Shirt | Áo thun nam | Worker | | Male | 2 | 6 | |
-| Shirt | Áo thun nữ | Worker | | Female | 2 | 6 | |
-| Cap | Mũ Xanh Lá (Nv VP) | Staff | | | 1 | 0 | ✅ |
-| Cap | Mũ Xanh Dương Đậm (May) | | Sewing Worker | | 1 | 0 | ✅ |
-| Cap | Mũ Đỏ (QC) | | QC Worker | | 1 | 0 | ✅ |
+| Shirt | Áo sơ mi nam / nữ | Staff/Leader/Sub Leader/Manager/Factory Manager | | Male / Female | 4 | 12 | |
+| Shirt | Áo thun nam / nữ | (mọi grade) | | Male / Female | 2 | 6 | |
+| Cap | 15 mũ theo vai trò | theo grade / section / designation | | | 1 | 0 | ✅ |
 | Shoe | Dép | | | | 1 | 0 | ✅ |
 | Bottle | Bình nước | | | | 1 | 0 | ✅ |
 
-> **Áo & Mũ** lưu trên hồ sơ ở field **Áo được gán** / **Mũ được gán** — Rules chỉ điền mặc định, HR sửa tay được (lớp override). **Size áo/giày** là số đo cá nhân → nhập ở hồ sơ. **Dép/Bình nước** không cần gán trước — Rule (điều kiện) quyết định ai được cấp.
+**Kiểm tra kết quả**: danh sách Uniform Rule → nút **Preview Assignments** (báo cáo *Uniform Assignment Preview*): mỗi NV sẽ nhận áo/mũ/dép/bình nào, size gì, và **Problems** (không có rule, thiếu size, chưa có variant). Tick *Only Problems* để xem người cần xử lý; *Only Manual Override* để rà các ngoại lệ.
 
-**Áp dụng:**
-- Nút **Apply Defaults to All** (**danh sách Uniform Rule**) → điền Áo/Mũ **còn trống** cho mọi hồ sơ chưa khoá (giữ nguyên dữ liệu đã có). *(Nút "Hướng dẫn cài đặt" cạnh đó mở dialog giải thích cách viết rule.)*
-- Nút **Apply Defaults** (từng hồ sơ) → ghi đè theo rule cho riêng người đó.
-- Tự điền field còn trống khi lưu hồ sơ (onboarding).
-- Tick **Manual Override** ở hồ sơ → bỏ qua khi Apply hàng loạt.
+**Sau khi sửa Rule**: lưu xong là hệ thống tự cập nhật Áo/Mũ và hạn cấp lại cho mọi hồ sơ (chạy nền vài giây). Không có gì cần bấm thêm.
 
-**⚠️ Sau khi đổi Rule — điều gì cập nhật ngay, điều gì cần chạy lại:**
-- **First Issue Qty / Eligible After (Days) / Reissue Qty**: áp dụng **ngay** cho tính mới (Get Employees, Forecast, Dashboard, email tuần). Không đụng dữ liệu đã cấp.
-- **Reissue Cycle (Months)**: dùng để tính **hạn kế tiếp (next_due) + trạng thái**, và giá trị này **lưu sẵn** trên hồ sơ. Đổi chu kỳ → báo cáo Tracking / thẻ KPI **vẫn dùng chu kỳ cũ** cho đến khi tính lại. → bấm **"Tính lại hạn cấp"** (danh sách Employee Uniform Profile) để cập nhật toàn bộ.
+## 2.3 Hồ sơ đồng phục và ngoại lệ (Manual Override)
 
-## 2.3 Bước 1 — Hoàn thiện hồ sơ đồng phục
-
-Hồ sơ được tạo tự động khi nhân viên mới vào. HR mở **Employee Uniform Profile** (hoặc từ form Employee → field Uniform Profile) và điền:
+Hồ sơ tự có (không cần tạo tay). Trên hồ sơ:
 
 | Field | Ghi chú |
 |---|---|
-| **Assigned Shirt Item (Áo được gán)** | Template áo nhân viên nhận. **Tự điền từ Quy tắc gán mặc định** (§2.2); sửa tay được, gán tự do không phụ thuộc giới tính |
-| **Assigned Cap Item (Mũ được gán)** | Variant Mũ cụ thể (theo màu/vai trò). **Tự điền từ Quy tắc gán mặc định**; sửa tay được |
-| **Manual Override (Khoá thủ công)** | Tick = giữ nguyên áo/mũ đã sửa tay, bỏ qua khi chạy Apply Defaults hàng loạt |
-| Uniform Gender | Male / Female (thông tin tham khảo) |
-| Shirt Size | S / M / L / XL — size áo |
-| Shoe Size | size dép (chỉ chọn size đã có variant trong kho; thêm size mới xem §1.3) |
-| Shoe Rack Location | **read-only, tự động** lấy Rack Name từ DocType Shoe Rack (mỗi rack chứa 1–2 nhân viên). Muốn đổi vị trí → sửa phân bổ trong Shoe Rack, profile tự cập nhật |
+| Gender / Shirt Size / Shoe Size | **Chỉ đọc**, lấy từ Employee. Muốn đổi → nút **Edit Sizes on Employee** |
+| **Manual Override** | **Bỏ tick** = Áo/Mũ luôn theo Rule (tự cập nhật). **Tick** = HR chọn Áo/Mũ bằng tay; Rule không đổi nữa (ô để trống vẫn theo Rule) |
+| Shirt / Cap | Chỉ sửa được khi tick Manual Override |
+| Shoe Rack Location | Tự lấy từ Shoe Rack |
 
-**Đổi áo cho nhân viên**: đổi Assigned Shirt Item (tick Manual Override nếu là ngoại lệ) rồi Save. Template mới chưa từng cấp → nhân viên sẽ xuất hiện ở danh sách *Cấp mới* cho template đó. Lịch sử được giữ nguyên ở 2 nơi: bảng Issuance Tracking (mỗi loại đã cấp một dòng riêng) và nhật ký thay đổi hồ sơ (menu ⋯ → **History** trên form).
+> Khi triển khai, patch `uniform_manual_override_from_assignments` **tick Manual Override** cho các hồ sơ có Áo/Mũ khác kết quả Rule (áo từ file lịch sử, mũ gán trước khi có rule mới… — đo 09/11/2026: 185 hồ sơ) để giữ nguyên như cũ. Sau đó rà bằng *Preview Assignments → Only Manual Override*; bỏ tick những người nên theo Rule.
 
-> ⚠️ Hồ sơ thiếu thông số nào thì khi cấp phát hệ thống không tự điền được variant tương ứng — dòng đó sẽ báo lỗi thiếu thông tin.
+> ⚠️ **Cấp bậc (Grade) trên Employee** quyết định áo sơ mi vs áo thun. NV thiếu Grade → không khớp rule áo sơ mi.
 
-> ⚠️ **Cấp bậc (Grade) trên Employee** quyết định **áo sơ mi vs áo thun** (rule áo theo Grade×Gender). Nhân viên thiếu Grade → không khớp rule áo → bị bỏ qua khi cấp/dự toán. Nên đảm bảo Employee có Grade.
-
-**Công cụ hàng loạt (nút trên danh sách Employee Uniform Profile):**
-- **Create Missing Profiles** — tạo hồ sơ cho mọi NV Active còn thiếu. Tick **"Gồm cả nhân viên đã nghỉ"** để tạo cả cho NV đã nghỉ việc — dùng khi cần **import/lưu lịch sử cấp phát** (việc cấp phát cho NV không còn Active vẫn bị chặn như thường).
-- **Recompute Due Dates** — tính lại hạn kế tiếp + trạng thái toàn bộ (chạy **sau khi đổi Chu kỳ cấp lại** trong Rule).
-- **Sync Shoe Rack Locations** — đồng bộ vị trí để dép từ Shoe Rack.
-- **Seed Test Tracking** *(chỉ Administrator — công cụ test)* — sinh dữ liệu tracking mẫu cho toàn bộ hồ sơ: áo theo `shirt_item` đã gán (variant có size — tôn trọng Shirt Size nếu có, thiếu thì gán theo tỉ lệ S/M/L/XL và điền ngược vào hồ sơ), mũ/dép/bình theo rule, SL = First Issue Qty của rule. Dialog có 2 chế độ: **Insert to DB** (ghi thẳng, không tạo trùng) hoặc **Download Excel for import** (file snapshot đầy đủ đúng định dạng Data Import).
-
-**Ý nghĩa trạng thái** trong bảng theo dõi:
+**Ý nghĩa trạng thái** trong lịch sử cấp:
 
 | Trạng thái | Ý nghĩa |
 |---|---|
-| Not Issued (Chưa cấp) | chưa từng được cấp loại này |
-| Active (Còn hạn) | đã cấp, chưa tới kỳ bổ sung |
-| Due Soon (Sắp đến hạn) | đến hạn trong vòng 30 ngày tới |
-| Overdue (Quá hạn) | đã quá hạn cấp bổ sung |
+| Not Issued | chưa từng được cấp loại này |
+| Active | đã cấp, chưa tới kỳ cấp lại |
+| Due Soon | đến hạn trong N ngày tới (Remind Days Before Due) |
+| Overdue | đã quá hạn cấp lại |
 
-## 2.4 Bước 2 — Nhập kho đồng phục
+## 2.4 Nhập kho đồng phục
 
-Khi nhận hàng từ nhà cung cấp:
+Dashboard → nút **Receive Stock**: chọn ngày, thêm dòng **Item (size/màu cụ thể)**, **Qty**, **Unit Price** (bắt buộc — dùng cho giá trị tồn kho) → **Receive**. Hệ thống tạo + submit phiếu Material Receipt vào kho Uniform. Chỉ nhận item thuộc nhóm đồng phục, loại variant cụ thể (không nhận template).
 
-1. Vào **Stock Entry → New**.
-2. Stock Entry Type = **Material Receipt**.
-3. Target Warehouse = **kho Uniform** (không cần kho nguồn).
-4. Thêm từng dòng: chọn **variant cụ thể** (ví dụ `Áo sơ mi nam Xl`), số lượng, và **Basic Rate** = đơn giá (phục vụ báo cáo chi phí).
-5. Save → Submit. Tồn kho Uniform tăng ngay.
+## 2.5 Cấp phát (Uniform Allocation)
 
-## 2.5 Bước 3 — Cấp phát theo lô
+**Cách nhanh nhất**: Dashboard → **Create Allocation for Due** → phiếu mới đã có sẵn mọi món đến hạn đến ngày đang lọc trên dashboard.
 
-1. Vào **Uniform Allocation → New**.
-2. Chọn **Allocation Type** — mỗi loại có quy tắc lọc và chặn riêng:
+Hoặc **Uniform Allocation → New**:
 
-   | Loại | Ai được liệt kê | Chặn khi Submit |
-   |---|---|---|
-   | **New Issue** (Cấp mới) | Chưa từng được cấp loại đó **và** đủ ngày làm việc theo quy định | ❌ Chặn dòng của người **đã** được cấp loại đó (báo ngày cấp gần nhất, gợi ý dùng Supplement/Replacement) |
-   | **Supplement** (Cấp bổ sung) | Đã được cấp **và** đến hạn hoặc **sắp đến hạn trong N ngày tới** (N = Reminder Days Before trong Setting, mặc định 30 — để HR chuẩn bị trước) | ❌ Chặn dòng của người **chưa từng** được cấp loại đó (gợi ý dùng New Issue) |
-   | **Replacement** (Thay thế) | Hỏng / đổi size / mất — **HR thêm từng người thủ công** (không lọc, không Get Employees) | Không chặn thêm (van thủ công có kiểm soát) |
-3. **Bộ lọc hiện theo Allocation Type:**
-   - **New Issue**: Loại đồng phục, Phòng ban/Nhóm/Giới tính, **Ngày nhận việc từ/đến**.
-   - **Supplement**: Loại đồng phục, Phòng ban/Nhóm/Giới tính, **Hạn cấp từ/đến** + **Chỉ quá hạn** (lọc theo `next_due`; bỏ trống = đến hạn trong N ngày nhắc + quá hạn). *(Ẩn ngày nhận việc.)*
-   - **Replacement**: ẩn toàn bộ filter — thêm tay từng người.
-4. Bấm **Get Employees** (New Issue/Supplement) → **cộng dồn** NV đủ điều kiện vào bảng Items (bấm nhiều lần với bộ lọc khác nhau để gộp; **dòng trùng tự bỏ qua**). Dòng thiếu size/variant được liệt kê để HR bổ sung hồ sơ rồi bấm lại. Vẫn thêm/sửa/xóa tay được. Lưu sẽ **tự loại dòng trùng** (cùng NV + item) kèm cảnh báo.
-5. **Save** (Draft) → kiểm tra lại → **Submit**.
+1. (Tuỳ chọn) lọc: **Department**, **Group**, **Uniform Type**, **Due On or Before** (để trống = hôm nay + Remind Days Before Due), **Include** (All / chỉ New Issue / chỉ Periodic Supplement).
+2. Bấm **Get Employees** → thêm mọi món đến hạn, mỗi dòng ghi sẵn **Issue Reason**:
+   - **New Issue**: NV chưa từng nhận loại đó (thường là NV mới) và đã đủ *Eligible After (Days)*.
+   - **Periodic Supplement**: đã nhận, không phải món cấp 1 lần, hạn cấp lại ≤ *Due On or Before*.
+   Bấm nhiều lần với bộ lọc khác để gộp; dòng trùng tự bỏ qua. Dòng không tìm được size/variant được liệt kê để xử lý (thường là thiếu size trên Employee).
+3. **Thêm tay** khi đồ **hỏng / mất / đổi size**: chọn NV, item (variant), SL, Issue Reason **Damaged / Lost / Size Change**.
+4. Tick **Reuse Old Item** nếu cấp lại đồ cũ thu hồi (không trừ kho).
+5. **Save** → kiểm tra → **Submit**.
 
-Khi Submit, hệ thống tự động:
-- Chặn nếu có nhân viên không còn Active hoặc đã có ngày nghỉ việc.
-- Chặn dòng **không khớp Loại cấp phát** (xem bảng ở bước 2) — áp dụng cả với dòng thêm tay.
-- Chặn nếu **tổng** SL theo từng variant vượt tồn kho (liệt kê rõ thiếu bao nhiêu) → đi nhập kho rồi submit lại. *(Dòng tick **Tái sử dụng đồ cũ** được bỏ qua khi kiểm tra tồn.)*
-- Sinh 1 phiếu xuất kho (Material Issue) — xem được qua field **Stock Entry**. **Dòng tick "Tái sử dụng đồ cũ (không xuất kho)" không bị trừ kho**; nếu cả phiếu đều là đồ tái sử dụng thì không tạo phiếu xuất kho.
-- Cập nhật hồ sơ từng nhân viên: ngày cấp, tổng đã cấp, hạn cấp kế tiếp (kể cả dòng tái sử dụng — nhân viên vẫn được ghi nhận đã nhận đồ).
+Submit bị chặn khi: NV không còn Active / có ngày nghỉ việc · thiếu tồn (cộng dồn theo variant, trừ dòng Reuse) · dòng chưa có Issue Reason. Dòng *New Issue* cho người đã từng nhận loại đó chỉ **cảnh báo** (không chặn).
 
-**Nhân viên mới**: hệ thống chỉ tự tạo **Employee Uniform Profile**, **không** tự tạo Uniform Allocation. Khi cần cấp, HR tự tạo 1 Allocation và dùng **Get Employees** để gộp nhiều người vào cùng một chứng từ (tránh tạo nhiều phiếu rời rạc mỗi người một cái).
+Khi Submit: tạo 1 phiếu xuất kho (Material Issue, trừ dòng Reuse), cập nhật lịch sử + hạn cấp lại từng người.
 
-**Hủy chứng từ**: mở Allocation đã submit → Cancel. Phiếu xuất kho bị hủy theo, tồn kho hoàn lại, hồ sơ nhân viên được tính lại theo các đợt cấp còn lại.
+**Cấp nhầm**: Cancel phiếu → phiếu xuất kho bị hủy, tồn hoàn lại, lịch sử từng người được tính lại (kể cả lịch sử import trước khi dùng ERP được khôi phục). Sửa rồi dùng **Amend**.
 
-## 2.6 Item "Cấp một lần" (Mũ / Dép / Bình nước)
+## 2.6 Món cấp một lần (Mũ / Dép / Bình nước)
 
-- Ai được cấp do **điều kiện trong Rule** quyết định (Grade/Designation/Group/Section).
-- Cấp **một lần** (Rule đánh dấu One-Time Issue) — không xuất hiện trong Cấp bổ sung, không có hạn cấp lại.
-- Hỏng/mất/đổi → tạo Allocation loại **Replacement**, thêm dòng thủ công.
+- Ai được cấp do **điều kiện trong Rule**; cấp **một lần** (One-Time Issue) — không xuất hiện trong cấp lại định kỳ.
+- Hỏng / mất / đổi → thêm tay một dòng trên phiếu với lý do **Damaged / Lost / Size Change**.
 
-## 2.7 Nhập lịch sử cấp phát cũ (trước khi dùng ERP) — chỉ làm 1 lần
+## 2.7 Lịch sử cấp phát cũ (trước khi dùng ERP)
 
-> Issuance Tracking trên form là **read-only** (không sửa tay). Việc nhập lịch sử cũ chỉ làm **một lần ban đầu** qua **Data Import** (chạy server-side, bỏ qua read-only). Từ khi dùng ERP, mọi cấp phát đi qua **Uniform Allocation** và Tracking tự cập nhật.
+Đã import 10–11/07/2026 (9.207 dòng, ngày cấp từ 2010). Ngày 09/11/2026 đã tạo hồ sơ cho 130 NV Active còn thiếu và đổi tên 7 hồ sơ còn mang mã NV cũ (TIQN-2349…2355 → 2347…2353) — mọi NV Active đều có hồ sơ. Nếu cần nhập thêm: **Data Import** trên Employee Uniform Profile (Update Existing Records), cột `ID` (= mã NV), `Item (Uniform Items)` = **variant cụ thể** (vd `Áo thun nữ S`, `Mũ Đỏ - Qc`, `Dép Free Size`), `Last Issue Date`, `Last Issue Qty`, `Total Issued Qty`. Hạn kế tiếp + trạng thái tự tính.
 
-**Nhập hàng loạt (Data Import)** trên DocType Employee Uniform Profile (Update Existing Records), cột:
-`ID` (= mã nhân viên), `Item (Uniform Items)` = **variant cụ thể** đã cấp (vd `Áo thun nữ S`, `Mũ Đỏ - Qc`, `Dép 27`), `Last Issue Date (Uniform Items)`, `Last Issue Qty (Uniform Items)`, `Total Issued Qty (Uniform Items)`.
-→ Next Due Date và Status **không cần nhập** — tự tính khi import (từ chu kỳ trong Rule).
-
-Từ đó NV tự xuất hiện trong danh sách *Cấp bổ sung* khi đến hạn; các đợt sau làm bằng Uniform Allocation.
-
-> **Nút Rebuild Tracking** (trên từng hồ sơ): dựng lại Tracking từ các Allocation đã submit khi nghi dữ liệu lệch. Dòng lịch sử cũ (nhập tay, không có Allocation) được **giữ nguyên**.
-
-> Hồ sơ của toàn bộ nhân viên Active đã được tạo sẵn (973 hồ sơ). Nếu sau này cần tạo lại hàng loạt: `bench --site erp.tiqn.local execute customize_erpnext.uniform_control.api.onboarding.backfill_uniform_profiles`
+Lần cấp ERP đầu tiên trên một dòng lịch sử cũ sẽ lưu lại giá trị cũ (ẩn, "Before ERP"); hủy phiếu sẽ khôi phục giá trị đó. **Rebuild Tracking** (System Manager, trên hồ sơ) dựng lại lịch sử từ các phiếu đã submit + giá trị trước ERP.
 
 ## 2.8 Dashboard
 
-Vào **/app/uniform-dashboard** (tìm "Uniform Dashboard" trong thanh tìm kiếm). Gồm:
+**/app/uniform-dashboard** (sidebar Uniform Control → Dashboard):
 
-- **5 thẻ số liệu**: variant có tồn, tồn thấp, sắp đến hạn, quá hạn, số đợt cấp 30 ngày. Bấm thẻ **Due Soon/Overdue** mở thẳng báo cáo **Uniform Tracking** đã lọc sẵn.
-- **Bảng "Stock Plan" (Kế hoạch nhập kho)** (trọng tâm) — **chỉ tính nhu cầu cấp lại (Re-issue), KHÔNG gồm dự toán tuyển mới** (phần đó xem ở Uniform Demand Forecast). Cột cố định: `Loại | Item | Tồn | Cần re-issue | Dự kiến cấp cho NV sẽ nghỉ | Tổng | Thiếu`.
-  - **Cần re-issue**: theo **tracking, số đầy đủ** — đến mốc **"Đến hạn vào/trước"** (mặc định hôm nay), **đếm đủ số chu kỳ** trong khoảng.
-  - **Dự kiến cấp cho NV sẽ nghỉ** (**số ÂM, màu đỏ**) — **ĐO từ thực tế**: trong N tháng gần nhất (Attrition Window), đếm số suất cấp lại **đã đến hạn nhưng người nhận nghỉ trước hạn** → lấy **TB/tháng theo từng variant × số tháng của mốc lọc** (hôm nay → "Đến hạn vào/trước"), **làm tròn LÊN**, chặn không vượt Cần re-issue. Lọc mốc hôm nay → 0 tháng → cột = 0. Bật/tắt + window trong **Uniform Setting**.
-  - **Tổng = Cần re-issue + Dự kiến (âm)** — số thực nên chuẩn bị; **Thiếu = Tổng − Tồn**, tô đỏ khi > 0.
-  - Bảng Employees Due bên dưới **luôn là số đầy đủ, chỉ dựa lịch sử cấp phát** — không liên quan forecast hay attrition. Excel xuất đúng layout này.
-  - Bảng dùng lưới chuẩn Frappe: **sắp xếp/lọc từng cột** ngay trên đầu cột; cả bảng **thu gọn/mở** được (mặc định mở).
-- **Bảng "Employees Due for Issue"** (thu gọn, bấm mở): mỗi NV/item kèm **SL/chu kỳ · Số chu kỳ · Tổng SL** trong khoảng lọc; click mã NV mở hồ sơ.
-- **2 biểu đồ**: số lượng cấp theo tháng và theo nhóm (Group).
-- **Nút thao tác**: Cấp phát, Nhập kho, Lịch sử, Hồ sơ, **Uniform Tracking**, **Demand Forecast** (dự toán), **Xuất Excel** (2 sheet: Kế hoạch nhập kho + NV đến hạn — theo đúng mốc lọc & trạng thái tick Deduct Attrition).
+- **Cảnh báo dữ liệu** (khung cam): NV chưa có hồ sơ (nút **Create Profiles**), NV thiếu size áo (link danh sách Employee — áo của họ bị bỏ qua), NV chưa khai size dép (sẽ cấp Free Size).
+- **3 thẻ**: Low Stock, Due Soon, Overdue (số món). Bấm Due Soon / Overdue → báo cáo **Uniform Tracking** đã lọc — **cùng số với thẻ**.
+- Ô **Reissue due on/before** (mặc định hôm nay) điều khiển cả 2 bảng và nút *Create Allocation for Due*.
+- **Stock Plan** (kế hoạch nhập kho, chỉ nhu cầu cấp lại): `Loại | Item | Tồn | Cần re-issue | Est. for Leavers | Tổng | Thiếu`.
+  - **Cần re-issue**: theo lịch sử cấp, đếm đủ số chu kỳ đến mốc lọc.
+  - **Est. for Leavers** (số âm, đỏ): ĐO từ thực tế — N tháng gần nhất (Attrition Window), số suất cấp lại đến hạn nhưng người nhận đã nghỉ trước → TB/tháng × số tháng tới mốc lọc, làm tròn lên. Bật/tắt trong Uniform Setting.
+  - **Tổng** = Cần re-issue + Est.; **Thiếu** = Tổng − Tồn (đỏ khi > 0).
+- **Employees Due for Issue**: mỗi NV/món — SL/chu kỳ · số chu kỳ · tổng SL.
+- **2 biểu đồ**: SL cấp theo tháng và theo tổ.
+- Nút: **Create Allocation for Due**, **Receive Stock**, **Assignment Preview**, **Shoe Rack Dashboard**, **Export Excel** (2 sheet theo đúng mốc lọc), **Refresh**.
 
 ## 2.9 Theo dõi & cảnh báo
 
-- **Email thứ Hai 08:30 hàng tuần** gồm 2 bảng: variant tồn thấp cần nhập thêm, và nhân viên sắp/đã đến hạn cấp bổ sung.
-- Email tuần và thẻ KPI (Due Soon/Overdue) tính **trực tiếp theo Ngày đến hạn** của NV Active có mã đúng tiền tố — không phụ thuộc trạng thái lưu trên hồ sơ, nên **không bao giờ bỏ sót** dù hồ sơ lâu chưa được lưu lại. (Trạng thái hiển thị trên hồ sơ vẫn cập nhật mỗi khi save / bấm Recompute Due Dates.)
-- Danh sách nhân viên đến hạn cũng xem được bằng Excel (mục 2.8).
+- Báo cáo **Uniform Tracking**: lịch sử cấp từng NV/món, trạng thái tính theo ngày; mặc định NV đang làm (tick *Include Left Employees* để xem cả người đã nghỉ).
+- **Email thứ Hai 08:30** (nếu bật): variant thiếu cho đợt cấp tới + NV sắp/đã đến hạn.
 
-## 2.10 Báo cáo qua Excel (Power Query)
+## 2.10 Dự toán nhu cầu đồng phục (Uniform Demand Forecast)
 
-Excel → Data → Get Data → From Web, dán URL (đăng nhập ERPNext trên trình duyệt cùng máy hoặc dùng API key):
+Dùng để **chuẩn bị/nhập kho trước**. Sidebar → **Uniform Demand Forecast** → New.
 
-| Báo cáo | URL |
-|---|---|
-| Tồn kho + cờ tồn thấp | `https://<server>/api/method/customize_erpnext.uniform_control.api.uniform_excel_api.get_uniform_stock_excel` |
-| NV đến hạn cấp | `.../uniform_excel_api.get_due_employees_excel?allocation_type=Supplement` |
-| Lịch sử cấp phát | `.../uniform_excel_api.get_allocation_history_excel?from_date=2026-01-01&to_date=2026-12-31` |
-| Chi phí đồng phục | `.../uniform_excel_api.get_uniform_cost_excel?group_by=department` (`group_by`: employee / department / period) |
-
-Tham số lọc thêm: `department=`, `uniform_type=`, `employee=` (nối bằng `&`).
-
-## 2.11 Dự toán nhu cầu đồng phục (Uniform Demand Forecast)
-
-Dùng để **chuẩn bị/nhập kho trước**. Vào Dashboard → **Demand Forecast** → New.
-
-**Chọn Mode (Chế độ):**
-- **New Hires** — nhu cầu cho **nhân viên sẽ tuyển mới**, nhập trong bảng **Chức danh cần tuyển** (Designation + Số cần tuyển). Cơ cấu **cấp bậc/giới tính/nhóm/bộ phận** + tỷ lệ size **suy từ nhân viên hiện tại** cùng chức danh (nên nên đảm bảo NV hiện tại có Grade đúng). Chức danh hoàn toàn mới (chưa có ai) → hiện cảnh báo để nhập tay.
-- **Re-issue** — nhu cầu **cấp lại** của NV hiện tại, **đếm đủ số chu kỳ** đến **To Date** (mặc định hôm nay + 1 năm).
+**Mode:**
+- **New Hires** — nhu cầu cho NV sẽ tuyển: bảng **Designations to Recruit** (chức danh + số lượng). Cơ cấu cấp bậc/giới tính/tổ/bộ phận và **tỷ lệ size suy từ NV hiện tại (Active) cùng chức danh** — size và giới tính đọc từ **Employee**; size dép: NV chưa khai được tính là Free Size.
+- **Re-issue** — nhu cầu cấp lại của NV hiện tại, đếm đủ số chu kỳ đến **Reissue To Date**.
 - **Both** — cộng cả hai.
 
-**Các bước:**
-1. Chọn **Mode**. Với New Hires: điền bảng **Chức danh cần tuyển** (chức danh + số lượng). Với Re-issue: đặt **To Date**. (Warehouse mặc định kho đồng phục.) **Save**.
-   - **Recruitment From / To** (chế độ New Hires/Both): khoảng thời gian của kế hoạch tuyển — chỉ để ghi nhận/lọc, không ảnh hưởng cách tính. (Luôn dự toán **đủ cả 5 loại item**.)
-   - **Dự phòng nghỉ việc (Est. for Leavers)** — cấu hình trong **Uniform Setting** (Deduct Attrition + Attrition Window), **dùng chung cho Dự toán & Dashboard**. **Forecast Qty luôn là số ĐẦY ĐỦ**; cột **Est. for Leavers (số ÂM, đỏ)** được **ĐO từ thực tế**: trong N tháng gần nhất đếm số suất cấp lại **đã đến hạn nhưng người nhận nghỉ trước hạn** (số người + số áo liệt kê được — xem tab Analysis) → **TB/tháng theo từng variant × số tháng kỳ dự toán** (Reissue From → To), **làm tròn LÊN**, chặn không vượt Forecast Qty. Cột **Total = Forecast Qty + Est.** — số thực nên chuẩn bị; **Thiếu tính theo Total**. Cùng cơ sở nên **tổng Forecast (Re-issue) = Cần re-issue trên Dashboard** với cùng khoảng thời gian. Lưu ý: window ngắn hơn chu kỳ sơ mi (12 tháng) sẽ bắt thiếu suất sơ mi — nên đặt window ≥ 12 khi đã có đủ dữ liệu lịch sử.
-   - Panel **Attrition Analysis** trên form: bảng tỉ lệ nghỉ từng tháng (số nghỉ / sĩ số / %) + bảng **cơ cấu áo của nhân viên đã nghỉ** trong khoảng đó (loại áo × size — số người, số áo đã cấp) để tham khảo khi lập kế hoạch. Excel xuất thêm sheet **Attrition** khi bật trừ nghỉ việc. Dashboard **không** áp chiết khấu này (số ở dashboard luôn là nhu cầu đầy đủ).
-2. Bấm nút **Forecast** (góc trên phải). Hệ thống tính nhu cầu theo từng **variant** (áo nam/nữ theo size, mũ theo bộ phận, dép, bình nước…) + **tồn hiện tại**.
-3. Có thể **sửa tay** cột **SL dự toán** rồi Save (tổng tự tính lại). Bấm **Tải Excel** để xuất toàn bộ phiếu — 5 sheet: **Info** (mode, ngày, kho, tổng, ghi chú), **Recruitment Plan** (bảng chức danh cần tuyển), **Forecast** (kết quả), **Current Ratio (Recruited)** và **Current Ratio (Company)**.
+**Các bước:** chọn Mode, điền bảng tuyển / ngày → **Save** → nút **Forecast** → (tuỳ chọn) sửa tay cột Forecast Qty → Save → **Download Excel** (sheet Info, Recruitment Plan, Attrition, Forecast, Current Ratio).
 
-**Cách tính New Hires:** với mỗi chức danh, số lượng tuyển được chia theo cơ cấu **Cấp bậc / Giới tính / Nhóm / Bộ phận** của nhân viên hiện hữu cùng chức danh. Áp **Rules**: **Giới tính** → áo Nam/Nữ; **Cấp bậc** → áo sơ mi (theo grade); **Nhóm/Bộ phận** → màu mũ. Riêng **áo** chia tiếp theo **tỷ lệ size** — **làm tròn theo NGƯỜI, mỗi người 1 size**, rồi ×`first_qty` (nên SL mỗi size là bội của first_qty, không có "nửa người"). Chức danh mới kiểu `…-Trainee` chưa có ai sẽ **tự dùng chức danh gốc** (vd `Sewing Worker-Trainee` → `Sewing Worker`); chức danh hoàn toàn mới (không có nhân viên để suy) sẽ được dự toán bằng **Default Shirt Item** trong Uniform Setting (mặc định `Áo thun nữ M` × first_qty của rule) kèm **cảnh báo liệt kê rõ** để HR rà lại; nếu Setting chưa cấu hình item mặc định (hoặc loại áo đó bị bỏ tick) thì hiện cảnh báo nhập tay như cũ.
+- **Est. for Leavers** (số âm) cùng cách đo với Dashboard; **Total = Forecast Qty + Est.**; Thiếu tính theo Total.
+- Chức danh `…-Trainee` chưa có ai → dùng chức danh gốc; chức danh hoàn toàn mới → dùng **Default Shirt Item** (Uniform Setting) kèm cảnh báo.
+- Cảnh báo cam "Vui lòng rà soát": thiếu Grade / thiếu Rule / size chưa có variant → bổ sung rồi Forecast lại.
 
-**Hai bảng tham chiếu (chỉ để xem, KHÔNG ảnh hưởng kết quả):**
-- **Tỉ lệ áo hiện tại**: phân bố áo của NV hiện tại (theo Giới tính × Size), tính đến **ngày tạo** phiếu. Có 2 nút chọn phạm vi: **"Chức danh tuyển"** (mặc định — đúng cơ sở tính của Forecast) và **"Toàn công ty"** (tham khảo chung). Forecast Items **luôn tính theo từng chức danh**, không đổi khi bấm 2 nút này.
-- **Phân tích áo dự toán**: kết quả áo (Forecast Items) theo loại × giới tính × size.
+## 2.11 Câu hỏi thường gặp
 
-> Có thể đưa nhu cầu một/nhiều forecast vào **bảng Kế hoạch nhập kho** trên Dashboard (nút "Cộng nhu cầu dự toán…") để gộp với nhu cầu cấp lại.
+**Nhân viên sắp nghỉ việc có cấp được không?** Không. NV có ngày nghỉ việc bị loại khỏi Get Employees và bị chặn khi submit.
 
-**Nếu hiện cảnh báo cam "Vui lòng rà soát":** một số người chưa đủ đồ — thường do **thiếu Grade** trên nhân viên/dòng tuyển, **thiếu Rule**, hoặc **size chưa có sản phẩm**. Cảnh báo ghi rõ ai/bao nhiêu người → bổ sung rồi bấm **Forecast** lại.
+**Submit báo thiếu hàng nhưng từng dòng đều ≤ tồn?** Hệ thống cộng dồn theo variant: 2 NV cùng nhận áo M nam 3 cái/người = cần 6 cái.
 
-## 2.12 Câu hỏi thường gặp
+**Cấp nhầm thì sửa thế nào?** Cancel phiếu (tồn kho và lịch sử tự hoàn lại) → Amend.
 
-**Nhân viên sắp nghỉ việc có cấp được không?**
-Không. Nhân viên có ngày nghỉ việc (relieving date) bị loại khỏi danh sách và bị chặn khi submit.
+**Đổi size cho nhân viên?** Sửa Shirt Size / Shoe Size trên Employee → thêm tay 1 dòng trên phiếu với lý do **Size Change**.
 
-**Submit báo thiếu hàng nhưng từng dòng đều ≤ tồn?**
-Hệ thống cộng dồn theo variant: 2 nhân viên cùng nhận áo size M Nam 3 cái/người = cần 6 cái. Nhập kho thêm rồi submit lại.
-
-**Cấp nhầm thì sửa thế nào?**
-Cancel chứng từ (tồn kho và hồ sơ tự hoàn lại) → tạo chứng từ mới hoặc dùng Amend.
-
-**Đổi size cho nhân viên?**
-Cập nhật size trong hồ sơ → tạo Allocation loại Replacement, lý do "Size Change". (Thu hồi đồ cũ xử lý ngoài hệ thống.)
+**Một người cần áo/mũ khác quy định?** Mở hồ sơ → tick **Manual Override** → chọn Áo/Mũ.

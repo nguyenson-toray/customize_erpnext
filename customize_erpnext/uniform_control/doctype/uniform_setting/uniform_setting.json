@@ -26,7 +26,7 @@
    "read_only": 1
   },
   {
-   "description": "Item Group of all uniform items \u2014 drives item filters on Uniform Profile and Policies.",
+   "description": "Item Group of all uniform items — drives item filters on Uniform Profile and Policies.",
    "fieldname": "uniform_item_group",
    "fieldtype": "Link",
    "label": "Uniform Item Group",
@@ -97,7 +97,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-01 08:23:59.693475",
+ "modified": "2026-11-09 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Setting",
@@ -119,6 +119,15 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "role": "HR User"
   }
  ],
  "row_format": "Dynamic",

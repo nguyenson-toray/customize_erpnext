@@ -21,8 +21,7 @@
   "eligible_after_days",
   "reissue_months",
   "reissue_qty",
-  "one_time",
-  "priority"
+  "one_time"
  ],
  "fields": [
   {
@@ -79,7 +78,7 @@
    "options": "Group"
   },
   {
-   "description": "Employee's custom_section \u2014 a Section contains many Groups (e.g. Sewing).",
+   "description": "Employee's custom_section — a Section contains many Groups (e.g. Sewing).",
    "fieldname": "section",
    "fieldtype": "Link",
    "label": "Section",
@@ -131,17 +130,10 @@
    "fieldname": "one_time",
    "fieldtype": "Check",
    "label": "One-Time Issue"
-  },
-  {
-   "default": "0",
-   "description": "Higher wins when two rules match equally.",
-   "fieldname": "priority",
-   "fieldtype": "Int",
-   "label": "Priority"
   }
  ],
  "links": [],
- "modified": "2026-07-08 13:03:55.070064",
+ "modified": "2026-11-09 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Rule",
@@ -183,6 +175,13 @@
    "role": "HR Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
   }
  ],
  "row_format": "Dynamic",

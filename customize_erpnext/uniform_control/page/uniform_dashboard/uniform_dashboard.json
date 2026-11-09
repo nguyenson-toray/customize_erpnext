@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-07-18 11:11:27.690520",
+ "modified": "2026-11-09 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "uniform-dashboard",
@@ -16,6 +16,12 @@
   },
   {
    "role": "Uniform Manager"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
   }
  ],
  "script": null,

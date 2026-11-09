@@ -15,13 +15,15 @@ from frappe.utils import cint, getdate, today, add_days
 from customize_erpnext.uniform_control.utils import (
     get_rules_by_category,
     build_variant_cache,
-    get_variant_for_profile,
+    get_variant_for_sizes,
     get_item_available_qty,
     get_employee_id_prefix,
+    FREE_SIZE,
 )
 
-# Uniform Rule category -> (variant_source for get_variant_for_profile, profile size field)
-CATEGORY_SIZE = {"Shirt": ("Shirt Size", "shirt_size"), "Shoe": ("Shoe Size", "shoe_size")}
+# Uniform Rule category -> (variant source, Employee size field). Sizes and gender
+# come from the Employee (self-update portal / HR); no shoe size = Free Size.
+CATEGORY_SIZE = {"Shirt": ("Shirt Size", "custom_shirt_size"), "Shoe": ("Shoe Size", "custom_shoe_size")}
 
 
 @frappe.whitelist()
@@ -216,7 +218,7 @@ def current_shirt_ratio(forecast, basis="Company"):
         basis = "Company"  # nothing to scope to → fall back
 
     params = {"as_of": as_of, "prefix": f"{prefix}%"}
-    conds = ["p.shirt_size IS NOT NULL AND p.shirt_size != ''",
+    conds = ["e.custom_shirt_size IS NOT NULL AND e.custom_shirt_size != ''",
              "e.date_of_joining <= %(as_of)s",
              "(e.relieving_date IS NULL OR e.relieving_date > %(as_of)s)"]
     if prefix:
@@ -228,13 +230,12 @@ def current_shirt_ratio(forecast, basis="Company"):
 
     rows = frappe.db.sql(
         f"""
-        SELECT e.grade AS grade, p.uniform_gender AS gender,
+        SELECT e.grade AS grade, e.gender AS gender,
                e.custom_group AS custom_group, e.custom_section AS custom_section,
-               p.shirt_size AS size, COUNT(*) c
+               e.custom_shirt_size AS size, COUNT(*) c
         FROM `tabEmployee` e
-        JOIN `tabEmployee Uniform Profile` p ON p.employee = e.name
         WHERE {where}
-        GROUP BY e.grade, p.uniform_gender, e.custom_group, e.custom_section, p.shirt_size
+        GROUP BY e.grade, e.gender, e.custom_group, e.custom_section, e.custom_shirt_size
         """,
         params, as_dict=True,
     )
@@ -467,11 +468,11 @@ def _spread(hire, cat, rule, count, designation, gender, prefix, cache, size_cac
     source, field = sized
     mix = _size_mix(designation, gender, field, prefix, size_cache)
     if not mix:
-        # No size data → single default variant (e.g. shoes 'Free Size')
-        default = "Free Size" if field == "shoe_size" else None
+        # No size data → single default variant (shoes: Free Size)
+        default = FREE_SIZE if field == "custom_shoe_size" else None
         variant = None
         if default:
-            variant, _err = get_variant_for_profile(
+            variant, _err = get_variant_for_sizes(
                 template, frappe._dict({field: default}), cache, source
             )
         if variant:
@@ -481,7 +482,7 @@ def _spread(hire, cat, rule, count, designation, gender, prefix, cache, size_cac
         return
 
     for sizeval, frac in mix.items():
-        variant, _err = get_variant_for_profile(
+        variant, _err = get_variant_for_sizes(
             template, frappe._dict({field: sizeval}), cache, source
         )
         if variant:
@@ -499,13 +500,18 @@ def _suffix(item_code, base):
 
 
 def _ratio_sql(field, where, params):
+    """Size mix of current (Active) employees. Shoe: no size counts as Free Size
+    (that is what they get issued); shirt: employees without a size are left out."""
+    if field == "custom_shoe_size":
+        key, cond = f"COALESCE(NULLIF(e.{field}, ''), '{FREE_SIZE}')", ""
+    else:
+        key, cond = f"e.{field}", f"AND e.{field} IS NOT NULL AND e.{field} != ''"
     rows = frappe.db.sql(
         f"""
-        SELECT p.{field} AS k, COUNT(*) c
-        FROM `tabEmployee Uniform Profile` p
-        JOIN `tabEmployee` e ON e.name = p.employee
-        WHERE p.{field} IS NOT NULL AND p.{field} != '' {where}
-        GROUP BY p.{field}
+        SELECT {key} AS k, COUNT(*) c
+        FROM `tabEmployee` e
+        WHERE e.status = 'Active' {cond} {where}
+        GROUP BY k
         """,
         params, as_dict=True,
     )
@@ -536,13 +542,12 @@ def _segments_query(designation, prefix):
     pcond = " AND e.name LIKE %(prefix)s" if prefix else ""
     rows = frappe.db.sql(
         f"""
-        SELECT e.grade AS grade, p.uniform_gender AS gender,
+        SELECT e.grade AS grade, e.gender AS gender,
                e.custom_group AS custom_group, e.custom_section AS custom_section,
                COUNT(*) c
         FROM `tabEmployee` e
-        JOIN `tabEmployee Uniform Profile` p ON p.employee = e.name
         WHERE e.status = 'Active' AND e.designation = %(designation)s {pcond}
-        GROUP BY e.grade, p.uniform_gender, e.custom_group, e.custom_section
+        GROUP BY e.grade, e.gender, e.custom_group, e.custom_section
         """,
         {"designation": designation, "prefix": f"{prefix}%"}, as_dict=True,
     )
@@ -562,11 +567,11 @@ def _size_mix(designation, gender, field, prefix, cache):
     base = {"prefix": f"{prefix}%"}
     r = _ratio_sql(
         field,
-        "AND e.designation = %(designation)s AND p.uniform_gender = %(gender)s" + pcond,
+        "AND e.designation = %(designation)s AND e.gender = %(gender)s" + pcond,
         {**base, "designation": designation, "gender": gender},
     )
     if not r:  # by gender only
-        r = _ratio_sql(field, "AND p.uniform_gender = %(gender)s" + pcond, {**base, "gender": gender})
+        r = _ratio_sql(field, "AND e.gender = %(gender)s" + pcond, {**base, "gender": gender})
     if not r:  # company-wide
         r = _ratio_sql(field, pcond, base)
     cache[key] = r

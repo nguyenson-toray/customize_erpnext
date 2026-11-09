@@ -7,7 +7,6 @@
  "field_order": [
   "naming_series",
   "posting_date",
-  "allocation_type",
   "column_break_top",
   "company",
   "set_warehouse",
@@ -16,13 +15,9 @@
   "department_filter",
   "column_break_filters",
   "group_filter",
-  "gender_filter",
   "column_break_mwtz",
-  "joining_date_from",
-  "joining_date_to",
-  "due_date_from",
-  "due_date_to",
-  "overdue_only",
+  "due_before",
+  "issue_filter",
   "section_items",
   "items",
   "section_summary",
@@ -49,19 +44,10 @@
    "reqd": 1
   },
   {
-   "fieldname": "allocation_type",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Allocation Type",
-   "options": "New Issue\nSupplement\nReplacement",
-   "reqd": 1
-  },
-  {
    "fieldname": "column_break_top",
    "fieldtype": "Column Break"
   },
   {
-   "default": "Toray International, VietNam Company Limited - Quang Ngai Branch",
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
@@ -70,7 +56,6 @@
    "reqd": 1
   },
   {
-   "default": "Uniform - TIQN",
    "fieldname": "set_warehouse",
    "fieldtype": "Link",
    "label": "Issue From Warehouse",
@@ -80,63 +65,30 @@
   {
    "fieldname": "section_filters",
    "fieldtype": "Section Break",
-   "label": "Filters (for building item list)"
+   "label": "Get Employees",
+   "description": "Get Employees adds every item that is due: first issue for new employees, periodic re-issue up to Due On or Before. Add a row by hand for damaged / lost / size change."
   },
   {
    "fieldname": "uniform_type_filter",
    "fieldtype": "Link",
-   "label": "Filter by Uniform Type",
+   "label": "Uniform Type",
    "options": "Item"
   },
   {
    "fieldname": "department_filter",
    "fieldtype": "Link",
-   "label": "Filter by Department",
+   "label": "Department",
    "options": "Department"
   },
   {
    "fieldname": "group_filter",
    "fieldtype": "Link",
-   "label": "Filter by Group",
+   "label": "Group",
    "options": "Group"
   },
   {
    "fieldname": "column_break_filters",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "gender_filter",
-   "fieldtype": "Link",
-   "label": "Filter by Gender",
-   "options": "Gender"
-  },
-  {
-   "fieldname": "joining_date_from",
-   "fieldtype": "Date",
-   "label": "Joining Date From"
-  },
-  {
-   "fieldname": "joining_date_to",
-   "fieldtype": "Date",
-   "label": "Joining Date To"
-  },
-  {
-   "description": "Supplement only: list employees whose next reissue is due within this range.",
-   "fieldname": "due_date_from",
-   "fieldtype": "Date",
-   "label": "Due Date From"
-  },
-  {
-   "fieldname": "due_date_to",
-   "fieldtype": "Date",
-   "label": "Due Date To"
-  },
-  {
-   "default": "0",
-   "description": "Supplement only: list only employees already past due (overdue).",
-   "fieldname": "overdue_only",
-   "fieldtype": "Check",
-   "label": "Overdue Only"
   },
   {
    "fieldname": "section_items",
@@ -193,11 +145,24 @@
   {
    "fieldname": "column_break_mwtz",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "due_before",
+   "fieldtype": "Date",
+   "label": "Due On or Before",
+   "description": "Periodic re-issues due up to this date. Blank = today + Remind Days Before Due (Uniform Setting)."
+  },
+  {
+   "default": "All",
+   "fieldname": "issue_filter",
+   "fieldtype": "Select",
+   "label": "Include",
+   "options": "All\nNew Issue\nPeriodic Supplement"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-11 14:07:17.722084",
+ "modified": "2026-11-09 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Uniform Control",
  "name": "Uniform Allocation",
@@ -231,6 +196,32 @@
    "role": "Uniform Manager",
    "submit": 1,
    "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "submit": 1,
+   "write": 1,
+   "role": "HR Manager"
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "submit": 1,
+   "write": 1,
+   "role": "HR User"
   }
  ],
  "row_format": "Dynamic",

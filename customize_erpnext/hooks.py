@@ -332,6 +332,12 @@ scheduler_events = {
         "10 0 * * *": [
             "customize_erpnext.customize_erpnext.doctype.employee_maternity.employee_maternity.scheduled_calculate_all_maternity_statuses",
         ],
+        # Uniform Control - 00:30, after auto_mark_employees_as_left: create missing
+        # profiles, refresh the Employee fields copied on them, re-sync Shirt/Cap with
+        # the rules (no Manual Override) and the reissue due dates / status.
+        "30 0 * * *": [
+            "customize_erpnext.uniform_control.api.uniform_scheduler.daily_uniform_refresh",
+        ],
         # Weekly attendance recalculation - polled hourly, gated by
         # Attendance Calculation Setting (enable + weekdays + run-time hour).
         # When it fires (and day-of-month >= 5): set process_attendance_after =

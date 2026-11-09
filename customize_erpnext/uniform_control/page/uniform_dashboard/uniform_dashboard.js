@@ -12,15 +12,14 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 		single_column: true,
 	});
 
-	page.set_primary_action(__('New Allocation'), () => frappe.new_doc('Uniform Allocation'), 'add');
-	page.add_inner_button(__('Receive Stock'), () => {
-		frappe.route_options = { stock_entry_type: 'Material Receipt' };
-		frappe.new_doc('Stock Entry');
-	});
-	// page.add_inner_button(__('Allocation History'), () => frappe.set_route('List', 'Uniform Allocation'));
-	// page.add_inner_button(__('Uniform Tracking'), () => frappe.set_route('query-report', 'Uniform Tracking'));
-	// page.add_inner_button(__('Demand Forecast'), () => frappe.set_route('List', 'Uniform Demand Forecast'));
-	// page.add_inner_button(__('Uniform Profiles'), () => frappe.set_route('List', 'Employee Uniform Profile'));
+	// Main action: a Uniform Allocation already filled with everyone due up to
+	// the dashboard's "Reissue due on/before" date (+ new employees' first issue)
+	page.set_primary_action(__('Create Allocation for Due'), () => {
+		frappe.flags.uniform_auto_get = true;
+		frappe.new_doc('Uniform Allocation', { due_before: due_before_ctl.get_value() || frappe.datetime.get_today() });
+	}, 'add');
+	page.add_inner_button(__('Receive Stock'), () => receive_stock_dialog());
+	page.add_inner_button(__('Assignment Preview'), () => frappe.set_route('query-report', 'Uniform Assignment Preview'));
 	page.add_inner_button(__('Shoe Rack Dashboard'), () => frappe.set_route('shoe-rack-dashboard'));
 	page.add_inner_button(__('Export Excel'), () => {
 		const due_before = due_before_ctl.get_value() || '';
@@ -31,6 +30,7 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	const $body = $(`
 		<div class="uniform-dashboard" style="padding: 0 var(--padding-md);">
+			<div class="row" data-section="warnings"></div>
 			<div class="row" data-section="cards" style="margin-bottom: 15px;"></div>
 
 			<!-- Global filter bar — drives BOTH tables below (Stock Plan's Reissue
@@ -259,17 +259,100 @@ frappe.pages['uniform-dashboard'].on_page_load = function (wrapper) {
 
 	function render_cards(s) {
 		$body.find('[data-section="cards"]').html(
-			card(__('Variants in Stock'), s.total_variants_in_stock) +
 			card(__('Low Stock'), s.low_stock_variants, s.low_stock_variants ? 'var(--red-500)' : 'var(--green-500)') +
 			card(__('Due Soon'), s.employees_due_soon, s.employees_due_soon ? 'var(--orange-500)' : undefined, { status: 'Due Soon' }) +
-			card(__('Overdue'), s.employees_overdue, s.employees_overdue ? 'var(--red-500)' : undefined, { status: 'Overdue' }) +
-			card(__('Allocations (30 days)'), s.allocations_last_30_days)
+			card(__('Overdue'), s.employees_overdue, s.employees_overdue ? 'var(--red-500)' : undefined, { status: 'Overdue' })
 		);
-		if (!s.warehouse) {
-			$body.find('[data-section="cards"]').prepend(
-				`<div class="col-12"><div class="alert alert-warning">${__('Uniform Warehouse is not configured in Uniform Setting.')}</div></div>`
-			);
+		render_warnings(s);
+	}
+
+	// Data that blocks or changes an allocation, each with a way to fix it
+	function render_warnings(s) {
+		const notes = [];
+		if (!s.warehouse) notes.push(`<span>${__('Uniform Warehouse is not configured in Uniform Setting.')}</span>`);
+		if (s.missing_profiles) {
+			notes.push(`<span>${__('{0} employee(s) have no uniform profile yet.', [s.missing_profiles])}
+				<a href="#" data-action="create-profiles">${__('Create Profiles')}</a></span>`);
 		}
+		if (s.missing_shirt_size) {
+			notes.push(`<span>${__('{0} employee(s) have no shirt size — their shirts are skipped.', [s.missing_shirt_size])}
+				<a href="#" data-action="no-shirt-size">${__('Open Employees')}</a></span>`);
+		}
+		if (s.missing_shoe_size) {
+			notes.push(`<span class="text-muted">${__('{0} employee(s) have no shoe size — they get Free Size.', [s.missing_shoe_size])}</span>`);
+		}
+		$body.find('[data-section="warnings"]').html(notes.length
+			? `<div class="col-12"><div class="frappe-card" style="padding:10px 15px; margin-bottom:15px; border-left:3px solid var(--orange-500);">
+				${notes.map((n) => `<div style="font-size:var(--text-sm); margin:2px 0;">${n}</div>`).join('')}</div></div>`
+			: '');
+		summary_prefix = s.prefix || '';
+	}
+	let summary_prefix = '';
+
+	$body.on('click', '[data-action="create-profiles"]', (e) => {
+		e.preventDefault();
+		frappe.call({
+			method: `${API}.uniform_api.create_missing_profiles`,
+			freeze: true,
+			freeze_message: __('Creating profiles...'),
+		}).then((r) => {
+			frappe.show_alert({ message: __('Created {0} profile(s).', [(r.message || {}).created || 0]), indicator: 'green' });
+			load();
+		});
+	});
+	$body.on('click', '[data-action="no-shirt-size"]', (e) => {
+		e.preventDefault();
+		const filters = { status: 'Active', custom_shirt_size: ['is', 'not set'] };
+		if (summary_prefix) filters.name = ['like', `${summary_prefix}%`];
+		frappe.set_route('List', 'Employee', filters);
+	});
+
+	// HR receives uniform stock here (Material Receipt created by the server —
+	// no Stock Entry permission needed)
+	function receive_stock_dialog() {
+		frappe.db.get_single_value('Uniform Setting', 'uniform_item_group').then((group) => {
+			const d = new frappe.ui.Dialog({
+				title: __('Receive Stock'),
+				size: 'large',
+				fields: [
+					{ fieldname: 'posting_date', fieldtype: 'Date', label: __('Date'), default: frappe.datetime.get_today(), reqd: 1 },
+					{
+						fieldname: 'items', fieldtype: 'Table', label: __('Items'), reqd: 1, in_place_edit: true,
+						data: [], cannot_add_rows: false,
+						fields: [
+							{
+								fieldname: 'item_code', fieldtype: 'Link', options: 'Item', label: __('Item (size / colour)'),
+								in_list_view: 1, reqd: 1, columns: 5,
+								get_query: () => ({ filters: Object.assign({ has_variants: 0, disabled: 0 }, group ? { item_group: group } : {}) }),
+							},
+							{ fieldname: 'qty', fieldtype: 'Int', label: __('Qty'), in_list_view: 1, reqd: 1, columns: 2 },
+							{ fieldname: 'rate', fieldtype: 'Currency', label: __('Unit Price'), in_list_view: 1, reqd: 1, columns: 3 },
+						],
+					},
+				],
+				primary_action_label: __('Receive'),
+				primary_action(values) {
+					const items = (values.items || []).filter((r) => r.item_code);
+					if (!items.length) return frappe.msgprint(__('Add at least one item.'));
+					frappe.call({
+						method: `${API}.uniform_api.receive_stock`,
+						args: { items, posting_date: values.posting_date },
+						freeze: true,
+						freeze_message: __('Receiving stock...'),
+					}).then((r) => {
+						const m = r.message || {};
+						d.hide();
+						frappe.msgprint({
+							title: __('Stock Received'),
+							indicator: 'green',
+							message: __('{0} pcs received (stock entry {1}).', [m.qty || 0, frappe.utils.escape_html(m.name || '')]),
+						});
+						load();
+					});
+				},
+			});
+			d.show();
+		});
 	}
 
 	function render_chart(selector, rows, label_key) {

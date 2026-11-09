@@ -22,3 +22,7 @@ customize_erpnext.patches.backfill_maternity_overtime_status
 # post_model_sync: Employee Maternity Young Child To Date = day before the child's 1st
 # birthday (was Date of Birth + 364). Dates only, no Attendance recalculation. Idempotent.
 customize_erpnext.patches.backfill_maternity_young_child_to
+# post_model_sync: Uniform Control — Manual Override = "HR picks Shirt/Cap"; profiles whose
+# Shirt/Cap differ from the rule result today are ticked (nothing changes for them),
+# the others follow the rules. Idempotent.
+customize_erpnext.patches.uniform_manual_override_from_assignments

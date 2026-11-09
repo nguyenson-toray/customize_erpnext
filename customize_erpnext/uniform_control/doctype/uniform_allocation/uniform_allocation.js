@@ -1,5 +1,7 @@
-// Uniform Allocation — fetch eligible employees into the items table using the
-// filter fields (uniform type, department, joining date range).
+// Uniform Allocation — one kind of allocation. "Get Employees" adds every item that
+// is due (first issue for new employees, periodic re-issue up to "Due On or
+// Before"), each row with its own Issue Reason. Rows added by hand pick Damaged /
+// Lost / Size Change.
 frappe.ui.form.on('Uniform Allocation', {
 	setup(frm) {
 		// Item filters driven by Uniform Setting → Uniform Item Group (no hardcoded group)
@@ -20,87 +22,19 @@ frappe.ui.form.on('Uniform Allocation', {
 			.then((v) => (frm._uniform_item_group = v));
 	},
 	refresh(frm) {
-		setup_buttons(frm);
-		toggle_reason_readonly(frm); // read-only only — must NOT dirty the form
-		toggle_filters(frm);
-	},
-	allocation_type(frm) {
-		setup_buttons(frm);
-		apply_reason_rules(frm);
-		toggle_filters(frm);
+		frm.clear_custom_buttons();
+		if (frm.doc.docstatus === 0) {
+			frm.add_custom_button(__('Get Employees'), () => get_employees(frm));
+		}
+		frm.add_custom_button(__('Help'), () => show_help());
+
+		// Opened from the dashboard's "Create Allocation for Due" button
+		if (frm.is_new() && frappe.flags.uniform_auto_get) {
+			frappe.flags.uniform_auto_get = false;
+			get_employees(frm);
+		}
 	},
 });
-
-// Get Employees only for New Issue / Supplement (Replacement = manual per person).
-function setup_buttons(frm) {
-	frm.clear_custom_buttons();
-	if (frm.doc.docstatus === 0 && frm.doc.allocation_type !== 'Replacement') {
-		frm.add_custom_button(__('Get Employees'), () => get_employees(frm));
-	}
-	frm.add_custom_button(__('Help'), () => show_help());
-}
-
-// Filters shown per Allocation Type:
-//  - New Issue : type/dept/group/gender + joining date
-//  - Supplement: type/dept/group/gender + due date / overdue (no joining date)
-//  - Replacement: none (HR adds each person manually)
-const FILTERS_BY_TYPE = {
-	'New Issue': ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
-		'joining_date_from', 'joining_date_to'],
-	Supplement: ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
-		'due_date_from', 'due_date_to', 'overdue_only'],
-	Replacement: [],
-};
-const ALL_FILTERS = ['uniform_type_filter', 'department_filter', 'group_filter', 'gender_filter',
-	'joining_date_from', 'joining_date_to', 'due_date_from', 'due_date_to', 'overdue_only'];
-
-function toggle_filters(frm) {
-	const visible = FILTERS_BY_TYPE[frm.doc.allocation_type] || [];
-	ALL_FILTERS.forEach((f) => frm.set_df_property(f, 'hidden', visible.includes(f) ? 0 : 1));
-	// Replacement: hide the whole filter section
-	frm.set_df_property('section_filters', 'hidden', frm.doc.allocation_type === 'Replacement' ? 1 : 0);
-}
-
-// Issue Reason values allowed per Allocation Type (mirror of the server)
-const ALLOWED_REASONS = {
-	'New Issue': ['New Issue'],
-	Supplement: ['Periodic Supplement'],
-	Replacement: ['Damaged', 'Size Change'],
-};
-
-// Single fixed reason for the type, or '' for multi-reason (Replacement)
-function reason_for_type(type) {
-	const a = ALLOWED_REASONS[type] || [];
-	return a.length === 1 ? a[0] : '';
-}
-
-// Reason editable only for Replacement; read-only (auto) for New Issue/Supplement.
-// No value changes here → safe to call on refresh without dirtying the form.
-function toggle_reason_readonly(frm) {
-	if (!frm.fields_dict.items) return;
-	const allowed = ALLOWED_REASONS[frm.doc.allocation_type] || [];
-	const auto = reason_for_type(frm.doc.allocation_type);
-	const grid = frm.fields_dict.items.grid;
-	grid.update_docfield_property('issue_reason', 'read_only', auto ? 1 : 0);
-	// Restrict the dropdown to reasons valid for the current Allocation Type
-	grid.update_docfield_property('issue_reason', 'options', ['', ...allowed].join('\n'));
-	grid.refresh();
-}
-
-// Called on Allocation Type change (a user action): set/clear reasons to match.
-function apply_reason_rules(frm) {
-	const type = frm.doc.allocation_type;
-	const allowed = ALLOWED_REASONS[type] || [];
-	const auto = reason_for_type(type);
-	(frm.doc.items || []).forEach((r) => {
-		if (auto) {
-			if (r.issue_reason !== auto) frappe.model.set_value(r.doctype, r.name, 'issue_reason', auto);
-		} else if (r.issue_reason && !allowed.includes(r.issue_reason)) {
-			frappe.model.set_value(r.doctype, r.name, 'issue_reason', '');
-		}
-	});
-	toggle_reason_readonly(frm);
-}
 
 function fill_available_qty(frm, cdt, cdn) {
 	const row = locals[cdt][cdn];
@@ -115,12 +49,6 @@ function fill_available_qty(frm, cdt, cdn) {
 frappe.ui.form.on('Uniform Allocation Item', {
 	item_code(frm, cdt, cdn) {
 		fill_available_qty(frm, cdt, cdn);
-		const reason = reason_for_type(frm.doc.allocation_type);
-		if (reason) frappe.model.set_value(cdt, cdn, 'issue_reason', reason);
-	},
-	items_add(frm, cdt, cdn) {
-		const reason = reason_for_type(frm.doc.allocation_type);
-		if (reason) frappe.model.set_value(cdt, cdn, 'issue_reason', reason);
 	},
 });
 
@@ -131,50 +59,39 @@ function show_help() {
 	});
 	d.$body.html(`
 		<div style="font-size: var(--text-md); line-height:1.6;">
-		<p><b>Cấp phát đồng phục theo lô — 1 chứng từ cho nhiều nhân viên.</b></p>
+		<p><b>Một phiếu cấp phát cho nhiều nhân viên.</b></p>
 		<ol>
-			<li><b>Chọn Loại cấp phát</b>:
+			<li><b>Get Employees</b>: hệ thống tự thêm mọi món đến hạn, mỗi dòng ghi sẵn lý do:
 				<ul>
-					<li><b>New Issue (Cấp mới)</b>: NV chưa từng được cấp loại đó & đủ ngày làm việc.</li>
-					<li><b>Supplement (Cấp bổ sung)</b>: NV <b>sắp đến hạn + quá hạn</b> (theo chu kỳ).</li>
-					<li><b>Replacement (Thay thế)</b>: hỏng / đổi size / mất — HR <b>thêm từng người thủ công</b> (không lọc, không Get Employees).</li>
+					<li><b>New Issue</b>: nhân viên chưa từng nhận loại đó (thường là người mới, đủ số ngày làm việc theo quy tắc).</li>
+					<li><b>Periodic Supplement</b>: đến hạn cấp lại trước ngày <b>Due On or Before</b> (để trống = hôm nay + số ngày nhắc trước).</li>
 				</ul>
+				Có thể lọc theo Bộ phận / Tổ / Loại đồng phục, hoặc chỉ lấy một loại lý do (ô <b>Include</b>). Bấm nhiều lần để gộp, dòng trùng tự bỏ qua.
 			</li>
-			<li><b>Đặt bộ lọc</b> (tùy chọn): Loại đồng phục, Phòng ban, Nhóm, Giới tính, Ngày nhận việc; riêng <b>Hạn cấp từ/đến</b> &amp; <b>Chỉ quá hạn</b> chỉ hiện khi loại = Supplement.</li>
-			<li><b>Bấm nút "Get Employees"</b> → <b>cộng dồn</b> nhân viên đủ điều kiện vào bảng Items (bấm nhiều lần với bộ lọc khác nhau để gộp; dòng trùng tự bỏ qua).
-				<br><span class="text-muted">NV thiếu Size áo/dép sẽ bị <b>bỏ qua</b> kèm cảnh báo — bổ sung hồ sơ rồi bấm lại.</span></li>
-			<li><b>Kiểm tra / chỉnh</b> bảng Items nếu cần (thêm, xoá, đổi SL). Lưu sẽ tự <b>loại dòng trùng</b> (cùng NV + item).</li>
-			<li><b>Save → Submit</b>: tạo 1 phiếu xuất kho (Material Issue), trừ tồn, cập nhật hồ sơ + hạn cấp kế tiếp.
-				<br><span class="text-muted">Bị chặn nếu: NV không Active / thiếu tồn kho / dòng không khớp Loại cấp phát.</span></li>
-			<li><b>Hủy</b>: Cancel → hủy phiếu xuất, hoàn tồn kho, tính lại hồ sơ.</li>
+			<li><b>Thêm tay</b> một dòng khi đồ bị hỏng, mất hoặc đổi size: chọn nhân viên, món, lý do <b>Damaged / Lost / Size Change</b>.</li>
+			<li>Tick <b>Reuse Old Item</b> nếu cấp lại đồ cũ thu hồi được (không trừ kho).</li>
+			<li><b>Save → Submit</b>: tạo phiếu xuất kho, trừ tồn, cập nhật lịch sử cấp và hạn cấp lại của từng người.
+				<br><span class="text-muted">Bị chặn nếu: nhân viên đã nghỉ, thiếu tồn kho, hoặc dòng chưa có lý do.</span></li>
+			<li><b>Cancel</b>: hủy phiếu xuất kho, hoàn tồn, khôi phục lịch sử cấp.</li>
 		</ol>
-		<p class="text-muted"><b>Mẹo:</b> "Supplement" + Get Employees = lấy toàn bộ NV sắp đến hạn & quá hạn cần cấp bổ sung.</p>
+		<p class="text-muted">Size áo/dép lấy từ hồ sơ Employee; chưa khai size dép thì cấp Free Size.</p>
 		</div>
 	`);
 	d.show();
 }
 
 function get_employees(frm) {
-	if (!frm.doc.allocation_type) {
-		frappe.msgprint(__('Select Allocation Type first.'));
-		return;
-	}
 	frappe.call({
-		method: 'customize_erpnext.uniform_control.api.uniform_api.get_eligible_employees',
+		method: 'customize_erpnext.uniform_control.api.uniform_api.get_due_rows',
 		args: {
-			allocation_type: frm.doc.allocation_type,
 			uniform_type: frm.doc.uniform_type_filter || null,
 			department: frm.doc.department_filter || null,
 			group: frm.doc.group_filter || null,
-			gender: frm.doc.gender_filter || null,
-			joining_date_from: frm.doc.joining_date_from || null,
-			joining_date_to: frm.doc.joining_date_to || null,
-			due_date_from: frm.doc.due_date_from || null,
-			due_date_to: frm.doc.due_date_to || null,
-			overdue_only: frm.doc.overdue_only ? 1 : 0,
+			due_before: frm.doc.due_before || null,
+			issue_filter: frm.doc.issue_filter || 'All',
 		},
 		freeze: true,
-		freeze_message: __('Fetching eligible employees...'),
+		freeze_message: __('Fetching employees due...'),
 		callback(r) {
 			fill_items(frm, r.message || []);
 		},
@@ -184,9 +101,6 @@ function get_employees(frm) {
 // Append (accumulate) to the items list across Get Employees runs; skip rows
 // already present (same employee + item) and rows without a resolvable item.
 function fill_items(frm, rows) {
-	const reason_map = { 'New Issue': 'New Issue', 'Supplement': 'Periodic Supplement' };
-	const issue_reason = reason_map[frm.doc.allocation_type] || '';
-
 	const seen = new Set((frm.doc.items || []).map((r) => `${r.employee}|${r.item_code}`));
 	const skipped = [];
 	let added = 0;
@@ -209,18 +123,19 @@ function fill_items(frm, rows) {
 		row.item_code = r.item_code;
 		row.qty = r.qty;
 		row.available_qty = r.available_qty;
-		row.issue_reason = issue_reason;
+		row.issue_reason = r.issue_reason;
 		row.shoe_rack_location = r.shoe_rack_location;
 		added++;
 	});
 	frm.refresh_field('items');
+	if (added) frm.dirty();
 
 	let msg = __('Added {0} row(s); total {1}.', [added, (frm.doc.items || []).length]);
 	if (dup) msg += '<br>' + __('Skipped {0} already in the list.', [dup]);
 	if (skipped.length) {
 		msg +=
 			'<br><br><b>' +
-			__('Skipped {0} employee(s) — missing size or no variant (fill the profile, then retry):', [
+			__('Skipped {0} item(s) — no size or no matching variant (fix the Employee or the item, then retry):', [
 				skipped.length,
 			]) +
 			'</b><br>' +

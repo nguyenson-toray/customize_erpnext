@@ -1,24 +1,9 @@
 frappe.listview_settings['Uniform Rule'] = {
 	onload(listview) {
-		// Apply the rules to every profile (fill Áo/Mũ được gán, keep manual ones)
-		listview.page.add_inner_button(__('Apply Defaults to All'), () => {
-			frappe.confirm(
-				__('Apply default rules to all profiles without Manual Override?'),
-				() => {
-					frappe.call({
-						method: 'customize_erpnext.uniform_control.api.uniform_api.apply_default_rules',
-						freeze: true,
-						freeze_message: __('Applying default rules...'),
-						callback(r) {
-							const m = r.message || {};
-							frappe.msgprint(
-								__('Updated {0} of {1} profiles.', [m.changed || 0, m.profiles || 0])
-							);
-						},
-					});
-				}
-			);
-		});
+		// See what every employee gets under the current rules (sizes from the Employee)
+		listview.page.add_inner_button(__('Preview Assignments'), () =>
+			frappe.set_route('query-report', 'Uniform Assignment Preview')
+		);
 		listview.page.add_inner_button(__('Setup Guide'), () => show_rule_setup_guide());
 	},
 };
@@ -69,18 +54,19 @@ function show_rule_setup_guide() {
 				<li><b>Designation nặng nhất (16)</b> — luôn thắng các tầng tổ chức khác.</li>
 				<li><b>Grade (8) &gt; Group (4) &gt; Section (2)</b>: vai trò quan trọng hơn tổ/bộ phận →
 					<b>Tổ trưởng (Leader) luôn đội mũ Leader</b> dù ở QC hay bộ phận nào.</li>
-				<li><b>Priority</b> chỉ phá hoà khi 2 quy tắc <b>cùng điểm</b> — không đè được quy tắc cụ thể hơn.</li>
+				<li>Hai quy tắc <b>cùng điểm</b>: quy tắc có mã (UNI-RULE-…) lớn hơn thắng — nên tránh, thêm điều kiện để tách.</li>
 			</ul>
 
 			<p><b>Số lượng &amp; chu kỳ:</b></p>
 			<ul style="padding-left:18px; margin:4px 0;">
 				<li><b>First Issue Qty</b> — số cấp lần đầu. <b>Eligible After (Days)</b> — đủ điều kiện sau N ngày làm việc.</li>
 				<li><b>Reissue Cycle (Months) / Reissue Qty</b> — chu kỳ &amp; số cấp bổ sung (<b>0 = không cấp bổ sung</b>).
-					<i>Đổi chu kỳ xong → chạy "Recompute Due Dates" ở danh sách Employee Uniform Profile.</i></li>
-				<li><b>One-Time Issue</b> — cấp 1 lần (mũ/dép/bình nước), không cấp bổ sung định kỳ; cấp lại qua Replacement.</li>
+					<i>Lưu quy tắc xong, hệ thống tự tính lại hạn cấp và Áo/Mũ của mọi hồ sơ (chạy nền, vài giây).</i></li>
+				<li><b>One-Time Issue</b> — cấp 1 lần (mũ/dép/bình nước), không cấp bổ sung định kỳ; hỏng/mất thì thêm tay một dòng trên phiếu cấp phát (Damaged / Lost).</li>
 			</ul>
 
-			<p class="text-muted">Gợi ý: dùng cột <b>Category</b> ở đầu danh sách để lọc nhanh; <b>Active</b> để bật/tắt quy tắc mà không cần xoá.</p>
+			<p><b>Ngoại lệ từng người:</b> mở Hồ sơ đồng phục → tick <b>Manual Override</b> → chọn Áo/Mũ bằng tay. Bỏ tick = theo quy tắc.</p>
+			<p class="text-muted">Gợi ý: bấm <b>Preview Assignments</b> để xem mỗi nhân viên sẽ nhận gì; <b>Active</b> để bật/tắt quy tắc mà không cần xoá.</p>
 		</div>`);
 	d.show();
 }

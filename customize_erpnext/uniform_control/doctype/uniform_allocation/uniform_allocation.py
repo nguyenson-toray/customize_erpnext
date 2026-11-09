@@ -1,34 +1,31 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import today, flt, cint, getdate, formatdate
+from frappe.utils import today, flt, cint, formatdate
 
-from customize_erpnext.uniform_control.utils import get_item_available_qty
+from customize_erpnext.uniform_control.utils import get_item_available_qty, template_of
 from customize_erpnext.uniform_control.doctype.employee_uniform_profile.employee_uniform_profile import (
     update_profile_after_allocation,
     revert_profile_after_cancel,
 )
 
-# Issue Reason values allowed per Allocation Type (keeps the two fields consistent)
-ALLOWED_REASONS = {
-    "New Issue": ["New Issue"],
-    "Supplement": ["Periodic Supplement"],
-    "Replacement": ["Damaged", "Size Change"],
-}
+# One kind of allocation (simplified 09/11/2026): every row carries its own reason.
+# Get Employees fills New Issue / Periodic Supplement; rows added by hand pick
+# Damaged / Lost / Size Change.
+ISSUE_REASONS = ("New Issue", "Periodic Supplement", "Damaged", "Lost", "Size Change")
 
 
 class UniformAllocation(Document):
     def validate(self):
         self._set_defaults()
         self._dedupe_items()
-        self._normalize_issue_reasons()
         self._fill_available_qty()
         self._calc_total_qty()
+        self._warn_reason_mismatch()
 
     def before_submit(self):
         self._check_active_employees()
-        self._check_issue_reasons()
-        self._check_type_consistency()
+        self._check_reasons()
         self._check_stock()
 
     def on_submit(self):
@@ -47,16 +44,18 @@ class UniformAllocation(Document):
         if not self.posting_date:
             self.posting_date = today()
         if not self.set_warehouse:
-            self.set_warehouse = frappe.db.get_single_value(
-                "Uniform Setting", "uniform_warehouse"
-            )
+            self.set_warehouse = frappe.db.get_single_value("Uniform Setting", "uniform_warehouse")
+        if not self.set_warehouse:
+            frappe.throw(_("Set the Uniform Warehouse in Uniform Setting first."))
+        # The company owning the uniform warehouse (no hardcoded name)
+        company = frappe.db.get_value("Warehouse", self.set_warehouse, "company")
+        if company:
+            self.company = company
         # Amended docs copy status from the cancelled original — reset while draft
         if self.docstatus == 0:
             self.status = "Draft"
 
     def _fill_available_qty(self):
-        if not self.set_warehouse:
-            return
         for row in self.items or []:
             if row.item_code:
                 row.available_qty = get_item_available_qty(row.item_code, self.set_warehouse)
@@ -84,44 +83,49 @@ class UniformAllocation(Document):
                 title=_("Duplicates Removed"), indicator="orange",
             )
 
-    def _normalize_issue_reasons(self):
-        """Keep Issue Reason consistent with Allocation Type:
-        - single-reason types (New Issue / Supplement) → force that reason;
-        - Replacement → clear any reason that isn't Damaged / Size Change so a
-          stale value (e.g. New Issue) can't linger; HR re-picks before submit."""
-        allowed = ALLOWED_REASONS.get(self.allocation_type) or []
-        cleared = []
-        for row in self.items or []:
-            if len(allowed) == 1:
-                row.issue_reason = allowed[0]
-            elif row.issue_reason and row.issue_reason not in allowed:
-                cleared.append(str(row.idx))
-                row.issue_reason = None
-        if cleared:
-            frappe.msgprint(
-                _("Issue Reason cleared on row(s) {0}: not valid for Allocation Type "
-                  "'{1}'. Please choose {2}.").format(
-                    ", ".join(cleared), self.allocation_type, " / ".join(allowed)
-                ),
-                title=_("Issue Reason"), indicator="orange",
-            )
+    def _issued_totals(self):
+        """{(employee, template): tracking row} for the employees on this doc."""
+        employees = list({row.employee for row in self.items or [] if row.employee})
+        if not employees:
+            return {}
+        out = {}
+        for r in frappe.db.sql(
+            """
+            SELECT p.employee,
+                   COALESCE(NULLIF(i.variant_of, ''), i.name) AS template,
+                   eui.total_issued_qty, eui.last_issue_date
+            FROM `tabEmployee Uniform Item` eui
+            INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
+            INNER JOIN `tabItem` i ON i.name = eui.item_template
+            WHERE p.employee IN %(employees)s
+            """,
+            {"employees": employees},
+            as_dict=True,
+        ):
+            out[(r.employee, r.template)] = r
+        return out
 
-    def _check_issue_reasons(self):
-        allowed = ALLOWED_REASONS.get(self.allocation_type, [])
-        bad = []
-        for row in self.items or []:
-            if row.issue_reason not in allowed:
-                bad.append(
-                    _("Row {0}: Issue Reason must be one of: {1}").format(
-                        row.idx, ", ".join(allowed)
-                    )
-                )
-        if bad:
-            frappe.throw(
-                _("Issue Reason does not match Allocation Type ({0}):<br>").format(
-                    self.allocation_type
-                ) + "<br>".join(bad)
-            )
+    def _warn_reason_mismatch(self):
+        """Not blocking: a 'New Issue' row for someone who already received that
+        uniform type is usually a mistake (re-issue or replacement)."""
+        if self.docstatus != 0 or not self.items:
+            return
+        issued = self._issued_totals()
+        notes = []
+        for row in self.items:
+            if row.issue_reason != "New Issue" or not row.item_code:
+                continue
+            rec = issued.get((row.employee, template_of(row.item_code)))
+            if rec and cint(rec.total_issued_qty) > 0:
+                notes.append(_("Row {0}: {1} already received {2} (last issued {3}).").format(
+                    row.idx, row.employee, template_of(row.item_code), formatdate(rec.last_issue_date)))
+        if notes:
+            frappe.msgprint("<br>".join(notes), title=_("Check Issue Reason"), indicator="orange")
+
+    def _check_reasons(self):
+        missing = [str(r.idx) for r in self.items or [] if r.issue_reason not in ISSUE_REASONS]
+        if missing:
+            frappe.throw(_("Choose an Issue Reason on row(s) {0}.").format(", ".join(missing)))
 
     def _check_active_employees(self):
         for row in self.items or []:
@@ -136,57 +140,6 @@ class UniformAllocation(Document):
                         row.idx, row.employee
                     )
                 )
-
-    def _check_type_consistency(self):
-        """New Issue must not contain already-issued employees; Supplement must
-        not contain never-issued ones. Replacement is the manual escape hatch."""
-        if self.allocation_type not in ("New Issue", "Supplement"):
-            return
-
-        employees = list({row.employee for row in self.items or [] if row.employee})
-        if not employees:
-            return
-
-        # Tracking stores the exact variant; group by template (variant_of)
-        issued = {}
-        for r in frappe.db.sql(
-            """
-            SELECT p.employee,
-                   COALESCE(NULLIF(i.variant_of, ''), i.name) AS template,
-                   eui.total_issued_qty, eui.last_issue_date
-            FROM `tabEmployee Uniform Item` eui
-            INNER JOIN `tabEmployee Uniform Profile` p ON p.name = eui.parent
-            INNER JOIN `tabItem` i ON i.name = eui.item_template
-            WHERE p.employee IN %(employees)s
-            """,
-            {"employees": employees},
-            as_dict=True,
-        ):
-            issued[(r.employee, r.template)] = r
-
-        problems = []
-        for row in self.items or []:
-            template = _get_template(row.item_code)
-            rec = issued.get((row.employee, template))
-            total = cint(rec.total_issued_qty) if rec else 0
-
-            if self.allocation_type == "New Issue" and total > 0:
-                problems.append(
-                    _("Row {0}: {1} already received {2} (last issued {3}). Use Supplement or Replacement.").format(
-                        row.idx, row.employee, template, formatdate(rec.last_issue_date)
-                    )
-                )
-            elif self.allocation_type == "Supplement" and total == 0:
-                problems.append(
-                    _("Row {0}: {1} has never been issued {2}. Use New Issue instead.").format(
-                        row.idx, row.employee, template
-                    )
-                )
-
-        if problems:
-            frappe.throw(
-                _("Rows do not match the Allocation Type:<br>") + "<br>".join(problems)
-            )
 
     def _check_stock(self):
         # Multiple rows can share the same variant — check the aggregated qty.
@@ -243,6 +196,7 @@ class UniformAllocation(Document):
         if self.stock_entry:
             se = frappe.get_doc("Stock Entry", self.stock_entry)
             if se.docstatus == 1:
+                se.flags.ignore_permissions = True
                 se.cancel()
 
     def _update_profiles(self):
@@ -252,17 +206,12 @@ class UniformAllocation(Document):
                 item_code=row.item_code,
                 qty=cint(row.qty),
                 posting_date=self.posting_date,
+                allocation=self.name,
             )
 
     def _revert_profiles(self):
         for row in self.items or []:
             revert_profile_after_cancel(
                 employee=row.employee,
-                item_template=_get_template(row.item_code),
+                item_template=template_of(row.item_code),
             )
-
-
-def _get_template(item_code):
-    """Return variant_of (template) for an item, or item_code itself if no template."""
-    template = frappe.db.get_value("Item", item_code, "variant_of")
-    return template or item_code
