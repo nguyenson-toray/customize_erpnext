@@ -21,6 +21,7 @@ frappe.listview_settings["Employee Maternity"] = {
 				"Maternity Leave": "orange",
 				"Young Child": "green",
 				"Inactive": "gray",
+				"Left": "red",
 			}[value];
 
 			// Status rỗng = chưa rơi vào giai đoạn nào -> ô trống, để còn phân biệt được

@@ -34,7 +34,7 @@ ngày. Phải đúng nguồn này vì `api/headcount.py::maternity_leave_employe
 quyết định Net Headcount trên dashboard và daily email — cũng đọc chính nó. Dùng
 khoảng ngày thì hai bên lệch nhau: đo 04/09/2026 có 28 record phủ hôm nay nhưng chỉ
 27 mang status `Maternity Leave` (record còn lại thuộc người đã nghỉ việc, đã được
-đóng thành `Inactive`).
+đóng thành `Left` — trước 09/11/2026 là `Inactive`).
 
 `custom_sub_status` là field HTML: không có cột trong DB, không lưu gì.
 `get_employee_sub_status()` suy ra từ Employee Maternity mỗi lần form render.
@@ -58,6 +58,7 @@ PHASE_PRIORITY = {
 	"Pregnant": 1,
 	"Young Child": 2,
 	"Inactive": 3,
+	"Left": 4,
 }
 
 PHASE_INDICATOR = {
@@ -65,6 +66,7 @@ PHASE_INDICATOR = {
 	"Pregnant": "blue",
 	"Young Child": "green",
 	"Inactive": "gray",
+	"Left": "red",
 }
 
 
@@ -161,7 +163,7 @@ def _phase_start(row):
 		return row.maternity_from_date
 	if row.status == "Young Child":
 		return row.youg_child_from_date
-	return row.youg_child_to_date  # Inactive = everything already finished
+	return row.youg_child_to_date  # Inactive / Left = everything already finished
 
 
 def get_current_maternity_record(employee):

@@ -41,7 +41,8 @@
 //     (hệ thống tính lại mỗi đêm 00:10 và mỗi lần lưu hồ sơ, theo ngày hôm đó).
 //     Chỉ có khi đang "Pregnant": từ ngày bắt đầu tháng thứ 7 là "Not Allowed".
 //     Các trạng thái khác, chưa có ngày dự sinh hoặc đã nghỉ việc → trống.
-//   • Trạng thái: Pregnant | Maternity Leave | Young Child | Inactive | (trống).
+//   • Trạng thái: Pregnant | Maternity Leave | Young Child | Inactive | Left | (trống).
+//     Left = nhân viên đã nghỉ việc; Inactive = hết chu kỳ / sẩy thai, vẫn đang làm.
 // ============================================================
 let
     // ╔══════════════════════════════════════════════════════╗
@@ -66,7 +67,7 @@ let
     FilterEmployee = null,
     // Mã NV, VD "TIQN-0003"
     FilterStatus = null,
-    // "Pregnant" | "Maternity Leave" | "Young Child" | "Inactive" | null
+    // "Pregnant" | "Maternity Leave" | "Young Child" | "Inactive" | "Left" | null
     FilterGroup = null,
     // Tên nhóm, VD "Line 01"
     // ╔══════════════════════════════════════════════════════╗

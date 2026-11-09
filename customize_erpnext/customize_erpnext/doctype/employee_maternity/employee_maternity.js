@@ -328,7 +328,8 @@ function show_employee_maternity_help() {
 		<ul>
 			<li><b>Pregnant / Mang thai</b>, <b>Maternity Leave / Nghỉ thai sản</b>, <b>Young Child / Con nhỏ</b>:
 				giai đoạn mà <b>hôm nay</b> rơi vào.</li>
-			<li><b>Inactive / Tạm ngưng</b>: đã hết chu kỳ, đã sẩy thai, hoặc nhân viên đã nghỉ việc.</li>
+			<li><b>Inactive / Tạm ngưng</b>: đã hết chu kỳ hoặc đã sẩy thai (nhân viên vẫn đang làm).</li>
+			<li><b>Left / Đã nghỉ việc</b>: nhân viên đã nghỉ việc (tính từ Relieving Date), dù chu kỳ đã xong hay chưa.</li>
 			<li>Trống: chưa tới giai đoạn nào, hoặc đã hết nghỉ thai sản mà chưa nhập ngày sinh con.</li>
 		</ul>
 

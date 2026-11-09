@@ -14,7 +14,8 @@ Mỗi hồ sơ chứa 3 giai đoạn dưới dạng 3 cặp ngày, **luôn liên
 | `full_name`, `group`, `designation`, `date_of_joining` | fetch | Từ Employee |
 | `child_order` | Int | Con thứ mấy. Form gợi ý = max hồ sơ trước của NV + 1 (NV chưa có hồ sơ → để trống) |
 | `is_twins` | Check | Sinh đôi |
-| `status` | Select, read-only | `Pregnant` / `Maternity Leave` / `Young Child` / `Inactive` / rỗng — tự tính |
+| `status` | Select, read-only | `Pregnant` / `Maternity Leave` / `Young Child` / `Inactive` / `Left` / rỗng — tự tính |
+| `relieving_date` | Date, read-only | Sao y `Employee.relieving_date` (cả ngày tương lai, cả xoá trống) — ghi ở `calculate_derived_metrics()` khi lưu + job 00:10. Không dùng `fetch_from` vì job ghi bằng `db_set` |
 | `note` | Small Text | |
 | `apply_hour_reduction` | Check | Giảm 1 giờ ở giai đoạn mang thai |
 | `pregnant_from_date` | Date, **reqd** | HR nhập |
@@ -80,12 +81,12 @@ Server áp lại khi lưu và khi Data Import. Bỏ tick → hỏi xác nhận r
 
 ## Status — `calculate_status()`
 
-1. Nhân viên **đã nghỉ việc** → `Inactive` (kể cả khi giai đoạn còn ở tương lai). `_has_left()` ưu tiên
+1. Nhân viên **đã nghỉ việc** → `Left` (kể cả khi giai đoạn còn ở tương lai, kể cả hồ sơ đã hết chu kỳ trước khi nghỉ — từ 09/11/2026, trước đó là `Inactive`). `_has_left()` ưu tiên
    `relieving_date` (ngày **bắt đầu** nghỉ việc: còn làm tại X ⇔ `relieving_date > X`), `Employee.status`
    chỉ là fallback và **phải `.strip()`** — trên site có status `"Left "` có dấu cách.
 2. Hôm nay rơi vào giai đoạn nào → status đó; nhiều giai đoạn → giai đoạn có ngày bắt đầu muộn nhất.
 3. **Chưa có ngày sinh con → chưa tính là `Young Child`.**
-4. Qua `youg_child_to_date`, hoặc sẩy thai đã qua `pregnant_to_date` → `Inactive`. Còn lại → rỗng.
+4. Qua `youg_child_to_date`, hoặc sẩy thai đã qua `pregnant_to_date` → `Inactive` (NV vẫn đang làm). Còn lại → rỗng.
 
 Tính lại hằng đêm 00:10 (`scheduled_calculate_all_maternity_statuses`) — **phải sau**
 `auto_mark_employees_as_left` (00:00). `calculate_derived_metrics()` tính `seniority` + `gestational_age` cùng lúc.
@@ -98,7 +99,7 @@ Tính lại hằng đêm 00:10 (`scheduled_calculate_all_maternity_statuses`) �
 - Ghi bởi `on_update`, `on_trash` và `sync_all_maternity_flags()` (job 00:10, khẳng định lại toàn bộ).
 - **Không** đổi `Employee.status` (Inactive chặn tạo Employee Checkin, engine/Export/Leave Control Panel bỏ qua).
 - `get_employee_sub_status()` / `get_current_maternity_record()`: badge trên form Employee (HTML, không lưu DB).
-  Màu: Pregnant xanh dương · Maternity Leave cam · Young Child xanh lá · Inactive xám — **phải khớp**
+  Màu: Pregnant xanh dương · Maternity Leave cam · Young Child xanh lá · Inactive xám · Left đỏ — **phải khớp**
   `PHASE_INDICATOR` và `employee_maternity_list.js` (`formatters.status`, không dùng `get_indicator`).
 
 ## Các nơi đọc Employee Maternity

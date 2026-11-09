@@ -18,6 +18,7 @@
   "is_twins",
   "column_break_qrtt",
   "status",
+  "relieving_date",
   "note",
   "section_maternity",
   "apply_hour_reduction",
@@ -112,7 +113,15 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nPregnant\nMaternity Leave\nYoung Child\nInactive",
+   "options": "\nPregnant\nMaternity Leave\nYoung Child\nInactive\nLeft",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.relieving_date",
+   "description": "From Employee; refreshed on save and by the nightly status job",
+   "fieldname": "relieving_date",
+   "fieldtype": "Date",
+   "label": "Relieving Date",
    "read_only": 1
   },
   {
@@ -248,7 +257,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-04 09:36:20.216915",
+ "modified": "2026-11-09 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Employee Maternity",

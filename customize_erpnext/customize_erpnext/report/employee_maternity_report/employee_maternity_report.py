@@ -14,7 +14,7 @@ Mỗi dòng = 1 hồ sơ thai sản có ít nhất 1 sự kiện trong kỳ. 5 n
 
 ⚠ relieving_date = ngày ĐẦU TIÊN nghỉ việc: "còn làm tại X" là relieving_date > X.
 Mọi giai đoạn bị CẮT tại relieving_date - 1 — người đã nghỉ việc không còn được tính
-là đang mang thai / nghỉ thai sản / con nhỏ (record của họ đã đóng `Inactive`).
+là đang mang thai / nghỉ thai sản / con nhỏ (record của họ đã đóng `Left`).
 """
 
 import frappe

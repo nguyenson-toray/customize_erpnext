@@ -198,13 +198,20 @@ class EmployeeMaternity(Document):
 	# cũng vậy.
 
 	def calculate_derived_metrics(self, employment=None):
-		"""Tính `seniority`, `gestational_age`, `overtime_status`. Gọi SAU `calculate_status()`.
+		"""Tính `seniority`, `gestational_age`, `overtime_status`, `relieving_date`.
+		Gọi SAU `calculate_status()`.
 
 		Thứ tự bắt buộc: `gestational_age` chỉ có nghĩa khi `status == "Pregnant"`,
 		mà `status` do `calculate_status()` đặt.
 		`employment`: như `employee_has_left()` — batch truyền vào để khỏi query từng record.
 		"""
 		today_date = date.today()
+		if employment is None:
+			employment = self._get_employment()
+		# Sao y Employee.relieving_date, kể cả ngày tương lai (đã báo nghỉ) và kể cả xoá
+		# trống (NV quay lại làm). KHÔNG dùng `fetch_from`: job đêm ghi bằng `db_set` nên
+		# fetch không chạy, và sửa Employee cũng không kéo theo — phải tự ghi ở đây.
+		self.relieving_date = employment.get("relieving_date") or None
 		self.seniority = _seniority_months(self.date_of_joining)
 		self.gestational_age = _gestational_age_display(self.estimated_due_date, self.status)
 		self.overtime_status = overtime_status(
@@ -347,6 +354,14 @@ class EmployeeMaternity(Document):
 						_("{0}: From Date cannot be after To Date").format(label)
 					)
 
+	def _get_employment(self):
+		"""`{relieving_date, status}` của Employee, `{}` nếu không có."""
+		if not self.employee:
+			return {}
+		return frappe.db.get_value(
+			"Employee", self.employee, ["relieving_date", "status"], as_dict=True
+		) or {}
+
 	def employee_has_left(self, on_date=None, employment=None):
 		"""Nhân viên của record này đã nghỉ việc tính đến `on_date` chưa?
 
@@ -357,9 +372,7 @@ class EmployeeMaternity(Document):
 		if not self.employee:
 			return False
 		if employment is None:
-			employment = frappe.db.get_value(
-				"Employee", self.employee, ["relieving_date", "status"], as_dict=True
-			) or {}
+			employment = self._get_employment()
 		if not employment:
 			return False
 		return _has_left(
@@ -380,7 +393,10 @@ class EmployeeMaternity(Document):
 			# trong bảng lương — cứ để status chạy tiếp thì report, dashboard và
 			# `custom_sub_status` trên form Employee đều báo họ đang hưởng chế độ.
 			# Ngày tháng của record giữ nguyên: đó là lịch sử, chỉ trạng thái là đóng.
-			self.status = "Inactive"
+			# `Left` tách khỏi `Inactive` (09/11/2026, user chốt phương án A): MỌI hồ sơ
+			# của NV đã nghỉ việc là `Left`, kể cả hồ sơ đã hết chu kỳ trước khi nghỉ.
+			# `Inactive` giờ chỉ còn nghĩa "hết chu kỳ / sẩy thai, NV vẫn đang làm".
+			self.status = "Left"
 			return
 
 		active = []  # list of (from_date, status_label)
@@ -821,6 +837,7 @@ def calculate_all_maternity_statuses(names=None):
 		# record, kể cả record không đổi giai đoạn — thâm niên tăng mỗi tháng và tuổi thai
 		# tăng mỗi ngày. Đây là lý do hai field bỏ virtual mà vẫn luôn đúng.
 		old_seniority, old_gest, old_ot = doc.seniority, doc.gestational_age, doc.overtime_status
+		old_relieving = doc.relieving_date
 		doc.calculate_derived_metrics(employment=employment.get(doc.employee) or {})
 		changes = {}
 		if doc.seniority != old_seniority:
@@ -830,6 +847,9 @@ def calculate_all_maternity_statuses(names=None):
 		# Cột Select rỗng đọc ra là "" còn hàm trả None → so theo `or ""` để khỏi ghi thừa.
 		if (doc.overtime_status or "") != (old_ot or ""):
 			changes["overtime_status"] = doc.overtime_status
+		# So theo chuỗi: DB trả `date`, còn giá trị có thể là None.
+		if str(doc.relieving_date or "") != str(old_relieving or ""):
+			changes["relieving_date"] = doc.relieving_date
 		if changes:
 			doc.db_set(changes, update_modified=False)
 			metrics_updated += 1
@@ -962,7 +982,7 @@ def get_employee_maternity_for_excel(
 
 	Params:
 		employee  : filter by employee ID
-		status    : 'Pregnant' | 'Maternity Leave' | 'Young Child' | '' | None
+		status    : 'Pregnant' | 'Maternity Leave' | 'Young Child' | 'Inactive' | 'Left' | '' | None
 		group     : filter by group
 		page / page_size : pagination (page_size=0 → return all)
 		lang      : 'en' (default) | 'vi'
@@ -1122,7 +1142,7 @@ def get_invalid_maternity_records():
 			(em.maternity_to_date IS NOT NULL AND em.youg_child_from_date IS NOT NULL
 			 AND DATEDIFF(em.youg_child_from_date, em.maternity_to_date) != 1)
 			OR
-			(em.date_of_birth IS NULL AND IFNULL(em.status, '') != 'Inactive'
+			(em.date_of_birth IS NULL AND IFNULL(em.status, '') NOT IN ('Inactive', 'Left')
 			 AND em.maternity_from_date
 			     <= DATE_SUB(%(today)s, INTERVAL %(grace)s DAY))
 		ORDER BY em.employee
@@ -1150,7 +1170,7 @@ def get_invalid_maternity_records():
 				)
 		if (
 			not r.date_of_birth
-			and (r.status or "") != "Inactive"
+			and (r.status or "") not in ("Inactive", "Left")
 			and r.mat_from
 			and (date.today() - getdate(r.mat_from)).days >= MISSING_DOB_GRACE_DAYS
 		):
