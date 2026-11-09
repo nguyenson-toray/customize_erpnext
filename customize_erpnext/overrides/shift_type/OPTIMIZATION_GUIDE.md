@@ -2,16 +2,20 @@
 
 > **Mục đích:** Giải thích kiến trúc và logic của engine tính công hàng loạt: nạp dữ liệu nền một lần, xử lý theo lô, các nhánh quyết định trạng thái.
 > **Phạm vi:** Override HRMS/ERPNext
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-08-18
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-11-09
 
-**Last Updated:** 2026-08-15 (no attendance created before a shift starts — ca 2 was being marked
-absent every morning; see "Ca CHƯA TỚI GIỜ VÀO")
+**Last Updated:** 2026-11-09 (hourly job 8–11s → ~1.3s: grouped stats query, incremental STEP 2
+refreshes only days with unlinked checkins, late-arrival catch-up uses the (employee, time) index;
+see "Performance")
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Processing Time | ~27s (31 days × ~1030 employees, full mode) |
+| Hourly job (incremental, 14 days × ~1050 employees) | **~1.3s** (was 8–11s) |
+| FULL, 14 days (8h/23h run) | ~5s (was 11.4s) |
+| FULL, 31 days | ~11s |
+| UI Bulk Update, 101 days × 1215 employees | ~36s (was 30–46s for 30 days) |
 | DB Queries | ~500 preloaded + batched writes (500 rows/UPDATE, 1000 names/unlink) |
 | Batch Size | 100 employees / 500 insert / 500 update / 1000 checkin-link |
 
@@ -24,6 +28,24 @@ Property Setter says otherwise — that is why `patches/index_checkin_attendance
 `search_index = 1` instead of just issuing `CREATE INDEX` (the older
 `add_attendance_performance_indexes` patch did, and lost the index every migration).
 Verify with `EXPLAIN`: must be `type=ref`, not `type=ALL`.
+
+**MariaDB `innodb_buffer_pool_size` must be large enough to hold the DB** (set to `4G` in
+`/etc/mysql/mariadb.conf.d/50-server.cnf` on 2026-11-09; the 128MB default made every query here
+2–3× slower and hid the code gains). `SET GLOBAL` cannot raise it above
+`innodb_buffer_pool_size_max` (= the startup value) — edit the cnf and restart MariaDB.
+
+Timings above were measured on 2026-11-09 with the 4G pool. What remains in FULL mode is mostly
+Python CPU in the per-record loop of the Day shift (~3s / 14 days, ~6.5s / 31 days).
+
+Query rules learned the hard way (`tabEmployee Checkin`, ~1M rows, **no index starting with
+`time`**):
+- A time-range scan only uses `idx_emp_checkin_emp_time (employee, time)` when the query carries
+  `employee IN (<literal list>)`. `get_today_unmarked_employees()` (late-arrival catch-up) passes
+  the names of **all** Employees (Left included, so the scope is unchanged): 1.6s → 0.2s.
+- 🔴 Never write that as a subquery `employee IN (SELECT name FROM tabEmployee)` — measured
+  **66 s** (the planner picks the single-column `employee` index and ignores `time`).
+- No `FORCE INDEX`: `idx_emp_checkin_emp_time` is a custom index; if it disappears the query
+  errors and the job dies instead of just getting slower.
 
 ## Entry Points (all funnel into `_core_process_attendance_logic_optimized`)
 
@@ -58,6 +80,7 @@ Mode detection (`fore_get_logs`):
 1. **Preload** — employees (+gender), shifts, shift assignments (sorted desc), **holidays via `get_assigned_holiday_lists_to_employee_and_company()`** (HRMS's own API, the one payroll uses — Holiday List Assignment with *Applicable For: Company*, one assignment covering the whole company), existing attendance (all compare fields incl. `custom_note`), leave applications (per-day index, dual-leave aware), maternity periods, OT registrations `{(employee, date): [entries]}`.
    - `exclude_employee_ids` setting filters the employee list first (empty result → early return).
 2. **Checkin sync** — `bulk_update_employee_checkin`: shift from Shift Assignment → default_shift → `default_shift` setting; first log = IN, last = OUT; SQL CASE WHEN batches (no per-doc `get_doc`).
+   - **INCREMENTAL** passes `only_unlinked_days=True`: only (employee, day) pairs that still have at least one unlinked checkin are refreshed — STEP 3 reads nothing else in this mode. 🔴 Every checkin of such a day is loaded, not just the unlinked ones: IN/OUT comes from the position within the day, so a partial day would get wrong log types. Consequence: a *linked* checkin whose shift changed (e.g. a Shift Assignment added for an old date) gets its `shift`/`shift_start`… fixed at the next FULL run, not within the hour. FULL mode still refreshes every checkin in range.
 2b. **Maternity cleanup** (FULL only) — delete attendance inside Maternity Leave phases (Employee Maternity is source of truth), unlink checkins.
 3. **Per-shift checkin processing** — group by (employee, shift_start):
    - Employment gate here is **joining date only**. `relieving_date` is deliberately NOT a gate on this path: a day with checkins is always calculated, even after the employee left (STEP 4b keeps it and explains it in `custom_note`). Only the no-checkin paths (3b, 4) stop at the relieving date.
@@ -72,7 +95,7 @@ Mode detection (`fore_get_logs`):
 3b. **ABSENCE PASS** (FULL only, runs ONCE after all shifts) — every existing attendance whose (employee, date) had no checkins processed by ANY shift is re-resolved: Maternity Leave → skip, Leave → On Leave/Half Day, **ca chưa tới giờ vào → skip**, else Absent. Global `processed_keys` prevents cross-shift Absent overwrites when the stored shift is stale.
 4. **Mark absent** — days with no attendance at all (skip before-joining/after-relieving, holidays and Sundays, **và ca chưa tới giờ vào**); same resolution helper as 3b; bulk INSERT (32 columns incl. half_day/dual-leave/custom_note).
 4b. **Left-employee cleanup** — delete attendance ≥ relieving_date **without** checkins; for ones WITH checkins, PREPEND the left-employee sentence to `custom_note` if not already there (it normally arrives from step 3 — this is a safety net). It must not overwrite: doing so used to wipe the other anomalies of that day.
-5. **Stats** — per-shift before/after counts, skipped-employee classification (`Maternity Leave` → `No shift assigned` → `Not yet joined` → `Already left` (`relieving_date <= from_date`, matching the calculation rule) → `No checkins / Holiday`).
+5. **Stats** — per-shift before/after counts (one `GROUP BY shift` query each, `_count_attendance_by_shift`), skipped-employee classification (`Maternity Leave` → `No shift assigned` → `Not yet joined` → `Already left` (`relieving_date <= from_date`, matching the calculation rule) → `No checkins / Holiday`).
 
 ## Attendance status — ngưỡng vắng chỉ áp **SAU KHI TAN CA** (11/08/2026)
 
@@ -410,6 +433,7 @@ WHERE TIME_TO_SEC(end_time)/3600 + IFNULL(allow_check_out_after_shift_end_time,0
 > `shift_actual_end` **lưu cứng trên từng Employee Checkin**. Đổi Shift Type không cập nhật bản
 > ghi cũ — phải chạy Bulk Update Attendance cho khoảng ngày liên quan; STEP 2
 > (`bulk_update_employee_checkin`) tính lại toàn bộ checkin trong khoảng **trước** vòng lặp theo ca.
+> Job mỗi giờ (incremental) **không** làm việc này — nó chỉ làm mới ngày còn checkin chưa link.
 
 ## Design Trade-offs (intentional)
 

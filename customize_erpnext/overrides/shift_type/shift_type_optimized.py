@@ -1822,13 +1822,7 @@ def _core_process_attendance_logic_optimized(
 	ref_data = preload_reference_data(employees, from_date_str, to_date_str)
 
 	# Count records before processing (exclude cancelled docstatus=2)
-	count_before = {}
-	for shift_name in ref_data['shifts'].keys():
-		count_before[shift_name] = frappe.db.count("Attendance", {
-			"shift": shift_name,
-			"attendance_date": ["between", [from_date, to_date]],
-			"docstatus": ["!=", 2]
-		})
+	count_before = _count_attendance_by_shift(list(ref_data['shifts']), from_date, to_date)
 
 	# ========================================================================
 	# STEP 2: FIX NULL SHIFTS IN CHECKINS (Bulk Operation)
@@ -1837,7 +1831,13 @@ def _core_process_attendance_logic_optimized(
 	from customize_erpnext.overrides.employee_checkin.employee_checkin import bulk_update_employee_checkin
 	# Pass employee filter when processing specific employees (e.g. hook for 1 employee)
 	# This avoids scanning all employees' checkins when only 1 is needed
-	bulk_update_employee_checkin(from_date_str, to_date_str, employees=employees if employees else None)
+	# Chế độ incremental (mỗi giờ): STEP 3 chỉ đọc checkin chưa link Attendance,
+	# nên chỉ cần làm mới các ngày còn checkin chưa link
+	bulk_update_employee_checkin(
+		from_date_str, to_date_str,
+		employees=employees if employees else None,
+		only_unlinked_days=not fore_get_logs,
+	)
 
 	# ========================================================================
 	# STEP 2b: CANCEL EXISTING ATTENDANCE FOR MATERNITY LEAVE EMPLOYEES
@@ -2645,13 +2645,7 @@ def _core_process_attendance_logic_optimized(
 	print(f"{'='*80}")
 
 	# Query actual counts from database after processing (more accurate than cache)
-	count_after = {}
-	for shift_name in ref_data['shifts'].keys():
-		count_after[shift_name] = frappe.db.count("Attendance", {
-			"shift": shift_name,
-			"attendance_date": ["between", [from_date, to_date]],
-			"docstatus": ["!=", 2]
-		})
+	count_after = _count_attendance_by_shift(list(ref_data['shifts']), from_date, to_date)
 
 	# Get employees with attendance from database
 	# CRITICAL: Filter by employee list to get accurate count for the specific batch
@@ -2666,7 +2660,8 @@ def _core_process_attendance_logic_optimized(
 	employees_with_attendance_set = set(frappe.get_all(
 		"Attendance",
 		filters=att_filters,
-		pluck="employee"
+		pluck="employee",
+		distinct=True
 	))
 
 	# Build per_shift statistics
@@ -2780,6 +2775,21 @@ def _core_process_attendance_logic_optimized(
 # ============================================================================
 # OPTIMIZED ENTRY POINT
 # ============================================================================
+
+def _count_attendance_by_shift(shift_names, from_date, to_date) -> Dict[str, int]:
+	"""{shift: số Attendance chưa huỷ trong khoảng} — 1 query thay vì 1 query/ca."""
+	if not shift_names:
+		return {}
+	rows = frappe.db.sql("""
+		SELECT shift, COUNT(*) FROM `tabAttendance`
+		WHERE shift IN %(shifts)s
+			AND attendance_date BETWEEN %(from_date)s AND %(to_date)s
+			AND docstatus != 2
+		GROUP BY shift
+	""", {"shifts": tuple(shift_names), "from_date": from_date, "to_date": to_date})
+	counts = dict(rows)
+	return {s: counts.get(s, 0) for s in shift_names}
+
 
 def _record_bulk_throughput(estimated_records, run_time) -> None:
 	"""Remember what this run actually achieved, for the next run's estimate."""
@@ -3071,6 +3081,11 @@ def get_today_unmarked_employees(day) -> List[str]:
 	set. Prefix / excluded IDs are filtered later by the core logic.
 	"""
 	day = getdate(day)
+	# Danh sách literal TẤT CẢ Employee (kể cả Left) để MariaDB dùng index (employee, time).
+	# 🔴 KHÔNG đổi thành subquery `IN (SELECT name FROM tabEmployee)` (đo được 66s) và không FORCE INDEX.
+	all_employees = frappe.get_all("Employee", pluck="name")
+	if not all_employees:
+		return []
 	return frappe.db.sql("""
 		SELECT DISTINCT c.employee
 		FROM `tabEmployee Checkin` c
@@ -3078,12 +3093,13 @@ def get_today_unmarked_employees(day) -> List[str]:
 			ON a.employee = c.employee
 			AND a.attendance_date = %(day)s
 			AND a.docstatus < 2
-		WHERE c.time >= %(day)s AND c.time < %(next_day)s
+		WHERE c.employee IN %(employees)s
+		  AND c.time >= %(day)s AND c.time < %(next_day)s
 		  AND c.skip_auto_attendance = 0
 		  AND c.attendance IS NULL
 		  AND (a.name IS NULL OR a.in_time IS NULL)
 		ORDER BY c.employee
-	""", {"day": day, "next_day": day + timedelta(days=1)}, pluck=True)
+	""", {"day": day, "next_day": day + timedelta(days=1), "employees": tuple(all_employees)}, pluck=True)
 
 
 def _catch_up_today_unmarked(today) -> Dict:

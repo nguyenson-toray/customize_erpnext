@@ -613,12 +613,15 @@ def update_employee_checkin(doc, from_hook=True):
 
 
 @frappe.whitelist()
-def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
+def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None, only_unlinked_days=False):
 	"""Bulk update employee checkins with shift and log_type - OPTIMIZED
 
 	Args:
 		from_date: Start date in yyyy-mm-dd format (optional)
 		to_date: End date in yyyy-mm-dd format (optional)
+		only_unlinked_days: Chỉ làm mới các ngày (employee, date) còn ít nhất 1 checkin chưa
+			link Attendance (cần đủ from_date & to_date). Mỗi ngày được chọn vẫn nạp ĐỦ checkin
+			vì log_type IN/OUT phụ thuộc vị trí trong ngày.
 
 	Usage:
 		# Update all checkins
@@ -637,6 +640,25 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 	print(f"🔄 BULK UPDATE EMPLOYEE CHECKINS")
 	print(f"{'='*80}")
 	start_time = time_module.time()
+
+	target_days = None
+	if only_unlinked_days and from_date and to_date:
+		group_conditions = ["time BETWEEN %(f)s AND %(t)s", "attendance IS NULL"]
+		group_params = {"f": f"{from_date} 00:00:00", "t": f"{to_date} 23:59:59"}
+		if employees:
+			group_conditions.append("employee IN %(employees)s")
+			group_params["employees"] = tuple(employees)
+		groups = frappe.db.sql(f"""
+			SELECT DISTINCT employee, DATE(time) FROM `tabEmployee Checkin`
+			WHERE {" AND ".join(group_conditions)}
+		""", group_params)
+		if not groups:
+			print("   ℹ️  No unlinked checkins — nothing to refresh")
+			return 0
+		target_days = {(emp, getdate(d)) for emp, d in groups}
+		employees = sorted({emp for emp, _ in target_days})
+		from_date = str(min(d for _, d in target_days))
+		to_date = str(max(d for _, d in target_days))
 
 	# Build SQL query with OR condition
 	# CRITICAL: Update ALL checkins in date range to ensure correct shift from Shift Assignment
@@ -680,6 +702,10 @@ def bulk_update_employee_checkin(from_date=None, to_date=None, employees=None):
 		WHERE {where_clause}
 		ORDER BY employee, time ASC
 	""", params, as_dict=1)
+
+	if target_days is not None:
+		# Lọc TRƯỚC khi group: mỗi ngày được giữ lại có đủ mọi checkin (log_type IN/OUT theo vị trí)
+		checkins = [c for c in checkins if (c.employee, getdate(c.time)) in target_days]
 
 	if not checkins:
 		print("   ℹ️  No employee checkins found to update")

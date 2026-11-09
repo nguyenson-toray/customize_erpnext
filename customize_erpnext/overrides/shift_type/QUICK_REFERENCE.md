@@ -85,6 +85,14 @@ get_attendance_settings()
   `last_sync_of_checkin` values (the `finally` never ran) — starving the incremental hourly job.
   Those temp writes are gone; if you still see an old `last_sync_of_checkin`, it self-heals after
   the shift ends that day.
+- **Hourly job only refreshes checkin fields (`shift`, `shift_start`, `log_type`…) for days that
+  still have an unlinked checkin.** Already-linked days are corrected at the 8h/23h FULL run or by
+  Bulk Update (`bulk_update_employee_checkin(..., only_unlinked_days=True)`).
+- **Checkin time-range queries need `employee IN (<literal list>)`** to use the
+  `(employee, time)` index — there is no index starting with `time`. A subquery
+  `IN (SELECT name FROM tabEmployee)` took 66s; don't use `FORCE INDEX` either.
+- Slow everywhere at once → check MariaDB `innodb_buffer_pool_size` first (must be ≥ DB size;
+  4G since 2026-11-09). Raising it needs the cnf + MariaDB restart, not `SET GLOBAL`.
 - Attendance names are random hashes (bulk INSERT bypasses naming series) — by design.
 - Historical ranges only match the legacy app after: OT Registrations entered in ERP + a full Bulk Update rerun.
 - Shift Assignment edits don't auto-recalc attendance — run Bulk Update or wait for the 8h/23h run.
