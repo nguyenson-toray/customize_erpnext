@@ -89916,3 +89916,35 @@ msgstr "Vẫn có: những người có ngày nghỉ việc từ ngày {0} của
 #. source: tiqn
 msgid "From Employee Self Update Info (read only)."
 msgstr "Lấy từ Phiếu tự cập nhật thông tin nhân viên (chỉ đọc)."
+
+#. source: tiqn
+msgid "{0} is on probation until {1}, so annual leave cannot be taken in advance."
+msgstr "{0} đang thử việc đến {1} nên chưa được ứng trước phép năm."
+
+#. source: tiqn
+msgid "{0} does not have enough annual leave for this application. Leave may be taken in advance, but not beyond the entitlement for the whole period {1} – {2}."
+msgstr "{0} không đủ phép năm cho đơn này. Công ty cho ứng trước phép nhưng không vượt tổng phép cả kỳ {1} – {2}."
+
+#. source: tiqn
+msgid "Entitlement for the whole period: {0} day(s)"
+msgstr "Tổng phép cả kỳ: {0} ngày"
+
+#. source: tiqn
+msgid "Annual leave granted so far: {0} day(s)"
+msgstr "Phép năm đã được cấp: {0} ngày"
+
+#. source: tiqn
+msgid "Taken or pending approval: {0} day(s)"
+msgstr "Đã nghỉ / đang chờ duyệt: {0} ngày"
+
+#. source: tiqn
+msgid "Remaining: {0} day(s)"
+msgstr "Còn lại: {0} ngày"
+
+#. source: tiqn
+msgid "This application: {0} day(s)"
+msgstr "Đơn này xin: {0} ngày"
+
+#. source: tiqn
+msgid "Not Enough Annual Leave"
+msgstr "Không đủ phép năm"

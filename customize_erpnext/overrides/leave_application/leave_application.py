@@ -30,11 +30,15 @@ Override so với HRMS gốc:
    engine bước 2b tự xoá attendance trong giai đoạn Maternity Leave (Employee Maternity là
    source of truth), và setting `recalc_attendance_on_maternity_change` **mặc định TẮT** — nên
    thực tế không có gì recalc cho tới FULL run kế tiếp.
+
+5. `CustomLeaveApplication.show_insufficient_balance_message()` — phép năm được ứng trước
+   nhưng không vượt phần lịch cấp còn lại của kỳ (thử việc: không được ứng). HRMS gốc với
+   `allow_negative = 1` chỉ cảnh báo rồi cho qua.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, formatdate, get_link_to_form
+from frappe.utils import flt, getdate, formatdate, get_link_to_form
 from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
@@ -403,6 +407,107 @@ class CustomLeaveApplication(LeaveApplication):
 
 		d = getdate(self.from_date or self.posting_date or frappe.utils.nowdate())
 		self.name = make_autoname(f"LA-{d.year:04d}-{d.month:02d}-.#####")
+
+	def show_insufficient_balance_message(self, leave_balance_for_consumption: float) -> None:
+		"""Chặn đơn phép năm vượt mức PHÉP ỨNG; trong mức thì giữ cảnh báo cam của HRMS.
+
+		Quy tắc công ty (09/11/2026): được ứng trước phép nhưng không vượt số ngày cho phép.
+		`Phép năm.allow_negative = 1` nên HRMS gốc chỉ cảnh báo rồi cho qua. HRMS gọi hàm này
+		từ `validate_balance_leaves()` đúng khi số dư không đủ — tức lúc nhân viên đang ứng —
+		nên móc ở đây là đủ, mọi đường tạo đơn (Desk, PWA, Zalo, import, API) đều đi qua.
+
+		Mức được ứng = tổng các dòng `Earned Leave Schedule` CHƯA cấp của allocation chứa
+		`from_date` (lịch do `build_earned_leave_rows()` dựng — nguồn sự thật duy nhất, đúng
+		BLLĐ). Tương đương: tổng đã dùng ≤ phép mang sang + lịch cấp cả kỳ.
+		Chưa hết thử việc → không được ứng (mức = 0), chỉ dùng phép đã cấp.
+
+		Bỏ qua (giữ nguyên HRMS): loại nghỉ không phải earned leave, đơn Rejected, không tìm
+		thấy allocation, hoặc `frappe.flags.skip_advance_leave_cap` (script import/sửa dữ liệu).
+		Plan: `.claude/plans/annual_leave_advance_cap.md`.
+		"""
+		if (
+			self.status == "Rejected"
+			or frappe.flags.skip_advance_leave_cap
+			or not frappe.db.get_value("Leave Type", self.leave_type, "is_earned_leave")
+		):
+			return super().show_insufficient_balance_message(leave_balance_for_consumption)
+
+		allocation = frappe.db.get_value(
+			"Leave Allocation",
+			{
+				"employee": self.employee,
+				"leave_type": self.leave_type,
+				"docstatus": 1,
+				"from_date": ["<=", self.from_date],
+				"to_date": [">=", self.from_date],
+			},
+			["name", "from_date", "to_date", "total_leaves_allocated"],
+			as_dict=True,
+		)
+		if not allocation:
+			return super().show_insufficient_balance_message(leave_balance_for_consumption)
+
+		not_yet_accrued = flt(frappe.db.sql(
+			"""SELECT SUM(number_of_leaves) FROM `tabEarned Leave Schedule`
+			WHERE parent = %s AND parenttype = 'Leave Allocation' AND is_allocated = 0""",
+			allocation.name,
+		)[0][0])
+		probation_end = self._probation_end_for_earned_leave()
+		can_advance = 0.0 if probation_end else not_yet_accrued
+
+		balance = flt(leave_balance_for_consumption)
+		requested = flt(self.total_leave_days)
+		if requested - balance <= can_advance + 0.001:
+			return super().show_insufficient_balance_message(leave_balance_for_consumption)
+
+		# Diễn đạt theo cách HR nghĩ: phép cả kỳ − đã dùng = còn lại. Không đưa số âm ra.
+		# `balance` của HRMS (for_consumption) đã trừ cả đơn đang chờ duyệt.
+		name = frappe.bold(self.employee_name or self.employee)
+		fmt = lambda d: frappe.bold(flt(d, 2))
+		accrued = flt(allocation.total_leaves_allocated)
+		if probation_end:
+			msg = _("{0} is on probation until {1}, so annual leave cannot be taken in advance.").format(
+				name, frappe.bold(formatdate(probation_end))
+			)
+			lines = [
+				_("Annual leave granted so far: {0} day(s)").format(fmt(accrued)),
+				_("Taken or pending approval: {0} day(s)").format(fmt(accrued - balance)),
+				_("Remaining: {0} day(s)").format(fmt(max(balance, 0))),
+				_("This application: {0} day(s)").format(fmt(requested)),
+			]
+		else:
+			entitlement = accrued + not_yet_accrued
+			msg = _(
+				"{0} does not have enough annual leave for this application. Leave may be taken in "
+				"advance, but not beyond the entitlement for the whole period {1} – {2}."
+			).format(name, formatdate(allocation.from_date), formatdate(allocation.to_date))
+			lines = [
+				_("Entitlement for the whole period: {0} day(s)").format(fmt(entitlement)),
+				_("Taken or pending approval: {0} day(s)").format(fmt(entitlement - balance - not_yet_accrued)),
+				_("Remaining: {0} day(s)").format(fmt(max(balance + not_yet_accrued, 0))),
+				_("This application: {0} day(s)").format(fmt(requested)),
+			]
+		frappe.throw(
+			msg + "<ul>" + "".join(f"<li>{line}</li>" for line in lines) + "</ul>",
+			title=_("Not Enough Annual Leave"),
+		)
+
+	def _probation_end_for_earned_leave(self):
+		"""Ngày đủ điều kiện phép năm nếu `from_date` còn trong thử việc, ngược lại `None`.
+		Dùng cùng hàm engine phép năm dùng."""
+		from customize_erpnext.overrides.earned_leave.earned_leave_eligibility import (
+			calculate_eligibility_date,
+			get_employee_probation_days,
+		)
+
+		doj = frappe.db.get_value("Employee", self.employee, "date_of_joining")
+		if not doj:
+			return None
+		applicable_after = frappe.db.get_value("Leave Type", self.leave_type, "applicable_after") or 0
+		eligibility_date, _reason = calculate_eligibility_date(
+			doj, get_employee_probation_days(self.employee), applicable_after
+		)
+		return getdate(eligibility_date) if getdate(self.from_date) < getdate(eligibility_date) else None
 
 	def cancel_attendance(self):
 		"""Gỡ đơn nghỉ khỏi Attendance khi cancel — 2 câu SQL, không loop.

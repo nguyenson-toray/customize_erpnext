@@ -152,6 +152,100 @@ check("status (không còn 'On Leave')", res[0][0], "Half Day")
 check("leave_type là nửa is_lwp", R.is_unpaid(res[0][1]), True)
 check("mã", res[0][2], "OP/2")
 
+print("\nPHẦN 7 — phép năm: được ứng nhưng không vượt lịch cấp còn lại (09/11/2026)")
+from frappe.utils import add_days, flt
+
+P = BY_ABBR["P"]
+
+
+def cap_call(emp, from_date, days, balance, leave_type=P, status="Approved"):
+    """Gọi thẳng hook với số dư cho trước → 'OK' hoặc 'CHẶN'."""
+    la = frappe.new_doc("Leave Application")
+    la.employee, la.leave_type, la.status = emp, leave_type, status
+    la.employee_name = frappe.db.get_value("Employee", emp, "employee_name")
+    la.from_date = la.to_date = getdate(from_date)
+    la.total_leave_days = days
+    try:
+        la.show_insufficient_balance_message(balance)
+        return "OK"
+    except frappe.ValidationError as e:
+        return "CHẶN" if ("enough annual leave" in str(e) or "cannot be taken in advance" in str(e)) else f"lỗi khác: {e}"
+
+
+def remaining(emp, day):
+    alloc = frappe.db.get_value("Leave Allocation", {
+        "employee": emp, "leave_type": P, "docstatus": 1,
+        "from_date": ["<=", day], "to_date": [">=", day]}, "name")
+    return flt(frappe.db.sql("""SELECT SUM(number_of_leaves) FROM `tabEarned Leave Schedule`
+        WHERE parent=%s AND is_allocated=0""", alloc)[0][0]) if alloc else None
+
+
+# NV chính thức có allocation kỳ hiện tại, còn lịch cấp chưa tới.
+REG = frappe.db.sql("""
+    SELECT e.name FROM tabEmployee e JOIN `tabLeave Allocation` a ON a.employee=e.name
+    WHERE e.status='Active' AND e.date_of_joining < '2025-06-01' AND a.docstatus=1
+      AND a.leave_type=%s AND '2026-11-16' BETWEEN a.from_date AND a.to_date
+    ORDER BY e.name LIMIT 1""", P)[0][0]
+D = "2026-11-16"
+rem = remaining(REG, D)
+print(f"  ({REG}: lịch cấp còn lại {rem})")
+frappe.flags.mute_messages = True
+check("số dư 1 + còn lại, xin đúng mức tối đa", cap_call(REG, D, 1 + rem, 1), "OK")
+check("xin vượt mức tối đa 0,5 ngày", cap_call(REG, D, 1 + rem + 0.5, 1), "CHẶN")
+check("số dư âm sẵn, xin 0,5", cap_call(REG, D, 0.5, -rem), "CHẶN")
+check("đơn Rejected vượt mức → không chặn", cap_call(REG, D, 99, 0, status="Rejected"), "OK")
+check("loại nghỉ không phải phép năm → không chặn", cap_call(REG, D, 99, 0, leave_type=BY_ABBR["MC"]), "OK")
+frappe.flags.skip_advance_leave_cap = True
+check("flag script skip_advance_leave_cap → không chặn", cap_call(REG, D, 99, 0), "OK")
+frappe.flags.skip_advance_leave_cap = False
+
+# NV đang thử việc có allocation: trong thử việc không được ứng, hết thử việc thì được.
+PROB = None
+from customize_erpnext.overrides.earned_leave.earned_leave_eligibility import (
+    calculate_eligibility_date, get_employee_probation_days)
+for emp, doj in frappe.db.sql("""
+        SELECT e.name, e.date_of_joining FROM tabEmployee e JOIN `tabLeave Allocation` a ON a.employee=e.name
+        WHERE e.status='Active' AND a.docstatus=1 AND a.leave_type=%s AND a.to_date >= '2026-12-20'
+          AND e.date_of_joining >= '2026-10-01' ORDER BY e.date_of_joining""", P):
+    elig, _r = calculate_eligibility_date(doj, get_employee_probation_days(emp),
+                                          frappe.db.get_value("Leave Type", P, "applicable_after") or 0)
+    if getdate(elig) <= getdate("2026-12-20") and getdate(elig) > getdate(doj):
+        PROB = (emp, getdate(doj), getdate(elig))
+        break
+if PROB:
+    emp, doj, elig = PROB
+    print(f"  ({emp}: vào {doj}, đủ điều kiện {elig}, còn lại {remaining(emp, elig)})")
+    check("thử việc, số dư 0, xin 0,5 → chặn", cap_call(emp, add_days(elig, -1), 0.5, 0), "CHẶN")
+    check("hết thử việc, xin 0,5 trong lịch còn lại", cap_call(emp, elig, 0.5, 0),
+          "OK" if (remaining(emp, elig) or 0) >= 0.5 else "CHẶN")
+else:
+    print("  ⚠ không tìm được NV thử việc có allocation — bỏ qua 2 ca thử việc")
+
+# Đi đường thật: insert() → validate() → validate_balance_leaves() → hook.
+frappe.flags.mute_messages = False
+start, end = getdate("2026-11-16"), getdate("2026-12-19")
+busy = frappe.db.sql("""SELECT DISTINCT employee FROM `tabLeave Application`
+    WHERE docstatus<2 AND from_date<=%s AND to_date>=%s""", (end, start))
+busy = {b[0] for b in busy}
+EMP_LONG = next(e for (e,) in frappe.db.sql("""
+    SELECT e.name FROM tabEmployee e JOIN `tabLeave Allocation` a ON a.employee=e.name
+    WHERE e.status='Active' AND e.date_of_joining < '2025-06-01' AND a.docstatus=1 AND a.leave_type=%s
+      AND '2026-11-16' BETWEEN a.from_date AND a.to_date AND IFNULL(e.custom_is_maternity_leave,0)=0
+    ORDER BY e.name""", P) if e not in busy)
+la = frappe.new_doc("Leave Application")
+la.employee, la.leave_type, la.from_date, la.to_date = EMP_LONG, P, start, end
+la.status = "Open"
+la.flags.ignore_permissions = True
+frappe.db.savepoint("cap_long")
+try:
+    la.insert()
+    check(f"{EMP_LONG} xin 16/11→19/12 qua insert() → phải CHẶN", "LỌT QUA", "CHẶN")
+except frappe.ValidationError as e:
+    check(f"{EMP_LONG} xin 16/11→19/12 qua insert() → phải CHẶN",
+          "CHẶN" if ("enough annual leave" in str(e) or "cannot be taken in advance" in str(e)) else str(e)[:80], "CHẶN")
+frappe.db.rollback(save_point="cap_long")
+frappe.local.message_log = []
+
 frappe.db.rollback()
 print(f"\n{'=' * 58}\nKẾT QUẢ: {ok} đạt / {fail} lỗi | sau rollback còn "
       f"{frappe.db.count('Leave Application')} Leave Application")
