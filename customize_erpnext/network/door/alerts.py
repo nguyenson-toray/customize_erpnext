@@ -15,6 +15,11 @@ How it runs
   them as ONE message per recipient. Device events (offline / back online) go to
   recipients with "Device Alerts" ticked, everything else to "Door Alerts".
 - Once a day, at/after `daily_summary_time`, a summary of the day is sent.
+- ESP32 door sensors (network/door/sensor.py) are not probed: their boards post
+  to sensor.report. This job turns Door Sensor Event rows created since the last
+  check into "door opened" / "sensor fault" events, marks a sensor silent for
+  offline_after_minutes as offline (last_state "unknown") and reuses the
+  "door left open after hours" logic with the reported state.
 
 Operations context (09/10/2026): during working hours the lock is switched OFF
 by hand (bolt always released, ~1000 workers pass freely; only senior managers
@@ -42,6 +47,7 @@ from frappe.utils.file_lock import LockTimeoutError
 from frappe.utils.synchronization import filelock
 
 from customize_erpnext.network.door import control as dc
+from customize_erpnext.network.door import sensor as ds
 
 SETTING = "Door Alert Setting"
 TELEGRAM_URL = "https://api.telegram.org/bot{token}/sendMessage"
@@ -284,24 +290,34 @@ def _not_locked_events(settings, doors, probes, now):
     retried on the next run. Inside working hours every state is dropped
     silently (doors stand open by day on purpose).
     """
+    items = []
+    for door in doors:
+        probe = probes.get(door["device_name"]) or {}
+        # offline / no reading / Door Sensor Mode mismatch -> None: keep the state
+        state = dc.sensor_reading(door, probe)[0] if probe.get("online") else None
+        items.append((f"door_alerts:not_locked:{door['device_name']}", _esc(_label(door)), state))
+    return _left_open_events(settings, items, now)
+
+
+def _left_open_events(settings, items, now):
+    """Shared by the F21 door sensors and the ESP32 sensors. `items` = (alert_state key,
+    escaped label, "open" / "closed" / None[, opened at]); None = unknown now, the state
+    is kept. "opened at" (ESP32 sensors: last_state_change) dates the door open from the
+    real change instead of from the first check that saw it."""
     events, to_mark = [], []
     repeat = timedelta(minutes=settings.not_locked_repeat_minutes or 30)
     confirm = timedelta(minutes=NOT_LOCKED_CONFIRM_MIN)
     working = in_work_hours(now, settings.work_start_time, settings.work_end_time)
-    for door in doors:
-        key = f"door_alerts:not_locked:{door['device_name']}"
+    for key, label, state, *opened in items:
         st = _state_get(key) or {}
         if working:
             if st:
                 _state_put(key, None)
             continue
-        probe = probes.get(door["device_name"]) or {}
-        state = dc.sensor_reading(door, probe)[0] if probe.get("online") else None
         if state is None:
-            continue  # offline / no reading / Door Sensor Mode mismatch: keep the state
-        label = _esc(_label(door))
+            continue
         if state == "open":
-            st = st or {"first_seen": str(now), "last_sent": None}
+            st = st or {"first_seen": str((opened and opened[0]) or now), "last_sent": None}
             first = get_datetime(st["first_seen"])
             if now - first >= confirm:
                 if not st.get("last_sent"):
@@ -424,6 +440,98 @@ def _wants_punches(settings):
     return bool(settings.alert_unknown_user or (settings.fingerprint_alert or "Off") != "Off")
 
 
+# ---------------------------------------------------------------------------
+# ESP32 door sensors (network/door/sensor.py) — state comes from their reports,
+# nothing is probed. Only enabled sensors with "Send Door Alerts" raise alerts.
+# ---------------------------------------------------------------------------
+
+def _sensor_offline_events(settings, sensors, now):
+    """Nothing received for offline_after_minutes -> last_state "unknown" (always, every
+    enabled sensor) + one "offline" event, then one "back online" event (Door Device
+    Offline ticked, watched sensors only)."""
+    events = []
+    minutes = ds.offline_after_minutes()
+    for s in sensors:
+        key = f"door_alerts:sensor_offline:{s.name}"
+        st = _state_get(key) or {}
+        if not ds.is_online(s, now, minutes):
+            if s.last_state != "unknown":
+                ds.mark_unknown(s.name, s.last_seen)
+            if not st:
+                st = {"since": str(s.last_seen or now), "alerted": False, "last_state": s.last_state}
+            if not st["alerted"] and settings.alert_device_offline and s.send_door_alerts:
+                off_for = int((now - get_datetime(st["since"])).total_seconds() // 60)
+                detail = _esc(ds.label(s))
+                if st.get("last_state") in ("open", "closed", "fault"):
+                    detail += " · " + _("last state: {0}").format(
+                        {"open": _("<b>DOOR OPEN</b>"), "closed": _("door closed"), "fault": _("sensor fault")}[st["last_state"]])
+                events.append(("🔴", _("Door sensor offline for {0} minutes").format(off_for), detail))
+                st["alerted"] = True
+            _state_put(key, st)
+        elif st:
+            if st.get("alerted"):
+                off_for = int((now - get_datetime(st["since"])).total_seconds() // 60)
+                events.append(("🟢", _("Door sensor back online"),
+                               _("{0} — offline for {1} minutes").format(_esc(ds.label(s)), off_for)))
+            _state_put(key, None)
+    return events
+
+
+def _sensor_rows(sensors, since, until, where):
+    if not sensors:
+        return []
+    return frappe.db.sql(
+        f"""select door_sensor, state, previous_state, event_time
+        from `tabDoor Sensor Event`
+        where creation > %(since)s and creation <= %(until)s and door_sensor in %(names)s and ({where})
+        order by event_time""",
+        {"since": since, "until": until, "names": [s.name for s in sensors]}, as_dict=True,
+    )
+
+
+def _sensor_fault_events(settings, sensors, since, until):
+    """Sensor wire cut (state fault) and back to normal. Device alerts."""
+    if not settings.alert_sensor_fault:
+        return []
+    labels = {s.name: _esc(ds.label(s)) for s in sensors}
+    events = []
+    for r in _sensor_rows(sensors, since, until, "state = 'fault' or previous_state = 'fault'"):
+        detail = f"{labels.get(r.door_sensor) or _esc(r.door_sensor)} — {_fmt_time(r.event_time)}"
+        if r.state == "fault":
+            events.append(("⚠️", _("Door sensor fault"), detail + " · " + _("check the sensor wiring")))
+        else:
+            events.append(("🟢", _("Door sensor working again"), detail))
+    return events
+
+
+def _sensor_open_events(settings, sensors, since, until):
+    """Door opened (sensor): sensor_open_alert = Off / After Hours / Always. Door alerts."""
+    mode = settings.sensor_open_alert or "Off"
+    if mode == "Off":
+        return []
+    labels = {s.name: _esc(ds.label(s)) for s in sensors}
+    events = []
+    for r in _sensor_rows(sensors, since, until, "state = 'open'"):
+        detail = f"{labels.get(r.door_sensor) or _esc(r.door_sensor)} — {_fmt_time(r.event_time, True)}"
+        if r.previous_state == "unknown":
+            # first report after boot / after being offline: it may have been open for a while
+            detail += " · " + _("first report after the sensor was offline or restarted")
+        if not in_work_hours(r.event_time, settings.work_start_time, settings.work_end_time):
+            events.append(("🟠", _("Door opened after hours"), detail))
+        elif mode == "Always":
+            events.append(("🚪", _("Door opened"), detail))
+    return events
+
+
+def _sensor_left_open_events(settings, sensors, now):
+    minutes = ds.offline_after_minutes()
+    items = []
+    for s in sensors:
+        state = s.last_state if ds.is_online(s, now, minutes) and s.last_state in ("open", "closed") else None
+        items.append((f"door_alerts:sensor_open:{s.name}", _esc(ds.label(s)), state, s.last_state_change))
+    return _left_open_events(settings, items, now)
+
+
 def _format_events(events, now):
     head = f"🚪 <b>{_esc(_('Door alert'))}</b> — {now:%d/%m %H:%M}"
     lines = [f"{icon} <b>{_esc(title)}</b>\n    {detail}" for icon, title, detail in events[:MAX_EVENT_LINES]]
@@ -524,6 +632,21 @@ def run_checks(now=None, probe=None, read_punches=None, commit=False, force=Fals
             events += nl_events
         events += _action_events(settings, doors, since, now)
         events += _punch_events(settings, doors, since, now)
+
+        # ESP32 door sensors: offline detection runs for every enabled sensor (it also
+        # sets last_state "unknown"); alerts only for those with Send Door Alerts
+        sensors = ds.get_sensors()
+        watched = [s for s in sensors if s.send_door_alerts]
+        device_events += _sensor_offline_events(settings, sensors, now)
+        device_events += _sensor_fault_events(settings, watched, since, now)
+        if settings.alert_not_locked_after_hours:
+            # re-read: the offline pass above may just have set last_state "unknown"
+            fresh = {s.name: s for s in ds.get_sensors()}
+            nl_events, nl_keys = _sensor_left_open_events(
+                settings, [fresh[s.name] for s in watched if s.name in fresh], now)
+            events += nl_events
+            not_locked_keys += nl_keys
+        events += _sensor_open_events(settings, watched, since, now)
 
         delivered = True
         # muted: events are dropped on purpose (not queued for later)
@@ -653,6 +776,19 @@ def get_status():
                 "sensor": dc.sensor_reading(d, probes.get(d["device_name"], {}))[0] if sensor_on else None,
             }
             for d in doors
+        ],
+        "sensors": [
+            {
+                "sensor_id": s.name,
+                "location": s.location or "",
+                "ip_address": (s.sensor_ip or "") if dc.can_see_ip() else "",
+                "watched": bool(s.send_door_alerts),
+                "online": ds.is_online(s, now),
+                "state": s.last_state,
+                "last_seen": str(s.last_seen) if s.last_seen else None,
+                "rssi": s.sensor_rssi,
+            }
+            for s in ds.get_sensors()
         ],
         "recipients": sum(1 for r in settings.recipients or [] if r.enabled and r.chat_id),
         "last_check_at": str(settings.last_check_at) if settings.last_check_at else None,

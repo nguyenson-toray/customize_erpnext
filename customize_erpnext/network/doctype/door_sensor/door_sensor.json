@@ -1,0 +1,177 @@
+{
+ "actions": [],
+ "autoname": "field:sensor_id",
+ "creation": "2026-11-02 12:57:15.210515",
+ "description": "A door watched by an ESP32 board + magnetic sensor (open / closed only, no lock). The board posts its state to customize_erpnext.network.door.sensor.report",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sensor_id",
+  "location",
+  "column_break_main",
+  "enabled",
+  "send_door_alerts",
+  "status_section",
+  "last_state",
+  "last_state_change",
+  "last_seen",
+  "column_break_status",
+  "sensor_ip",
+  "sensor_rssi",
+  "sensor_fw",
+  "section_break_note",
+  "note"
+ ],
+ "fields": [
+  {
+   "description": "door_id configured on the board (letters, digits, . _ -, at most 32)",
+   "fieldname": "sensor_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Sensor ID",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "description": "Name shown on /door_control and in Telegram messages",
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Location"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Off = reports are accepted but ignored (only Last Seen / IP / Firmware are updated). A board with an unknown Sensor ID is added here switched off",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Enabled"
+  },
+  {
+   "default": "1",
+   "fieldname": "send_door_alerts",
+   "fieldtype": "Check",
+   "label": "Send Door Alerts"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "unknown",
+   "fieldname": "last_state",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Last State",
+   "no_copy": 1,
+   "options": "open\nclosed\nfault\nunknown",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_state_change",
+   "fieldtype": "Datetime",
+   "label": "Last State Change",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Last report received, heartbeats included",
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Seen",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sensor_ip",
+   "fieldtype": "Data",
+   "label": "Sensor IP",
+   "no_copy": 1,
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sensor_rssi",
+   "fieldtype": "Int",
+   "label": "Wi-Fi RSSI (dBm)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sensor_fw",
+   "fieldtype": "Data",
+   "label": "Firmware",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_note",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  }
+ ],
+ "links": [
+  {
+   "link_doctype": "Door Sensor Event",
+   "link_fieldname": "door_sensor"
+  }
+ ],
+ "modified": "2026-11-03 10:18:35.357538",
+ "modified_by": "Administrator",
+ "module": "Network",
+ "name": "Door Sensor",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Door Control",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Door Sensor",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "location"
+}

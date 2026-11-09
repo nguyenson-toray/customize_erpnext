@@ -18,6 +18,9 @@ customize_erpnext.patches.create_quiz_manager_role
 # pre_model_sync: Door Control Action / Door Access Log ship a DocPerm row for the
 # `Door Control` role (Link) - the role must exist before the model sync. Idempotent.
 customize_erpnext.patches.create_door_control_role
+# pre_model_sync: `Door Sensor` role of the ESP32 door sensors' technical user
+# (network/door/sensor.py::report). No DocType permission, no desk access. Idempotent.
+customize_erpnext.patches.create_door_sensor_role
 
 # pre_model_sync: the app folder now only ships `tiqn_fixed_trip_schedule`, so the sync
 # would treat `TIQN Fixed Trip Template` as an orphan DocType and delete it - along with

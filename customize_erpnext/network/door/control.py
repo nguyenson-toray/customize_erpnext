@@ -48,6 +48,7 @@ from frappe.utils.synchronization import filelock
 
 from customize_erpnext.network.biometric.machines import get_machine, get_machines
 from customize_erpnext.network.biometric.zk_device import build_zk_cfg, connect_zk
+from customize_erpnext.network.door import sensor as door_sensor
 from customize_erpnext.network.door.access import store_door_punches
 
 ROLE = "Door Control"
@@ -384,6 +385,7 @@ def _door_payload(door, probe, rules=None):
     # the sensor is wired: a mode mismatch makes the sensor value meaningless
     state, mismatch = sensor_reading(door, probe)
     return {
+        "kind": "lock",
         "device_name": door["device_name"],
         "location": door["location"],
         "ip_address": door["ip_address"] if can_see_ip() else "",
@@ -470,13 +472,16 @@ def _require_hold_close(door):
 
 @frappe.whitelist()
 def get_doors(force=0):
-    """Every enabled door controller with its live status."""
+    """Every enabled door controller with its live status (kind "lock"), then every
+    enabled ESP32 door sensor (kind "sensor", network/door/sensor.py: watched only,
+    never unlockable, status from its last report — the board is never contacted)."""
     _check_access()
     doors = _doors()
     probes = _probe_all(doors, force=frappe.utils.cint(force))
     rules = unlock_rules()
     return {
-        "doors": [_door_payload(d, probes.get(d["device_name"], {}), rules) for d in doors],
+        "doors": [_door_payload(d, probes.get(d["device_name"], {}), rules) for d in doors]
+        + door_sensor.page_cards(show_ip=can_see_ip()),
         "server_time": str(now_datetime()),
     }
 
@@ -625,26 +630,29 @@ def read_new_punches(doors, force=False, pause_device=True):
 
 @frappe.whitelist()
 def get_timeline(device_name=None, limit=TIMELINE_LIMIT):
-    """Fingerprint punches + ERP commands of the door controllers, newest first."""
+    """Fingerprint punches + ERP commands of the door controllers and state changes
+    of the ESP32 door sensors, newest first."""
     _check_access()
     doors = _doors()
+    sensors = [s.name for s in door_sensor.get_sensors()]
     if device_name:
         doors = [d for d in doors if d["device_name"] == device_name]
-    if not doors:
+        sensors = [s for s in sensors if s == device_name]
+    if not doors and not sensors:
         return {"events": []}
     limit = min(frappe.utils.cint(limit) or TIMELINE_LIMIT, 500)
 
     ip_to_door = {d["ip_address"]: d["device_name"] for d in doors}
     names = [d["device_name"] for d in doors]
 
-    punches = frappe.db.sql(
+    punches = [] if not doors else frappe.db.sql(
         """select user_id, employee, employee_name, timestamp, device_ip
         from `tabDoor Access Log` where device_ip in %(ips)s
         order by timestamp desc limit %(limit)s""",
         {"ips": list(ip_to_door), "limit": limit},
         as_dict=True,
     )
-    actions = frappe.db.sql(
+    actions = [] if not doors else frappe.db.sql(
         """select timestamp, action, result, device_name, seconds, user, user_full_name, error
         from `tabDoor Control Action` where device_name in %(names)s
         order by timestamp desc limit %(limit)s""",
@@ -674,7 +682,7 @@ def get_timeline(device_name=None, limit=TIMELINE_LIMIT):
             "error": mask_ip(a.error),
         }
         for a in actions
-    ]
+    ] + door_sensor.timeline_events(sensors, limit)
     events.sort(key=lambda e: e["timestamp"], reverse=True)
     events = events[:limit]
     for e in events:

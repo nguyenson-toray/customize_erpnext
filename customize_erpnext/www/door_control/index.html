@@ -159,6 +159,7 @@
         .ev.fingerprint .ico { background: var(--accent-soft); color: var(--accent); }
         .ev.erp .ico { background: var(--open-soft); color: var(--open); }
         .ev.failed .ico { background: var(--bad-soft); color: var(--bad); }
+        .ev.sensor .ico { background: var(--ok-soft); color: var(--ok); }
         .ev .what { min-width: 0; }
         .ev .who { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
         .ev .sub { font-size: 12.5px; color: var(--fg-3); overflow-wrap: anywhere; }
@@ -410,7 +411,37 @@
         const sensorKnown = d => d.has_door_sensor && d.online && (d.sensor === 'closed' || d.sensor === 'open');
         const isOpenNow = d => d.online && (isOpen(d) || (sensorKnown(d) && d.sensor === 'open'));
 
+        // ESP32 door sensor (kind "sensor"): watched only. No lock, no buttons; the board
+        // reconnects by itself, so an offline card has no "Try to reconnect" either.
+        const shortWhen = ts => {
+            const p = parts(ts);
+            return p ? (`${p.y}-${p.mo}-${p.d}` !== localYmd(new Date()) ? `${p.d}/${p.mo} ` : '') + hhmm(ts) : '';
+        };
+        function sensorCard(d) {
+            const off = !d.online, fault = !off && d.fault;
+            const open = !off && d.sensor === 'open', closed = !off && d.sensor === 'closed';
+            const cls = off ? 'is-off' : open ? 'is-open' : closed ? 'is-closed' : 'is-idle';
+            const state = off ? esc(__('Offline'))
+                : (esc(fault ? __('Sensor fault') : open ? __('Door open') : closed ? __('Door closed') : __('No reading yet')))
+                    + `<span class="src">${I.sensor(14)}${__('From the door sensor')}</span>`;
+            const ico = off ? I.off(30) : fault ? I.warn(30) : open ? I.doorOpen(30) : I.door(30);
+            const facts = fault ? `<div class="facts"><span class="warn">${I.warn(15)}${__('The sensor reports a wiring fault. Check the sensor wire.')}</span></div>` : '';
+            const when = off
+                ? (d.last_seen ? __('Last seen {0}', [shortWhen(d.last_seen)]) : __('No report received yet'))
+                : (d.last_state_change ? __('Since {0}', [shortWhen(d.last_state_change)]) : '');
+            const n = esc(d.device_name), meta = esc(d.ip_address || '');
+            return `<article class="door ${cls}" data-door="${n}">
+                <div class="door-top">
+                    <div class="state-ico">${ico}</div>
+                    <div class="door-name"><h3 title="${n}">${esc(label(d))}</h3><div class="state-line">${state}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div>
+                </div>
+                ${facts}
+                ${when ? `<div class="last">${I.clock(15)}<span>${esc(when)}</span></div>` : ''}
+            </article>`;
+        }
+
         function doorCard(d) {
+            if (d.kind === 'sensor') return sensorCard(d);
             const off = !d.online, erpOpen = !off && isOpen(d), left = remaining(d);
             const bySensor = sensorKnown(d), doorOpen = bySensor && d.sensor === 'open';
             const open = !off && isOpenNow(d);
@@ -523,7 +554,11 @@
                 const dl = dayLabel(e.timestamp);
                 if (dl !== day) { day = dl; html += `<div class="day">${esc(dl)}</div>`; }
                 let ico, who = e.who, sub;
-                if (e.kind === 'fingerprint') {
+                if (e.kind === 'sensor') {
+                    ico = I.sensor(18);
+                    who = e.state === 'open' ? __('Door opened') : e.state === 'closed' ? __('Door closed') : __('Sensor fault');
+                    sub = __('Sensor');
+                } else if (e.kind === 'fingerprint') {
                     ico = I.fp(18);
                     if (!e.matched) who = __('ID {0}', [e.user_id]);
                     sub = e.matched ? __('Fingerprint') : __('Fingerprint · not linked to any employee');
@@ -543,7 +578,7 @@
             $('btn-fetch').innerHTML = `${I.dl(18)}${S.fetching ? __('Reading…') : __('Get logs')}`;
             $('btn-fetch').classList.toggle('busy', S.fetching);
             $('sw-auto').setAttribute('aria-checked', S.auto ? 'true' : 'false');
-            $('legend-mini').innerHTML = `<span>${I.fp(14)}${__('Fingerprint')}</span><span>${I.erp(14)}ERP</span>`;
+            $('legend-mini').innerHTML = `<span>${I.fp(14)}${__('Fingerprint')}</span><span>${I.erp(14)}ERP</span><span>${I.sensor(14)}${__('Sensor')}</span>`;
             $('main').dataset.tab = S.tab;
             $('tab-doors').setAttribute('aria-selected', S.tab === 'doors');
             $('tab-log').setAttribute('aria-selected', S.tab === 'log');
@@ -683,9 +718,10 @@
                 <button class="btn xl primary" data-act="do-hold" data-id="${esc(d.device_name)}" data-focus>${__('Hold open')}</button></div></div>`);
         }
         function askAll(step) {
-            const online = S.doors.filter(d => d.online && d.can_unlock);
-            const offline = S.doors.filter(d => !d.online && d.can_unlock).map(label);
-            const denied = S.doors.filter(d => !d.can_unlock).map(label);
+            const locks = S.doors.filter(d => d.kind !== 'sensor');   // sensor doors have no lock
+            const online = locks.filter(d => d.online && d.can_unlock);
+            const offline = locks.filter(d => !d.online && d.can_unlock).map(label);
+            const denied = locks.filter(d => !d.can_unlock).map(label);
             if (step === 1) {
                 modal(`<div class="dlg danger" role="dialog" aria-modal="true"><div class="grab"></div>
                     <div class="steps"><span class="on">1. ${__('Confirm')}</span><span>2. ${__('Hold to open')}</span></div>

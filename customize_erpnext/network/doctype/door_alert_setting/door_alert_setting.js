@@ -158,9 +158,27 @@ function render_status(frm) {
 				? `<table class="table table-sm" style="margin:8px 0"><thead><tr><th>${__("Door")}</th>${showIp ? "<th>IP</th>" : ""}<th>${__("Connection")}</th><th>${__("Alerts")}</th>${s.use_lock_sensor ? `<th>${__("Door Sensor")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>`
 				: `<div class="text-muted">${__("No door controller is enabled")}</div>`;
 
+			// ESP32 door sensors (Door Sensor list): state from their own reports
+			const sensorState = x => (!x.online ? pill("red", __("Offline"))
+				: x.state === "open" ? pill("orange", __("Open"))
+				: x.state === "closed" ? pill("green", __("Closed"))
+				: x.state === "fault" ? pill("red", __("Sensor fault")) : "—");
+			const sShowIp = (s.sensors || []).some(x => x.ip_address);
+			const sRows = (s.sensors || []).map(x => `
+				<tr>
+					<td><b>${esc(x.location || x.sensor_id)}</b>${x.location ? `<div class="text-muted small">${esc(x.sensor_id)}</div>` : ""}</td>
+					${sShowIp ? `<td class="text-muted" style="font-family:var(--font-mono, monospace)">${esc(x.ip_address)}</td>` : ""}
+					<td>${sensorState(x)}<div class="text-muted small">${__("Last seen")}: ${when(x.last_seen)}${x.rssi != null ? ` · ${esc(String(x.rssi))} dBm` : ""}</div></td>
+					<td>${x.watched ? pill("blue", __("Watched")) : pill("gray", __("Not watched"))}</td>
+				</tr>`).join("");
+			const sensors = sRows
+				? `<table class="table table-sm" style="margin:8px 0"><thead><tr><th>${__("Door Sensor")}</th>${sShowIp ? "<th>IP</th>" : ""}<th>${__("State")}</th><th>${__("Alerts")}</th></tr></thead><tbody>${sRows}</tbody></table>`
+				: "";
+
 			wrap.html(`
 				<div style="margin-bottom:6px">${head}</div>
 				${doors}
+				${sensors}
 				<div class="small text-muted">
 					${__("Last check")}: <b>${when(s.last_check_at)}</b> ·
 					${__("Last sent")}: <b>${when(s.last_sent_at)}</b> ·

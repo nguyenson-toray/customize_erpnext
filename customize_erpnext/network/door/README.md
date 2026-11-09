@@ -76,6 +76,8 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | File | Vai trò |
 |---|---|
 | `network/door/control.py` | Toàn bộ API + giao tiếp máy (docstring đầu file có các sự thật đo được) |
+| `network/door/sensor.py` | Cảm biến cửa ESP32: endpoint `report` + đọc trạng thái cho trang / cảnh báo (§13) |
+| `network/doctype/door_sensor/`, `door_sensor_event/` | Cửa chỉ giám sát + nhật ký đổi trạng thái (§13) |
 | `network/door/access.py` | `store_door_punches()` dùng chung với tab "IT Door Access" cũ trên trang www /biometric_sync (đã bỏ 19/10/2026) |
 | `network/biometric/machines.py` | Lọc máy cửa (§3) |
 | `www/door_control/index.py` | Kiểm tra login/role, CSRF, gom chuỗi dịch |
@@ -94,7 +96,7 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | `hold_open` / `close_door` | POST | **Tạm tắt** (`HOLD_CLOSE_ENABLED = False`) — throw |
 | `unlock_all()` | POST | Mở mọi cửa song song (cửa offline không làm chậm cửa khác) |
 | `fetch_logs(device_name=None, force=0)` | POST | Đọc log máy → Door Access Log (30 ngày gần nhất). So số record với lần trước, không đổi thì bỏ qua. Không xoá log trên máy. `access.store_door_punches` chỉ lưu ID **khớp nhân viên** (từ 29/10/2026: ID không khớp = đối tác chấm công, bỏ qua như ID ≥ ngưỡng đối tác ⇒ "Unknown Fingerprint ID" của Door Alert Setting không còn tác dụng, đã ẩn) và ghi `device_name` theo IP lúc lưu (IP vẫn permlevel 1, chỉ Administrator thấy) |
-| `get_timeline(device_name=None, limit=150)` | GET | Gộp Door Access Log + Door Control Action, mới nhất trước |
+| `get_timeline(device_name=None, limit=150)` | GET | Gộp Door Access Log + Door Control Action + Door Sensor Event (`kind: "sensor"`), mới nhất trước |
 
 Lệnh lỗi **không throw** mà trả `{success: False}` — để dòng Failed của Door Control Action vẫn được
 commit (throw sẽ rollback cả dòng log).
@@ -278,4 +280,146 @@ Plan: `.claude/plans/door_sensor.md`.
   1,5 s thay vì 7,5 s (UDP) / 13,8 s (TCP). Lệnh mở/đóng cửa KHÔNG qua bước này (máy chậm vẫn phải nhận lệnh).
 - Máy tắt lâu ngày: bỏ tick Enable trong Setting để trang không phải dò nó.
 - ⚠ 22–23/10 Telegram trả "Unauthorized bot" → cảnh báo cửa KHÔNG tới được ai (token bot sai/bị thu hồi).
+
+## 13. Door sensors (ESP32) — cửa chỉ giám sát (02/11/2026)
+
+Cửa không có F21/khoá, chỉ cần biết **đóng hay mở**. Mỗi cửa có một board ESP32-C6 Super Mini + cảm biến
+từ; board tự POST về ERP qua Wi-Fi. ERP **không bao giờ** gọi ngược board (không lệnh, không polling).
+
+### Hợp đồng (firmware viết theo)
+
+```
+POST /api/method/customize_erpnext.network.door.sensor.report
+Authorization: token <api_key>:<api_secret>
+Content-Type: application/json
+
+{"door_id": "KHO-01", "state": "open", "event": "change", "age_ms": 120,
+ "rssi": -61, "ip": "10.0.1.80", "fw": "1.0.0"}
+→ 200 {"message": {"ok": true, "changed": <bool>}}
+```
+
+- Board gửi khi đổi trạng thái (lỗi mạng → thử lại mỗi 5 s, luôn gửi trạng thái mới nhất), heartbeat 60 s, 1 lần lúc boot.
+- **Mọi report đã xử lý đều trả 200** (trùng lặp, sensor tắt, door_id lạ): board coi mã khác 200 là lỗi và gửi lại mãi.
+  Chỉ lỗi khi: token sai (401) / không có role Door Sensor (403) · dữ liệu sai (417: `door_id` không khớp `[A-Za-z0-9._-]{1,32}`,
+  `state` ∉ open/closed/fault, `event` ∉ boot/change/heartbeat, `age_ms` không phải số).
+- `age_ms` < 0 hoặc > 24 h ⇒ coi như 0. Thời điểm đổi thật = lúc nhận − `age_ms`. Trường lạ được bỏ qua (`**kwargs`).
+- `state != last_state` (kể cả `unknown`) ⇒ cập nhật `last_state` + `last_state_change` + insert **Door Sensor Event**
+  (có `previous_state`), `changed: true`. Heartbeat cùng trạng thái chỉ cập nhật `last_seen`/IP/RSSI/firmware.
+- Ghi bằng `db.set_value(update_modified=False)`, `track_changes = 0` ⇒ heartbeat mỗi phút không sinh Version, không đổi `modified`.
+- `filelock` theo door_id (2 request của 1 board có thể chồng nhau). Request không gọi Telegram.
+- **door_id lạ (đã chọn):** tự tạo `Door Sensor` với `enabled = 0` + 1 Error Log "Door Sensor", trả 200 `ok: false`.
+  Admin chỉ cần tick Enabled + gõ Location. Lý do: throw ⇒ board gửi lại mỗi 5 s mãi mãi + đầy Error Log. Tối đa
+  `MAX_PENDING = 20` sensor đang tắt; vượt ⇒ từ chối (417) — chặn key bị lộ tự bịa door_id. Sensor `enabled = 0` ⇒ 200
+  `ok: false, reason: disabled`, chỉ cập nhật last_seen/IP/firmware, không Event, không cảnh báo, không lên trang.
+
+### Role + user kỹ thuật
+
+- Role **`Door Sensor`** (patch `create_door_sensor_role`, `pre_model_sync`, `desk_access = 0`): không có quyền DocType
+  nào, không vào được `/door_control` (trang + API đòi `Door Control`). User chỉ có role này là **Website User**.
+- Tạo user (1 user dùng chung cho mọi board, hoặc mỗi board 1 user nếu muốn thu hồi riêng):
+  1. User › New: Email `door-sensor@tiqn.com.vn`, First Name `Door Sensor`, bỏ tick *Send Welcome Email*.
+  2. Tab Roles: chỉ tick **Door Sensor** (bỏ mọi role mặc định khác). Lưu.
+  3. Tab Settings › API Access › **Generate Keys** ⇒ copy API Secret ngay (chỉ hiện 1 lần). API Key nằm trên form.
+  4. Nạp `api_key:api_secret` vào firmware. **Không** ghi key/secret vào repo, README hay ticket.
+- Thu hồi: Generate Keys lại (secret cũ hết hiệu lực) hoặc tắt user.
+- ⚠ **Role Profile:** nếu user được gán Role Profile (ô *Role Profile* trên form), mỗi lần lưu Frappe đặt lại role theo
+  profile ⇒ bỏ tick Door Control / tick Door Sensor không có tác dụng. Xoá ô Role Profile trước rồi mới chỉnh role.
+  Tuyệt đối không để user của board có role **Door Control**: key nằm trong board, lộ key = mở được cửa thật.
+- Bấm vào tên role Door Sensor trong tab Roles hiện "Door Sensor role does not have permission on any doctype" — **bình
+  thường**, đúng thiết kế: `report` kiểm role bằng `frappe.only_for`, rồi tự ghi với `ignore_permissions`.
+- Đang dùng (03/11/2026): user **`esp32_door@tiqn.com.vn`** (Website User, chỉ role Door Sensor), sensor
+  `production_canteen` (enabled). Đã test từ PC; **chưa có board thật**.
+
+### DocType
+
+- **Door Sensor** (`autoname: field:sensor_id`): `sensor_id` (= door_id, unique, không trùng Device Name máy cửa —
+  validate), `location` (tên hiển thị), `enabled`, `send_door_alerts`, `last_state` (open/closed/fault/unknown),
+  `last_state_change`, `last_seen`, `sensor_ip` (**permlevel 1** ⇒ chỉ Administrator thấy, như `device_ip`), `sensor_rssi`,
+  `sensor_fw`, `note`. Quyền: System Manager đủ; Door Control đọc.
+- **Door Sensor Event** (`autoname: hash`, `event_time DESC`, `in_create`): `door_sensor`, `state`, `previous_state`,
+  `event_time`, `event`, `received_at`. Chỉ ghi khi đổi trạng thái. Quyền: chỉ đọc cho System Manager (+ xoá),
+  Door Control, HR User.
+- Không đụng Attendance Machine Setting/Detail, không qua pyzk.
+
+### Cảnh báo (`alerts.run_checks`, cùng `tick` mỗi phút)
+
+| Sự kiện | Điều kiện | kind |
+|---|---|---|
+| Door opened / Door opened after hours | Door Sensor Event `open` tạo trong cửa sổ, `sensor_open_alert` = After Hours / Always | door |
+| Door left open after hours / still open / closed | `alert_not_locked_after_hours` (không cần Use Door Sensor), mở ≥ 2 phút ngoài giờ tính từ `last_state_change`, nhắc mỗi `not_locked_repeat_minutes` | door |
+| Door sensor fault / working again | Event `fault` hoặc `previous_state = fault`, `alert_sensor_fault` | device |
+| Door sensor offline / back online | `now − last_seen > offline_after_minutes`, `alert_device_offline`; tin offline kèm trạng thái cuối | device |
+
+- Chỉ sensor `enabled = 1` + `send_door_alerts = 1` gây cảnh báo. Phát hiện offline chạy cho MỌI sensor đang bật và đặt
+  `last_state = "unknown"` (UPDATE có điều kiện `last_seen` ⇒ không đè report vừa tới). Board có lại ⇒ report đầu tiên
+  (unknown → X) ghi Event; nếu là `open` thì tin ghi chú "first report after the sensor was offline or restarted".
+- Khoá trong `alert_state`: `door_alerts:sensor_offline:<id>`, `door_alerts:sensor_open:<id>` (không đụng khoá của máy cửa).
+- Field mới (tab Door Sensor › ESP32 Door Sensors): `sensor_open_alert` (Off), `alert_sensor_fault` (0). Bỏ
+  `depends_on: use_lock_sensor` của `alert_not_locked_after_hours` vì giờ dùng cho cả ESP32.
+- Khung trạng thái trên form có thêm bảng Door Sensor (Online/Offline, trạng thái, Last seen, RSSI).
+
+### Trang /door_control
+
+- `get_doors` trả thêm sensor đang bật, `kind: "sensor"` (cửa F21: `kind: "lock"`); `online` = `last_seen` trong
+  `offline_after_minutes`; `can_unlock: false`; IP chỉ cho Administrator.
+- Thẻ cảm biến: Door open / Door closed / Sensor fault / Offline + "From the door sensor", dòng cuối "Since {giờ đổi}"
+  (offline: "Last seen …"). Không nút nào, không "Try to reconnect". "Mở tất cả" chỉ xét `kind !== "sensor"`.
+- Nhật ký: sự kiện `kind: "sensor"` (Door opened / Door closed / Sensor fault), chú thích nguồn thêm "Sensor".
+
+### URL cho board (đo 02/11/2026)
+
+- DNS LAN `10.0.1.3` trả `erp.tiqn.com.vn → 10.0.1.20` (split DNS; DNS công cộng trả IP WAN 103.17.90.89).
+- Cả 2 server block cổng 8888 đều `proxy_set_header X-Frappe-Site-Name erp.tiqn.local` ⇒ Host header nào cũng vào đúng site.
+- **Khuyến nghị:** `https://erp.tiqn.com.vn:8888/api/method/customize_erpnext.network.door.sensor.report` — cert Let's
+  Encrypt hợp lệ, board có thể kiểm chứng bằng root CA ISRG Root X1. Điều kiện: Wi-Fi nhà máy cấp DNS `10.0.1.3`/`10.0.1.6`
+  (nếu Wi-Fi dùng DNS công cộng thì tên này ra IP WAN, phụ thuộc NAT hairpin). Kiểm: `nslookup erp.tiqn.com.vn` từ điện thoại
+  cùng Wi-Fi phải ra `10.0.1.20`.
+- Dự phòng: `https://10.0.1.20:8888/...` — chạy được (vào server block mặc định), nhưng cert không khớp IP ⇒ firmware phải
+  bỏ kiểm cert (`setInsecure`). `erp.tiqn.local` cũng vậy (cert tự ký) và cần DNS nội bộ biết tên này.
+
+```bash
+curl -X POST https://erp.tiqn.com.vn:8888/api/method/customize_erpnext.network.door.sensor.report \
+  -H "Authorization: token <key>:<secret>" -H "Content-Type: application/json" \
+  -d '{"door_id":"TEST-01","state":"open","event":"change","age_ms":0,"rssi":-60,"ip":"10.0.1.99","fw":"1.0.0"}'
+```
+
+Windows PowerShell (dấu `\` cuối dòng là của bash; dán lệnh trên vào PowerShell thì `curl` chạy không kèm header ⇒ Guest ⇒
+"Login to access … is not whitelisted"):
+
+```powershell
+$h = @{ Authorization = "token <key>:<secret>" }
+$b = @{ door_id="TEST-01"; state="open"; event="change"; age_ms=0; rssi=-60; ip="10.0.1.99"; fw="1.0.0" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "https://erp.tiqn.com.vn:8888/api/method/customize_erpnext.network.door.sensor.report" -Headers $h -ContentType "application/json" -Body $b
+```
+
+Lưu ý: lệnh test ghi dữ liệu thật (Event + IP giả trên Door Sensor) tới khi board thật gửi đè.
+
+### Ghi chú firmware
+
+- **Wokwi không gửi thật:** firmware bỏ Wi-Fi khi giả lập (`[SIM] Bo qua Wi-Fi`), dòng `>>POST …` chỉ là in Serial. Kể cả có
+  mạng, Wokwi đi ra Internet qua gateway của nó, không vào được LAN 10.0.1.x ⇒ phải test trên board thật trong Wi-Fi nhà máy.
+- **Không in token ra Serial** (bản 1.0.0 đang in `api_key:api_secret`). Test xong: Generate Keys lại, nạp secret mới.
+- **Cửa đóng mở liên tục** (canteen…): server chịu được (≈1.000 lượt/ngày ≈ 2.000 request + 1.440 heartbeat, vài chục ms
+  mỗi request). Nên làm phía firmware:
+  - chống dội: chỉ coi là đổi khi tín hiệu đứng yên ~50 ms (cửa có tay co bật lại: ~1 s, đổi lại mất lần mở < 1 s);
+  - giữ kết nối TLS (`http.setReuse(true)` + giữ `WiFiClientSecure`): mỗi lần bắt tay TLS trên ESP32-C6 ~1 s + tốn heap;
+  - bỏ heartbeat nếu 60 s qua đã gửi một report bất kỳ.
+- Cảnh báo cho cửa đông người: để `sensor_open_alert = Off`, dùng "Door Open After Hours" (chỉ báo khi bị bỏ mở quá N phút
+  ngoài giờ); không muốn cảnh báo gì ⇒ bỏ tick *Send Door Alerts* trên Door Sensor.
+
+### Còn treo (làm khi có board thật)
+
+- Nhật ký "tất cả cửa" chỉ lấy 150 sự kiện mới nhất ⇒ một cửa cảm biến đông người sẽ đẩy mất log vân tay/ERP của cửa F21.
+  Hướng sửa: ở chế độ tất cả cửa giới hạn sự kiện cảm biến (vd. tối đa 30), lọc riêng cửa thì hiện đủ.
+- Door Sensor Event không tự xoá (~2.000 dòng/ngày với cửa đông). Hướng sửa: `default_log_clearing_doctypes`
+  (`hooks.py`, giữ 90 ngày) + `clear_old_logs` trên controller ⇒ Log Settings tự dọn; cần migrate + restart.
+- Chưa dịch vi.po các chuỗi mới (trang `/door_control`, Door Alert Setting, tin Telegram).
+- Xác nhận Wi-Fi nhà máy cấp DNS `10.0.1.3`/`10.0.1.6` (xem "URL cho board").
+
+### Test
+
+`network/door/test_sensor.py` — 56 assert, chạy tay như các test khác (không kết nối máy cửa, `requests.post` mock, user +
+sensor test tạo trong transaction rồi rollback): quyền (Door Control / Guest bị chặn, user Door Sensor không vào /door_control),
+report (boot/change/heartbeat, trùng, age_ms, dữ liệu sai, sensor tắt, door_id lạ, modified không đổi), get_doors/timeline/unlock_all,
+và `run_checks` (mở ngoài giờ, Always/Off, fault, offline + unknown, có lại, mở quá lâu, Send Door Alerts tắt).
 

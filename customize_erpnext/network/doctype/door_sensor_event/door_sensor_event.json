@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-02 12:57:15.346474",
+ "description": "State changes reported by the ESP32 door sensors (one row per change, heartbeats are not stored). Written by customize_erpnext.network.door.sensor.report only",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "door_sensor",
+  "state",
+  "previous_state",
+  "column_break_main",
+  "event_time",
+  "event",
+  "received_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "door_sensor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Door Sensor",
+   "options": "Door Sensor",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "State",
+   "options": "open\nclosed\nfault",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "previous_state",
+   "fieldtype": "Select",
+   "label": "Previous State",
+   "options": "open\nclosed\nfault\nunknown",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "When the door changed: received at minus the board's age_ms",
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Event Time",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Report that carried the change: boot, change, or a heartbeat after the sensor was offline",
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "label": "Event",
+   "options": "boot\nchange\nheartbeat",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Received At",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-11-03 10:16:50.431580",
+ "modified_by": "Administrator",
+ "module": "Network",
+ "name": "Door Sensor Event",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Door Control",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Door Sensor",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "event_time",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "door_sensor"
+}

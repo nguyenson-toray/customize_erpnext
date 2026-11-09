@@ -55,6 +55,10 @@
   "column_break_sensor",
   "alert_not_locked_after_hours",
   "not_locked_repeat_minutes",
+  "esp_sensor_section",
+  "sensor_open_alert",
+  "column_break_esp_sensor",
+  "alert_sensor_fault",
   "unlock_tab",
   "unlock_permissions_section",
   "unlock_permissions"
@@ -356,15 +360,39 @@
    "fieldtype": "Check",
    "label": "Door Open After Hours",
    "default": "0",
-   "depends_on": "use_lock_sensor",
-   "description": "Outside working hours: message when a door stays open for 2 minutes, a reminder every N minutes, and one message once it is closed"
+   "description": "Outside working hours: message when a door stays open for 2 minutes, a reminder every N minutes, and one message once it is closed. Door devices need Use Door Sensor; ESP32 door sensors always count"
   },
   {
    "fieldname": "not_locked_repeat_minutes",
    "fieldtype": "Int",
    "label": "Remind Every (Minutes)",
    "default": "30",
-   "depends_on": "eval:doc.use_lock_sensor && doc.alert_not_locked_after_hours"
+   "depends_on": "alert_not_locked_after_hours"
+  },
+  {
+   "fieldname": "esp_sensor_section",
+   "fieldtype": "Section Break",
+   "label": "ESP32 Door Sensors",
+   "description": "Doors watched by an ESP32 board (Door Sensor list): open / closed only, no lock. Offline uses Door Device Offline and Offline After (Minutes) of the Telegram Alerts tab"
+  },
+  {
+   "fieldname": "sensor_open_alert",
+   "fieldtype": "Select",
+   "label": "Door Opened (Sensor)",
+   "options": "Off\nAfter Hours\nAlways",
+   "default": "Off",
+   "description": "Message each time an ESP32 sensor reports the door opened"
+  },
+  {
+   "fieldname": "column_break_esp_sensor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alert_sensor_fault",
+   "fieldtype": "Check",
+   "label": "Sensor Fault",
+   "default": "0",
+   "description": "Device alert when an ESP32 sensor reports a cut sensor wire, and when it works again"
   },
   {
    "fieldname": "unlock_tab",
@@ -388,7 +416,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-29 14:00:00.000000",
+ "modified": "2026-11-02 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Network",
  "name": "Door Alert Setting",
