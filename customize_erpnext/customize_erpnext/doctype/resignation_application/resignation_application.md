@@ -273,8 +273,8 @@ emp.get("custom_resignation_application")        # ❌ luôn None
 Không phải lỗi — chỉ là đừng dùng `.get()` rồi kết luận field hỏng.
 
 **Quy tắc: tạo Custom Field virtual xong thì `bench restart` NGAY.** Nếu chưa restart được thì
-đừng tạo field — gỡ nó ra đã (`patches/add_employee_resignation_link.py` chạy lại là có lại,
-idempotent).
+đừng tạo field — gỡ nó ra đã (field nằm trong `fixtures/custom_field.json`, `bench migrate` là có lại;
+patch tạo field `patches/add_employee_resignation_link.py` đã xoá 09/11/2026, xem git log).
 
 Cùng lý do: **đừng `bench migrate` trước khi restart** sau khi kéo code mới về — fixture sẽ dựng
 lại field trong khi worker vẫn chạy code cũ.
@@ -352,7 +352,7 @@ phải (`reason_for_leaving_group`, field của đơn), nên tìm-thay hàng lo�
 và sinh `Unknown column ... in 'WHERE'`. Cùng tên thì cái bẫy đó biến mất — `set_query` giờ đọc là
 `{reason_for_leaving_group: frm.doc.reason_for_leaving_group}`.
 
-Qua `patches/rename_resignation_reason_fields.py`, cùng khuôn với patch rename của đơn.
+Qua `patches/rename_resignation_reason_fields.py` (đã xoá 09/11/2026, xem git log), cùng khuôn với patch rename của đơn.
 
 ## 7d. Tên field khớp với Employee
 
@@ -373,7 +373,7 @@ Tìm-thay hàng loạt là đổi nhầm ngay: `frm.set_query('reason_for_leavin
 {reason_group: ...}})` — khoá filter là field của danh mục, vế phải mới là field của đơn.
 
 ⚠ Đổi `fieldname` trong JSON rồi `migrate` suông thì schema sync **tạo cột mới rỗng và bỏ lại dữ
-liệu ở cột cũ**, im lặng. Phải qua `patches/rename_resignation_application_fields.py`
+liệu ở cột cũ**, im lặng. Phải qua `patches/rename_resignation_application_fields.py` (đã xoá 09/11/2026, xem git log)
 (`frappe.model.rename_field`, chạy ở **post_model_sync** vì nó cần field mới đã có trong meta và
 cột cũ còn trong bảng). `rename_field` **không xoá** cột cũ — patch tự xoá, và chỉ xoá sau khi đối
 chiếu số dòng khớp.
@@ -414,7 +414,7 @@ customize_erpnext/doctype/resignation_application/
 └── resignation_application.md
 customize_erpnext/doctype/resignation_reason_group/
 customize_erpnext/doctype/resignation_reason/
-patches/add_resignation_reason_catalogue.py
+patches/add_resignation_reason_catalogue.py (đã xoá 09/11/2026, xem git log)
 overrides/employee/employee.py           # mark_employee_left · restore_employee_active · job 00:00
 ```
 

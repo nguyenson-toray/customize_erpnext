@@ -34,7 +34,7 @@ Khi hai tài liệu mâu thuẫn, **quy chế thắng**.
 | `overrides/leave_application/` | Override đơn nghỉ · import sổ nghỉ phép HR · quy định gốc + plan |
 | `overrides/leave_control_panel/` | Chọn nhân viên theo khoảng làm việc thay vì `status = Active` |
 | `overrides/earned_leave/` | Phép năm tích luỹ theo tháng (tỷ lệ, tháng 12 điều chỉnh) + mốc 14 ngày Đ.66 |
-| `patches/seed_tiqn_payroll_settings.py` | Seed giá trị hiện hành, idempotent |
+| `patches/seed_tiqn_payroll_settings.py` (đã xoá 09/11/2026, xem git log) | Seed giá trị hiện hành, idempotent |
 
 ## Dữ liệu đối chiếu / hồi quy
 

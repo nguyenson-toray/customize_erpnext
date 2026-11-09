@@ -84,7 +84,7 @@ Service chấm công tự động `erpnext-sync-all` (`apps/biometric-attendance
 | `www/door_control/index.html` | Toàn bộ UI (CSS + JS inline) |
 | `network/doctype/door_control_action/` | Nhật ký lệnh ERP |
 | `network/doctype/door_access_log/` | Log quẹt vân tay (có sẵn, thêm quyền Door Control) |
-| `patches/create_door_control_role.py` | `pre_model_sync` — role phải có trước khi sync DocPerm |
+| `patches/create_door_control_role.py` (đã xoá 09/11/2026, xem git log) | `pre_model_sync` — role phải có trước khi sync DocPerm |
 | `api/test_door_control.py` | Test hồi quy (§9) |
 
 ## 5. API (`customize_erpnext.network.door.control.*`)

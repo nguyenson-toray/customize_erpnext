@@ -558,7 +558,7 @@ function load_commune_options_for_type(frm, address_type, province_name) {
 // Trước đây là hai Select có `options` rỗng, danh sách bơm vào lúc chạy từ
 // employee_reason_for_leaving.json bằng ~95 dòng JS. HR muốn tự thêm/bớt nên
 // danh mục đã chuyển thành DocType — cả file JSON lẫn khối JS đó đã bị xoá.
-// Xem patches/add_resignation_reason_catalogue.py.
+// Xem patches/add_resignation_reason_catalogue.py (đã xoá 09/11/2026, xem git log).
 // ---------------------------------------------------------------------------
 
 frappe.ui.form.on('Employee', {

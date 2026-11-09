@@ -384,7 +384,7 @@ customize_erpnext/customize_erpnext/report/labor_contract_report/     # + Export
 customize_erpnext/customize_erpnext/report/labor_contract_timeline/
 customize_erpnext/overrides/employee_property/employee_{promotion,transfer}.py   # PL khi Submit/Cancel
 customize_erpnext/public/js/custom_scripts/employee_property_update_override.js  # nút PL
-customize_erpnext/patches/setup_labor_contract.py   # custom field + 5 Employment Type
+customize_erpnext/patches/setup_labor_contract.py (đã xoá 09/11/2026, xem git log)   # custom field + 5 Employment Type
 ```
 
 hooks.py: `doc_events["Employee"]["after_insert"]` · `scheduler_events["cron"]["0 0 * * *"]` + `["0 8 * * 1"]` (email)

@@ -17,7 +17,7 @@ nên copy thẳng sang checkin, không cần bảng ánh xạ. Sửa danh sách 
 
 - `SUPPLEMENT_REASONS` trong `attendance_request.py`
 - `SUPPLEMENT_REASONS` trong `public/js/custom_scripts/attendance_request.js`
-- `REASON_OPTIONS` + `SUPPLEMENT_DEPENDS_ON` trong `patches/setup_attendance_request_supplement.py`
+- `REASON_OPTIONS` + `SUPPLEMENT_DEPENDS_ON` trong `patches/setup_attendance_request_supplement.py` (đã xoá 09/11/2026, xem git log)
 
 ## Luồng
 
@@ -237,5 +237,5 @@ Attendance. Nhánh dọn dẹp được test riêng qua `delete_supplement_check
 test, **đừng** sửa code nghiệp vụ cho khớp test.
 | `../../public/js/custom_scripts/attendance_request.js` | ẩn/hiện field theo reason, sinh dòng ngày, bảng dashboard "Existing Attendance & Check-ins" |
 | `../../customize_erpnext/doctype/attendance_request_checkin_detail/` | child table |
-| `../../patches/setup_attendance_request_supplement.py` | Custom Field + Property Setter `reason.options` |
+| `../../patches/setup_attendance_request_supplement.py` (đã xoá 09/11/2026, xem git log) | Custom Field + Property Setter `reason.options` |
 | `../../docs/attendance_request_supplement_plan.md` | thiết kế đầy đủ + checklist test |

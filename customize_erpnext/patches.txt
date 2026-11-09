@@ -1,127 +1,21 @@
+# 09/11/2026: 37 patch đã chạy (06–10/2026) được xoá cùng file; Patch Log trong DB vẫn giữ.
+# Xem lại nội dung: git log --diff-filter=D -- customize_erpnext/patches/
 [pre_model_sync]
 customize_erpnext.patches.add_attendance_performance_indexes
-customize_erpnext.patches.add_batch_custom_fields
-customize_erpnext.patches.add_batch_color_field
-customize_erpnext.patches.add_batch_initial_qty_field
-customize_erpnext.patches.remove_shift_registration_and_custom_attendance
 customize_erpnext.patches.add_attendance_performance_indexes #rerun 2026-07-13 idx_checkin_attendance_fk was added to patch after first run
 
-# pre_model_sync: every TIQN Vehicle Management DocType ships a DocPerm row for the
-# `Vehicle Manager` role. DocPerm.role is a Link, so the Role has to exist BEFORE the
-# model sync imports those DocTypes. Idempotent.
-customize_erpnext.patches.create_vehicle_manager_role
-
-# pre_model_sync: Employee Quiz DocTypes ship DocPerm rows for `Quiz Manager`
-# (DocPerm.role is a Link), so the Role must exist before the model sync. Idempotent.
-customize_erpnext.patches.create_quiz_manager_role
-
-# pre_model_sync: Door Control Action / Door Access Log ship a DocPerm row for the
-# `Door Control` role (Link) - the role must exist before the model sync. Idempotent.
-customize_erpnext.patches.create_door_control_role
 # pre_model_sync: `Door Sensor` role of the ESP32 door sensors' technical user
 # (network/door/sensor.py::report). No DocType permission, no desk access. Idempotent.
 customize_erpnext.patches.create_door_sensor_role
 
-# pre_model_sync: the app folder now only ships `tiqn_fixed_trip_schedule`, so the sync
-# would treat `TIQN Fixed Trip Template` as an orphan DocType and delete it - along with
-# the six configured schedules. Rename first. Idempotent.
-customize_erpnext.patches.rename_fixed_trip_template_to_schedule
-# pre_model_sync: Employee Portal DocTypes ship DocPerm rows for `Payroll Officer`
-# (Link) - the role must exist before the model sync. Also creates `Portal Approver`.
-customize_erpnext.patches.create_employee_portal_roles
-# pre_model_sync: role `CnB` - Employee Portal DocTypes / page / report ship DocPerm rows for
-# it (replacing Payroll Officer and HR Manager). Idempotent.
-customize_erpnext.patches.create_cnb_role
-# pre_model_sync: TIQN Portal Link Request one record per Zalo account - keep the newest per
-# account before `account` turns unique in the model sync. Idempotent.
-customize_erpnext.patches.employee_portal_link_request_one_per_account
-
-# Điều hướng frappe v16.50+: dọn shell/workspace/icon cũ + xoá 6 DocType không dùng.
-# PHẢI ở pre_model_sync (trước khi nạp file sidebar mới) — xem docstring.
-customize_erpnext.patches.reorganize_navigation
 [post_model_sync]
-customize_erpnext.patches.migrate_attendance_machine_to_setting
-customize_erpnext.patches.split_shirt_tracking
-customize_erpnext.patches.setup_labor_contract
 # post_model_sync: schema sync runs before this, so the index we create here is
 # the one that survives — and the Property Setter keeps later migrates off it.
 customize_erpnext.patches.index_checkin_attendance_field
-# Seed TIQN Payroll Settings. post_model_sync: cần các child doctype (TIQN Tax
-# Bracket / Tax Deduction Rate / Insurance Rate) đã tồn tại. Idempotent, và KHÔNG
-# bật enable_insurance_auto/enable_pit_auto — hai cờ đó do HR tự bật.
-customize_erpnext.patches.seed_tiqn_payroll_settings
-# post_model_sync: cần child doctype "Attendance Request Checkin Detail" đã tồn tại
-# trước khi tạo Custom Field kiểu Table trỏ vào nó.
-customize_erpnext.patches.setup_attendance_request_supplement
 customize_erpnext.patches.add_leave_control_panel_include_left
-customize_erpnext.patches.add_attendance_actual_working_hours
-# post_model_sync: cần DocType Resignation Reason Group / Resignation Reason đã tồn tại
-# trước khi trỏ Custom Field kiểu Link vào chúng. Idempotent.
-customize_erpnext.patches.add_resignation_reason_catalogue
-# post_model_sync: cần DocType Resignation Application đã tồn tại trước khi trỏ Link vào.
-# Field là virtual (không có cột) — giá trị do CustomEmployee property trả về. Idempotent.
-customize_erpnext.patches.add_employee_resignation_link
-# post_model_sync: rename_field cần field MỚI đã có trong meta và cột CŨ còn trong bảng.
-# Đổi tên 3 field của Resignation Application cho khớp Employee. Idempotent.
-customize_erpnext.patches.rename_resignation_application_fields
-# post_model_sync: rename_field cần field MỚI đã có trong meta và cột CŨ còn trong bảng.
-# Đổi tên 2 field của Resignation Reason Group 2 cho khớp Employee / Resignation Application.
-customize_erpnext.patches.rename_resignation_reason_fields
-# post_model_sync: cột thật `Employee.custom_is_maternity_leave` + nạp giá trị lần đầu.
-# Cần cột THẬT vì Number Card / Dashboard Chart kiểu "Document Type" không join được
-# sang Employee Maternity. Idempotent.
-customize_erpnext.patches.add_employee_maternity_leave_flag
-# post_model_sync: exclude_employee_ids (Small Text gõ tay) -> bảng con exclude_employees
-# (Table MultiSelect -> Link Employee). Patch đếm vào/ra và throw nếu lệch — mất danh sách
-# này là engine/headcount/email/export đồng loạt nới rộng phạm vi trong im lặng. Idempotent.
-customize_erpnext.patches.migrate_exclude_employee_ids_to_table
-# post_model_sync: needs the 8 TIQN Vehicle Management DocTypes to exist. Seeds the
-# 3 real vehicles, 3 drivers and 6 fixed trip templates. Leaves driver phone /
-# Zalo User ID blank - nobody has supplied those yet. Idempotent.
-customize_erpnext.patches.seed_vehicle_management_data
-# post_model_sync: rename_field needs `schedule_name` in the meta AND the old
-# `template_name` column still in the table - only true after the sync. Also renumbers
-# TIQN-FTT-00x -> TIQN-FST-00x and repoints Vehicle Trip.template_id. Idempotent.
-customize_erpnext.patches.rename_fixed_trip_schedule_fields
-# post_model_sync: cần cột `leave_months` (thêm 07/10/2026). Cột default 6 nên phải suy
-# ngược từ ngày, không thì hồ sơ 7 tháng bị cắt còn 6 ở lần save kế tiếp. Idempotent.
-customize_erpnext.patches.backfill_maternity_leave_months
-# post_model_sync: quy tắc ngày thai sản v2 (07/10/2026) — bỏ maternity_from_date_estimate,
-# Maternity From = Pregnant To + 1, giai đoạn liên tục. Áp cho mọi hồ sơ. Idempotent.
-customize_erpnext.patches.apply_maternity_date_rules_v2
-# post_model_sync: Door Alert Setting — 4 alert checks became 2 Selects (Off/After Hours/Always);
-# carries the current values over, then drops the orphan tabSingles rows. Idempotent.
-customize_erpnext.patches.door_alert_setting_select_fields
-# post_model_sync: door controllers' Sensor Type None -> NO (LB-35 bolt sensor is NO/COM).
-# No effect until Door Alert Setting → Use Lock Sensor is on. Idempotent.
-customize_erpnext.patches.door_sensor_type_default_no
-# post_model_sync: Employee Portal (Zalo Mini App) - service user portal@tiqn.com.vn,
-# Settings defaults + legal templates, payslip display config on Salary Component
-# (creates its own custom_portal_* fields first: fixtures sync runs AFTER this). Idempotent.
-customize_erpnext.patches.setup_employee_portal
-# post_model_sync: payslip notifications one row per employee -> ONE company-wide row per
-# period (TIQN Portal Notification.audience = All). Idempotent.
-customize_erpnext.patches.employee_portal_broadcast_notifications
-# post_model_sync: TIQN Portal Notification single employee + is_read -> audience
-# Employees with a Table MultiSelect of recipients, no per-person read state. Idempotent.
-customize_erpnext.patches.employee_portal_notification_recipients
-# post_model_sync: unique index on TIQN Portal Link Request.account - the model sync skips it
-# while the old search index of the same name exists. Idempotent.
-customize_erpnext.patches.employee_portal_link_request_unique_account
 # post_model_sync: index (device_id, time) on Employee Checkin — cursor of the automatic
 # log pull (network/biometric/device_log_sync.py). Idempotent.
 customize_erpnext.patches.add_employee_checkin_device_time_index
-# post_model_sync: Attendance Machine Setting — Peak Times 07:30,07:45,17:00,18:00 / 15' for the
-# automatic log pull (skipped inside peaks). Only when never set. Idempotent.
-customize_erpnext.patches.set_attendance_machine_peak_defaults
-# post_model_sync: Payslip Structure phase 2 - the 50 hidden sc_* columns of TIQN Payslip dropped,
-# Employee Portal Settings > Payslip Lines (TIQN Portal Payslip Line) + Check Formulas deleted. The
-# Employee Portal patches that built / migrated the sc_* fields (v2 ... payslip_structure) were
-# removed with them: they had all run. Idempotent.
-customize_erpnext.patches.employee_portal_drop_sc_fields
-# post_model_sync: TIQN Payslip Structure PSS-<valid_from> -> PSS-01, PSS-02... (Valid From order), series
-# PSS- set past them, Valid To Period filled. Idempotent.
-customize_erpnext.patches.employee_portal_structure_numbered
 # post_model_sync: Employee Maternity 7th Month Start Date (= due date - 3 months) + Overtime
 # (Allowed / Not Allowed today) for existing records. Idempotent.
 customize_erpnext.patches.backfill_maternity_overtime_status
