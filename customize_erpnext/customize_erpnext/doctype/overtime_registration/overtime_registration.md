@@ -2,10 +2,50 @@
 
 > **Mục đích:** Doctype đăng ký tăng ca: chọn nhân viên hàng loạt theo ngày, kiểm tra thai sản và trùng ca trước khi lưu.
 > **Phạm vi:** DocType tự phát triển
-> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-07-16
+> **Trạng thái:** Đang chạy · **Cập nhật:** 2026-11-07
 
 > Cập nhật 2026-07-14: redesign dialog "Get Employees" (1 dialog 2 cột + ledger giờ công),
 > đổi tên hàm entry để tránh xung đột global scope, fix bug lệch ngày `toISOString()`.
+
+## ⚠ Tắt Submit từ 2026-11-07 (đọc trước khi bật lại Workflow)
+
+Doctype đang **không submittable**: mọi phiếu ở `docstatus = 0`, không có Submit/Cancel/Amend, muốn hủy thì xóa phiếu.
+Các phần nói về submit, duyệt và amend trong tài liệu này chỉ áp dụng khi bật lại.
+
+**Hiện trạng**
+
+- `is_submittable` đã bỏ; quyền `submit`/`cancel`/`amend` đã gỡ ở cả DocPerm (JSON) và Custom DocPerm (DB).
+- Workflow `Overtime Registration` vẫn còn trong DB, `is_active = 0`. Không lưu được bản ghi này khi doctype chưa submittable, vì có state `doc_status` 1 và 2.
+- Giữ nguyên field `amended_from`, `workflow_state` và các hook `on_submit`, `on_cancel` để bật lại.
+- 🔴 `Attendance Calculation Setting.include_draft_ot = 1` và đặt `read_only`, vì **tắt cờ này thì phiếu Draft không được tính, toàn bộ OT = 0** ở lần tính công sau.
+  `read_only` chỉ chặn trên form; code hoặc API vẫn đổi được.
+- Tính công không đổi: engine dùng `get_ot_docstatus_condition`, không đọc `is_submittable`.
+
+**Hệ quả khi đang tắt**
+
+- `on_submit`/`on_cancel` không chạy. Xóa phiếu đi qua `on_trash`; `recalc_attendance_on_ot_change = 0` nên công chỉ cập nhật ở lần Full Update Hours hoặc Bulk Update.
+- `recalculate` thủ công ở `overtime_registration_hooks.py:223` luôn báo lỗi vì đòi `docstatus = 1`.
+- Kiểm trùng giữa các phiếu ở `overtime_registration.py:491` và `:613` chỉ xét `docstatus = 1`, nên **hiện không phát hiện trùng với phiếu khác**.
+
+**Bật lại để dùng Workflow: làm đúng thứ tự**
+
+1. Thêm `"is_submittable": 1` vào JSON và cấp lại quyền theo bảng dưới, rồi migrate.
+2. Submit các phiếu cũ cần giữ OT, khi Workflow **chưa** kích hoạt.
+   Submit hàng loạt sẽ chạy `on_submit` trên từng phiếu.
+3. Bỏ `read_only` của `include_draft_ot` rồi đổi về `0`.
+   Giữ `1` thì phiếu Draft/Pending chưa duyệt vẫn được tính OT. Đổi về `0` trước bước 2 thì phiếu cũ mất OT.
+4. Kích hoạt Workflow. Khi lưu, Frappe gán `Draft` cho phiếu `docstatus = 0` còn trống `workflow_state`.
+5. Tính lại công một ngày mẫu và đối chiếu số OT trước khi mở cho toàn công ty.
+
+Quyền cần cấp lại (trước khi tắt; các quyền khác không đổi):
+
+| Role | DocPerm (JSON) | Custom DocPerm (DB) |
+|---|---|---|
+| HR Manager | submit | submit |
+| Employee | submit | submit |
+| Department Manager | submit, cancel | — |
+| TIQN Factory Manager | submit, cancel | — |
+| TIQN Staff | submit, cancel, amend | submit, cancel, amend |
 
 ## Tổng quan
 

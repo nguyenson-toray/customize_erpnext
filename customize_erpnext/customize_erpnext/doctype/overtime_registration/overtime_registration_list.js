@@ -55,8 +55,8 @@ function show_ot_help_dialog() {
 			html: __("Click <b>Close</b> when done. Review the list — use <b>View Summary Table</b> to see everyone at a glance — then click <b>Save</b>.")
 		},
 		{
-			title: __("Send for approval"),
-			html: __("Click <b>Submit</b>. Found a mistake after submitting? Use <b>Cancel</b>, then <b>Amend</b> to correct it and submit again.")
+			title: __("Correct or cancel"),
+			html: __("Saving completes the registration. To correct it, open the request, edit it and click <b>Save</b>. To cancel it, open the request and click <b>…</b>, then <b>Delete</b> (if you have permission).")
 		}
 	];
 

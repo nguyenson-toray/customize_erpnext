@@ -135,9 +135,8 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 16:58:49.578979",
+ "modified": "2026-11-07 13:46:00.407143",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Overtime Registration",
@@ -154,7 +153,6 @@
    "report": 1,
    "role": "HR Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
@@ -168,11 +166,9 @@
    "report": 1,
    "role": "Employee",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
-   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -182,11 +178,9 @@
    "report": 1,
    "role": "Department Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
-   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -196,7 +190,6 @@
    "report": 1,
    "role": "TIQN Factory Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
@@ -212,8 +205,6 @@
    "write": 1
   },
   {
-   "amend": 1,
-   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -224,7 +215,6 @@
    "report": 1,
    "role": "TIQN Staff",
    "share": 1,
-   "submit": 1,
    "write": 1
   }
  ],

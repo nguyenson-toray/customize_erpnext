@@ -103,7 +103,8 @@
    "description": "Also count Overtime Registrations still in Draft (not yet submitted). Overlapping registrations in the same zone (pre- or post-shift) are merged as min(begin) - max(end)",
    "fieldname": "include_draft_ot",
    "fieldtype": "Check",
-   "label": "Include Draft OT Registrations"
+   "label": "Include Draft OT Registrations",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -403,7 +404,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-05 08:58:20.634321",
+ "modified": "2026-11-07 13:46:00.407143",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Attendance Calculation Setting",
