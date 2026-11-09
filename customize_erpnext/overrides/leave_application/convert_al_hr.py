@@ -28,8 +28,12 @@ QUY TẮC — suy ngược từ `AL_data_2026.xlsx`, khớp 7.483/7.483 dòng (�
    Dòng không có mã NV (`#N/A`) → bỏ.
 2. `X/2` → Abbreviation `X` + `Half Day = True`.
 3. Gom theo `(STT, NV, mã, nửa ngày, ghi chú)`.
-4. `Leave Type Name` tra từ sheet `Leave Type`. `COP` / `OP` (nửa con ốm/ốm + nửa phép năm)
-   không có trong bảng → để trống, importer bỏ qua và liệt kê để HR nhập tay 2 đơn nửa ngày.
+4. Mã ghép nửa ngày (`COMBINED_HALF`) tách thành HAI đơn nửa ngày cùng ngày: `COP/2` =
+   `CO/2` + `P/2`, `OP/2` = `O/2` + `P/2` (sheet `HD` của file HR). HRMS cho hai đơn nửa ngày
+   trùng một ngày (`validate_leave_overlap` chỉ chặn khi tổng ≥ 1), override chấm công gộp
+   cả hai. Đã chạy thật 09/11/2026: 9 dòng → 18 đơn, submit bình thường.
+   `Leave Type Name` tra từ sheet `Leave Type`; mã nào vẫn không tra được → để trống,
+   importer bỏ qua và liệt kê để HR nhập tay.
 5. `Reason = "<STT> - <ghi chú>"`.
 
 ⚠ **Khác bản 05/09 ở bước 3** — bản cũ lấy `min..max` ngày của nhóm, nên khi một STT có
@@ -65,6 +69,11 @@ TEMPLATE = os.path.join(HERE, "AL_data_2026.xlsx")
 
 COL_STT, COL_EMP, COL_NAME, COL_DATE, COL_CODE, COL_NOTE = 0, 1, 2, 30, 31, 33
 FIRST_DATA_ROW = 4
+
+# Mã nửa ngày ghép hai loại nghỉ → các mã thành phần (mỗi mã một đơn nửa ngày cùng ngày).
+# Cố ý chưa đưa OCO / OK / COK / OL / COL vào: chưa gặp trong dữ liệu thật, OL/COL lại
+# là tỷ lệ 0,6 / 0,4 chứ không phải hai nửa.
+COMBINED_HALF = {"COP": ("CO", "P"), "OP": ("O", "P")}
 
 HEADER = ["Employee", "Employee Name", "Abbreviation", "Half Day", "From Date", "To Date",
           "Leave Type Name", "Reason"]
@@ -102,7 +111,8 @@ def convert(src: str | None = None, dst: str | None = None, since: str | None = 
 		half = code.endswith("/2")
 		abbr = code[:-2] if half else code
 		note = str(r[COL_NOTE]).strip() if r[COL_NOTE] else ""
-		groups[(r[COL_STT], emp, abbr, half, note)].add(date)
+		for part in (COMBINED_HALF.get(abbr, (abbr,)) if half else (abbr,)):
+			groups[(r[COL_STT], emp, part, half, note)].add(date)
 		names[emp] = r[COL_NAME]
 
 	off_days = _off_days()

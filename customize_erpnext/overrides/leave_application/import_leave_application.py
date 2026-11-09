@@ -47,9 +47,9 @@ DÒNG BỊ LOẠI — cố ý, không phải lỗi
 ===============================================================================
 
 - **Thiếu `Leave Type Name` và mã viết tắt không tra được.** Đo file 05/09/2026: đúng 1 dòng,
-  `TIQN-2070` ngày 24/08 mã `COP` (nửa ngày con ốm + nửa ngày phép năm). HRMS **không** biểu
-  diễn được hai loại nghỉ trong một đơn, và bảng `Leave Type` của file cũng không có mã này.
-  Cố ý bỏ qua và báo ra để HR tự nhập tay hai đơn nửa ngày.
+  `TIQN-2070` ngày 24/08 mã `COP` (nửa ngày con ốm + nửa ngày phép năm). Từ 09/11/2026
+  `convert_al_hr.py` đã tự tách `COP/2`, `OP/2` thành hai đơn nửa ngày, nên dòng còn bị loại
+  ở đây là mã ghép khác chưa được ánh xạ — báo ra để HR nhập tay.
 - **Nhân viên không tồn tại** hoặc **Leave Type không tồn tại** trong ERP.
 
 ⚠ `Half Day = True` mà đơn NHIỀU ngày: HRMS bắt buộc có `half_day_date`, nhưng file không nói
