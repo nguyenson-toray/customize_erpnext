@@ -16,13 +16,18 @@ from 23/10/2026. README.md in this folder has the decisions and traps.
   of the sum (~90 s).
 - Peak Times (Setting): reading locks a machine 8–22 s, so no read starts inside a
   peak window or less than PEAK_START_MARGIN before one. Punches stay on the machine.
-- Catch-up after a peak (~950 punches at 08:00) is inserted in ONE cycle: inserting
-  enqueues nothing (Attendance Calculation Setting.recalc_attendance_on_checkin_change
-  is 0; attendance is computed hourly + by the 08:20 daily email). Guards kept for
-  safety: MAX_INSERTS_PER_MACHINE bounds one cycle (e.g. a machine clock gone wrong),
-  the cycle stops while queue "short" holds more than RECALC_QUEUE_GUARD jobs (in case
-  per-checkin recalc is switched on), and QueueOverloaded defers instead of failing.
-  Stopping early never loses a punch.
+- Catch-up after a peak (~1,000 punches at 08:00, 17:16, 18:16) is inserted in ONE cycle.
+  Attendance of the cycle is recalculated ONCE after all machines are inserted
+  (collect_checkin_recalc + recalculate_attendance_batch: one engine call per date, in
+  this job on the "biometric" worker) instead of one queue "short" job per punch —
+  818 jobs / 188 s on the short/long workers on 10/11/2026. Still gated by
+  Attendance Calculation Setting.recalc_attendance_on_checkin_change (0 = nothing is
+  collected) and skipped in its peak windows, like the per-punch job. Manual checkin
+  edits, re-sync and MongoDB sync keep the per-punch job. Guards kept for safety:
+  MAX_INSERTS_PER_MACHINE bounds one cycle (e.g. a machine clock gone wrong), the cycle
+  stops while queue "short" holds more than RECALC_QUEUE_GUARD jobs (another source
+  flooding it), and QueueOverloaded defers instead of failing. Stopping early never
+  loses a punch.
 - Unchanged machines are skipped (plan .claude/plans/biometric_pull_skip_unchanged.md):
   read_sizes() first (0.03–0.3 s, machine NOT locked); log count equal to the last clean
   full read -> no read at all. 267/271 machine-reads of 09/11/2026 had nothing new.
@@ -44,6 +49,10 @@ from frappe.utils import cint, get_datetime, getdate, now_datetime
 from customize_erpnext.network.biometric.machines import get_machines
 from customize_erpnext.network.biometric.resync import QUEUE_OVERLOADED_MARK, _add_checkin
 from customize_erpnext.network.biometric.zk_device import bulk_read_cfg, near_full, read_attendance_if_changed
+from customize_erpnext.overrides.employee_checkin.employee_checkin import (
+    collect_checkin_recalc,
+    recalculate_attendance_batch,
+)
 
 SETTING = "Attendance Machine Setting"
 QUEUE = "biometric"
@@ -344,60 +353,69 @@ def _run_device_log_sync(dry_run=False, ignore_peak=False):
     reads = _read_all(machines, clear_after=bool(settings.clear_from_device_on_fetch) and not dry_run,
                       known_counts=known if skip_unchanged else None)
 
-    # Phase 3
+    # Phase 3. Every checkin inserted below (all machines) is recalculated ONCE
+    # afterwards instead of one queue job per punch (see collect_checkin_recalc).
     report, errors = [], []
     stop_reason = None
-    for machine in machines:
-        name = machine.device_name
-        records, warning, err, seconds, info = reads[name]
-        fail_key = FAIL_KEY.format(name)
-        count_key = COUNT_KEY.format(name)
-        if err is None and records is None:
-            # log count unchanged since the last clean full read: machine left alone;
-            # keep the stored count and its full_read_at (the 30-min net keeps running)
-            row = {"machine": name, "ok": True, "unchanged": True, "read": info["count"], "new": 0,
-                   "processed": 0, "skipped": 0, "seconds": seconds}
-            frappe.cache().delete_value(fail_key)
-        elif err is not None:
-            row = {"machine": name, "ok": False, "error": str(err), "seconds": seconds}
-            if not dry_run:
-                frappe.cache().delete_value(count_key)
-                fails = cint(frappe.cache().get_value(fail_key)) + 1
-                frappe.cache().set_value(fail_key, fails, expires_in_sec=24 * 3600)
-                row["consecutive_failures"] = fails
-                if fails >= OFFLINE_ALERT_AFTER:
-                    errors.append(row)
-                if fails == OFFLINE_ALERT_AFTER:
-                    frappe.log_error(title=f"Attendance log pull: {name}",
-                                     message=f"{fails} consecutive failures\n\n{err}")
-        else:
-            if not stop_reason and not dry_run and _recalc_queue_busy():
-                stop_reason = "queue short busy"
-            if stop_reason:
-                row = {"machine": name, "ok": True, "skip_reason": stop_reason}
-            else:
-                row = _insert_machine(machine, records, cursors[name], settings, dry_run)
-                row["seconds"] = seconds
-                if not dry_run:
+    recalc = None
+    with collect_checkin_recalc() as recalc_pairs:
+        try:
+            for machine in machines:
+                name = machine.device_name
+                records, warning, err, seconds, info = reads[name]
+                fail_key = FAIL_KEY.format(name)
+                count_key = COUNT_KEY.format(name)
+                if err is None and records is None:
+                    # log count unchanged since the last clean full read: machine left alone;
+                    # keep the stored count and its full_read_at (the 30-min net keeps running)
+                    row = {"machine": name, "ok": True, "unchanged": True, "read": info["count"], "new": 0,
+                           "processed": 0, "skipped": 0, "seconds": seconds}
                     frappe.cache().delete_value(fail_key)
-                if row["errors"]:
-                    errors.append(row)
-                    frappe.log_error(title=f"Attendance log pull: {name}", message=row["error"])
-            if warning:
-                # the machine may stay locked (no punches) until someone restarts it
-                row["ok"] = False
-                row["error"] = "; ".join(x for x in (row.get("error"), warning) if x)
-                errors.append(row)
-                frappe.log_error(title=f"Attendance log pull: {name}", message=warning)
-            if not dry_run:
-                _store_count(name, row, info, known.get(name), now)
-        report.append(row)
-        logger.info(prefix + _format_row(row))
+                elif err is not None:
+                    row = {"machine": name, "ok": False, "error": str(err), "seconds": seconds}
+                    if not dry_run:
+                        frappe.cache().delete_value(count_key)
+                        fails = cint(frappe.cache().get_value(fail_key)) + 1
+                        frappe.cache().set_value(fail_key, fails, expires_in_sec=24 * 3600)
+                        row["consecutive_failures"] = fails
+                        if fails >= OFFLINE_ALERT_AFTER:
+                            errors.append(row)
+                        if fails == OFFLINE_ALERT_AFTER:
+                            frappe.log_error(title=f"Attendance log pull: {name}",
+                                             message=f"{fails} consecutive failures\n\n{err}")
+                else:
+                    if not stop_reason and not dry_run and _recalc_queue_busy():
+                        stop_reason = "queue short busy"
+                    if stop_reason:
+                        row = {"machine": name, "ok": True, "skip_reason": stop_reason}
+                    else:
+                        row = _insert_machine(machine, records, cursors[name], settings, dry_run)
+                        row["seconds"] = seconds
+                        if not dry_run:
+                            frappe.cache().delete_value(fail_key)
+                        if row["errors"]:
+                            errors.append(row)
+                            frappe.log_error(title=f"Attendance log pull: {name}", message=row["error"])
+                    if warning:
+                        # the machine may stay locked (no punches) until someone restarts it
+                        row["ok"] = False
+                        row["error"] = "; ".join(x for x in (row.get("error"), warning) if x)
+                        errors.append(row)
+                        frappe.log_error(title=f"Attendance log pull: {name}", message=warning)
+                    if not dry_run:
+                        _store_count(name, row, info, known.get(name), now)
+                report.append(row)
+                logger.info(prefix + _format_row(row))
+        finally:
+            # also after an unexpected error: punches already inserted still get attendance
+            if recalc_pairs and not dry_run:
+                recalc = recalculate_attendance_batch(recalc_pairs)
+                logger.info(_format_recalc(recalc))
 
     if not dry_run:
         finished = str(now_datetime())
         frappe.cache().set_value(HEARTBEAT_KEY, finished)
-        frappe.cache().set_value(LAST_REPORT_KEY, {"finished": finished, "rows": report})
+        frappe.cache().set_value(LAST_REPORT_KEY, {"finished": finished, "rows": report, "recalc": recalc})
     if errors and not dry_run:
         _send_error_email(settings, errors)
     return report
@@ -459,6 +477,14 @@ def check_heartbeat():
         frappe.log_error(title="Attendance log pull stalled", message=message)
         frappe.cache().set_value(HEARTBEAT_ALERT_KEY, 1)
     _send_error_email(settings, [{"machine": _("All machines"), "error": message}])
+
+
+def _format_recalc(recalc):
+    """One log line for the attendance recalc of a cycle."""
+    if recalc.get("skipped"):
+        return f"Recalc: skipped ({recalc['skipped']}) for {recalc['pairs']} employee-days"
+    return (f"Recalc: {recalc['employees']} employees, {recalc['days']} day(s), {recalc['seconds']}s"
+            + (f" errors={recalc['errors']}" if recalc.get("errors") else ""))
 
 
 def _format_row(row):

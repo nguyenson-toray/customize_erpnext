@@ -66,11 +66,16 @@ Plan + quyết định: `.claude/plans/biometric_tool_slimdown.md`. UI: trang `/
   Số liệu chọn mặc định (01–22/10/2026, 7 máy): 17:00–17:10 ~620 lượt/ngày = 1 lượt/7 s/máy;
   07:40–08:00 ~730; 18:00–18:10 ~290; 07:20–07:40 ~340; 19:00 ~130.
 - **Ghi dồn sau cao điểm** (~950 lượt lúc 08:00; Machine 7 tối đa 331) vào hết trong **1 chu kỳ** (~2–5 phút,
-  ghi ~0,1–0,3 s/lượt): ghi checkin KHÔNG xếp job nào (Attendance Calculation Setting →
-  `recalc_attendance_on_checkin_change` = 0; công tính hourly + job email 08:20 tự `recalculate_attendance`).
+  ghi ~0,1–0,3 s/lượt). **Tính công: 1 lần / chu kỳ** (từ 10/11/2026): hook checkin không xếp job mà gom cặp
+  (nhân viên, ngày) của cả 7 máy (`collect_checkin_recalc`), ghi xong mới gọi engine 1 lần mỗi ngày
+  (`recalculate_attendance_batch`) ngay trong job này, trên worker `biometric`. Trước đó mỗi lượt = 1 job queue
+  `short`: sáng 10/11 có 818 job, tổng 188 s trên worker short/long, chạm guard 400 → Machine 6/7 trễ 4 phút.
+  Vẫn theo cờ `recalc_attendance_on_checkin_change` (0 = không tính) và bỏ qua trong giờ cao điểm tính công
+  (`is_peak_time`), như job cũ. Sửa checkin tay / re-sync / MongoDB vẫn 1 job mỗi lượt. Log: dòng `Recalc: …`.
+  Job email 08:20 vẫn tự `recalculate_attendance` cả ngày.
   🔴 Email 08:20 tính công TỪ checkin → checkin tới 08:15 phải vào ERP trước 08:20. Đừng hạ
   `MAX_INSERTS_PER_MACHINE` (1000) — đặt 50 thì Machine 7 mất 6–7 chu kỳ, xong ~08:20–08:28 (đã tính 23/10).
-  Vẫn giữ: dừng chu kỳ khi queue `short` > 400 job (phòng khi bật tính công theo checkin — Frappe chặn ở 550,
+  Vẫn giữ: dừng chu kỳ khi queue `short` > 400 job (phòng nguồn khác làm đầy queue — Frappe chặn ở 550,
   `QueueOverloaded` từng xảy ra 16/09) và `QueueOverloaded` lúc ghi = hoãn, không tính lỗi.
 - Log mỗi máy mỗi chu kỳ: `sites/<site>/logs/biometric_device_sync.log`.
 - **Kiểm tra job còn sống** (`check_heartbeat`, cron `*/15`): cứ quá 15 phút (không tính giờ cao điểm) mà không có

@@ -11,6 +11,7 @@ from frappe.utils import flt, cint, time_diff_in_hours, getdate
 from datetime import datetime, time, timedelta
 from collections import defaultdict
 import time as time_module
+from contextlib import contextmanager
 from hrms.hr.doctype.employee_checkin.employee_checkin import (
 	update_attendance_in_checkins,handle_attendance_exception
 )
@@ -1067,6 +1068,77 @@ def update_attendance_on_checkin_delete(doc, method):
 	_recalculate_attendance(employee, checkin_date)
 
 
+# Bulk writers (the automatic machine log pull) collect (employee, date) pairs here
+# instead of enqueuing one job per punch, then recalculate them in one engine call:
+# the 08:00 catch-up after the morning peak inserts ~1,000 punches = 818 jobs of
+# 0.23 s on the single shared worker (measured 10/11/2026). Plan:
+# .claude/plans/checkin_recalc_batch.md
+BATCH_FLAG = "checkin_recalc_batch"
+
+
+@contextmanager
+def collect_checkin_recalc():
+	"""Inside this block the checkin hooks collect (employee, date) pairs into the
+	yielded set instead of enqueuing jobs; the caller passes it to
+	recalculate_attendance_batch(). Nested use shares the outer set."""
+	outer = frappe.flags.get(BATCH_FLAG)
+	if isinstance(outer, set):
+		yield outer
+		return
+	pairs = set()
+	frappe.flags[BATCH_FLAG] = pairs
+	try:
+		yield pairs
+	finally:
+		frappe.flags[BATCH_FLAG] = outer
+
+
+def recalculate_attendance_batch(pairs):
+	"""Recalculate attendance for many (employee, date) pairs: one engine call per
+	date — the same call as _recalculate_attendance_background, for many employees.
+	Never raises (a failure must not break the caller, e.g. the log pull).
+
+	Returns {"pairs", "employees", "days", "seconds", "errors", "skipped"}.
+	"""
+	result = {"pairs": len(pairs or ()), "employees": 0, "days": 0, "seconds": 0.0,
+			  "errors": 0, "skipped": None}
+	if not pairs:
+		return result
+	try:
+		from customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting import is_peak_time
+		# same rule as the per-checkin job: skipped in peak windows, later runs catch up
+		if is_peak_time():
+			result["skipped"] = "peak"
+			return result
+		from customize_erpnext.overrides.shift_type.shift_type_optimized import _core_process_attendance_logic_optimized
+
+		by_day = defaultdict(set)
+		for employee, day in pairs:
+			by_day[str(getdate(day))].add(employee)
+	except Exception:
+		frappe.log_error(title="Checkin batch recalc failed", message=frappe.get_traceback())
+		result["errors"] += 1
+		return result
+
+	started = time_module.time()
+	employees = set()
+	for day in sorted(by_day):
+		day_employees = sorted(by_day[day])
+		try:
+			_core_process_attendance_logic_optimized(
+				day_employees, [getdate(day)], day, day, fore_get_logs=True
+			)
+		except Exception:
+			frappe.db.rollback()
+			result["errors"] += 1
+			frappe.log_error(title=f"Checkin batch recalc failed: {day}",
+							 message=f"{len(day_employees)} employees\n\n{frappe.get_traceback()}")
+		employees.update(day_employees)
+	result.update(employees=len(employees), days=len(by_day),
+				  seconds=round(time_module.time() - started, 1))
+	return result
+
+
 def _recalculate_attendance(employee, checkin_date):
 	"""
 	Enqueue background job to recalculate attendance for one employee on one date.
@@ -1077,6 +1149,12 @@ def _recalculate_attendance(employee, checkin_date):
 		employee: Employee ID
 		checkin_date: Date to recalculate (date object or string)
 	"""
+	pairs = frappe.flags.get(BATCH_FLAG)
+	if isinstance(pairs, set):
+		# inside collect_checkin_recalc(): the caller recalculates every pair at once
+		pairs.add((employee, str(getdate(checkin_date))))
+		return
+
 	job_id = f"att_recalc:{employee}:{checkin_date}"
 	frappe.enqueue(
 		"customize_erpnext.overrides.employee_checkin.employee_checkin._recalculate_attendance_background",

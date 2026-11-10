@@ -56,7 +56,8 @@ UI "Bulk Update"      ──────────────────► 
 weekly_recalculate_attendance_scheduled ► bulk_update_attendance_optimized(force_sync=1)
 OT Registration submit/cancel ──(bg job)─► overtime_registration_hooks._process_attendance_background
 Employee Maternity save/trash ──(bg job)─► employee_maternity.background_update_attendance_for_maternity
-Checkin delete hook (recalc)  ──(bg job)─► employee_checkin._recalculate_attendance_background
+Checkin insert/update/delete ──(bg job)─► employee_checkin._recalculate_attendance_background (1 job / punch)
+Auto log pull cycle (all machines) ─(inline, 1× per cycle)─► employee_checkin.recalculate_attendance_batch
 ```
 
 Runs above `BULK_ATTENDANCE_ASYNC_THRESHOLD` (1000 estimated records, shared with
@@ -278,7 +279,7 @@ the no-checkin paths stays. Removing it would carpet pre-2026 Sundays with `Abse
 `/app/attendance-calculation-setting` — all business rules live here (code falls back to DEFAULTS when blank). The form embeds a Vietnamese algorithm quick-reference (HTML section).
 
 - **OT**: min_ot_minutes=30, min_pre_shift_ot_minutes=60, ot_block_minutes=1, allow_ot_in_rest_time=0, include_draft_ot=0 (ON = Draft OTRs count; same-zone overlaps merged as span min→max).
-- **Auto Recalc Triggers** (all default OFF — changes wait for the next full run): recalc_attendance_on_ot_change (OTR submit/cancel; with include_draft_ot also draft save/delete, deduped, quiet on save), recalc_attendance_on_maternity_change (that employee only), recalc_attendance_on_checkin_change (that employee+date, deduped, skipped on Data Import).
+- **Auto Recalc Triggers** (all default OFF — changes wait for the next full run): recalc_attendance_on_ot_change (OTR submit/cancel; with include_draft_ot also draft save/delete, deduped, quiet on save), recalc_attendance_on_maternity_change (that employee only), recalc_attendance_on_checkin_change (that employee+date, deduped, skipped on Data Import; punches inserted by the automatic machine log pull are collected per cycle and recalculated in ONE engine call per date — `collect_checkin_recalc` / `recalculate_attendance_batch`, see network/biometric/README.md; 10/11/2026: 818 jobs → 1 call).
 - **Shift & Processing**: default_shift=Day, employee_id_prefix=TIQN, working_block_minutes=1, force_update_hours="8,23", exclude_employee_ids, peak_times="07:40,16:00,17:00,19:00,20:00" + peak_window_minutes=20 (**is_peak_time()** skips the hourly hook and all 3 recalc background jobs during these windows; manual Bulk Update never blocked).
 - **Maternity & Leave**: hour_reduction_hours=1.0, full_day_leave_block_hours=8, **include_draft_leave_application=0** (ON = Draft Leave Applications count too — for when leave is approved on paper but HR has not submitted the documents before the payroll cut-off).
 - **Anomaly note**: note_early_late_threshold_minutes=60, female_checkout_check_from/to=16:00/17:00.

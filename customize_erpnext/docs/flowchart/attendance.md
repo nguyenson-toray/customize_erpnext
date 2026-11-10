@@ -89,8 +89,9 @@ flowchart TD
   `Attendance`, nên không phải báo cáo chấm công.
 - **Ba report Overtime Registration** (theo khung giờ, theo số lượng…): đọc phiếu đăng ký tăng
   ca, **không** đọc `Attendance`.
-- **Tính lại công khi sửa checkin / OT / thai sản**: có code nhưng đang **tắt** trong
-  `Attendance Calculation Setting` (`recalc_attendance_on_checkin_change`,
-  `recalc_attendance_on_ot_change`, `recalc_attendance_on_maternity_change` = 0). Thay đổi chỉ
-  vào công ở lần tính công kế tiếp (hàng giờ, bấm tay, hoặc lịch Chủ Nhật).
+- **Tính lại công khi sửa checkin / OT / thai sản**: bật/tắt trong `Attendance Calculation Setting`
+  (`recalc_attendance_on_checkin_change`, `recalc_attendance_on_ot_change`,
+  `recalc_attendance_on_maternity_change`). Tắt thì thay đổi chỉ vào công ở lần tính công kế tiếp
+  (hàng giờ, bấm tay, hoặc lịch Chủ Nhật). Checkin do job lấy log tự động ghi: tính 1 lần cho cả
+  chu kỳ (`network/biometric/README.md`), không phải 1 job mỗi lượt.
 - **Log ra/vào phòng IT** (`Door Access Log`): máy F21Lite riêng, không đi vào chấm công.

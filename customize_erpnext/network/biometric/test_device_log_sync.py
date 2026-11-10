@@ -622,6 +622,133 @@ if _saved_rep is None:
 else:
     frappe.cache().set_value(dls.LAST_REPORT_KEY, _saved_rep)
 
+print("26. Tính công 1 lần / chu kỳ (collect_checkin_recalc + recalculate_attendance_batch)")
+import customize_erpnext.overrides.employee_checkin.employee_checkin as ec
+acs = frappe.get_module("customize_erpnext.customize_erpnext.doctype.attendance_calculation_setting.attendance_calculation_setting")
+import customize_erpnext.overrides.shift_type.shift_type_optimized as sto
+
+enq = []
+with patch.object(frappe, "enqueue", lambda *a, **kw: enq.append(kw)):
+    with ec.collect_checkin_recalc() as pairs:
+        ec._recalculate_attendance("E1", "2026-11-10")
+        ec._recalculate_attendance("E1", "2026-11-10")            # after_insert + on_update
+        ec._recalculate_attendance("E2", datetime(2026, 11, 10).date())
+        ec._recalculate_attendance("E1", "2026-11-11")
+    check("trong khối: 0 job", enq == [], enq)
+    check("gom đúng 3 cặp, đã bỏ trùng", pairs == {("E1", "2026-11-10"), ("E2", "2026-11-10"), ("E1", "2026-11-11")}, pairs)
+    check("ra khỏi khối: flag trả về", frappe.flags.get(ec.BATCH_FLAG) is None)
+    ec._recalculate_attendance("E3", "2026-11-10")
+    check("ngoài khối: 1 job như cũ (att_recalc:)", len(enq) == 1 and enq[0].get("job_id") == "att_recalc:E3:2026-11-10", enq)
+    enq.clear()
+    with ec.collect_checkin_recalc() as outer:
+        with ec.collect_checkin_recalc() as inner:
+            ec._recalculate_attendance("E4", "2026-11-10")
+        check("lồng nhau: dùng chung set", inner is outer and ("E4", "2026-11-10") in outer)
+        check("lồng nhau: thoát lớp trong vẫn còn flag", frappe.flags.get(ec.BATCH_FLAG) is outer)
+    check("lồng nhau: 0 job", enq == [], enq)
+    try:
+        with ec.collect_checkin_recalc():
+            raise RuntimeError("boom")
+    except RuntimeError:
+        pass
+    check("exception: flag vẫn trả về", frappe.flags.get(ec.BATCH_FLAG) is None)
+
+engine_calls = []
+
+
+def fake_engine(employees, days, from_date, to_date, fore_get_logs=None):
+    engine_calls.append((list(employees), list(days), from_date, to_date, fore_get_logs))
+    if from_date == "2026-11-09":
+        raise ValueError("bad data")
+
+
+logged = []
+two_days = {("E2", "2026-11-10"), ("E1", "2026-11-10"), ("E1", "2026-11-11")}
+with patch.object(sto, "_core_process_attendance_logic_optimized", fake_engine), \
+     patch.object(frappe, "log_error", lambda *a, **kw: logged.append(kw)), \
+     patch.object(frappe.db, "rollback", lambda *a, **kw: None):
+    with patch.object(acs, "is_peak_time", lambda *a: False):
+        res = ec.recalculate_attendance_batch(two_days)
+        check("1 lần gọi engine / ngày, danh sách đã sắp xếp",
+              [(c[0], c[2]) for c in engine_calls] == [(["E1", "E2"], "2026-11-10"), (["E1"], "2026-11-11")], engine_calls)
+        check("cùng tham số với job cũ (fore_get_logs=True, days=[date])",
+              all(c[4] is True and c[1] == [datetime.strptime(c[2], "%Y-%m-%d").date()] for c in engine_calls), engine_calls)
+        check("kết quả: 2 người, 2 ngày, 0 lỗi", res["employees"] == 2 and res["days"] == 2 and res["errors"] == 0, res)
+        engine_calls.clear()
+        res = ec.recalculate_attendance_batch({("E5", "2026-11-09"), ("E6", "2026-11-10")})
+        check("ngày lỗi → ngày sau vẫn chạy, không ném ra", len(engine_calls) == 2 and res["errors"] == 1, res)
+        check("ngày lỗi → Error Log", any("2026-11-09" in (k.get("title") or "") for k in logged), logged)
+        engine_calls.clear()
+        check("rỗng → không gọi engine", ec.recalculate_attendance_batch(set())["pairs"] == 0 and engine_calls == [])
+    with patch.object(acs, "is_peak_time", lambda *a: True):
+        res = ec.recalculate_attendance_batch(two_days)
+        check("giờ cao điểm tính công → bỏ qua như job cũ", res["skipped"] == "peak" and engine_calls == [], res)
+    check("format dòng log", dls._format_recalc({"pairs": 3, "employees": 2, "days": 1, "seconds": 1.2, "errors": 0, "skipped": None})
+          == "Recalc: 2 employees, 1 day(s), 1.2s")
+
+batches = []
+
+
+def hook_add(user_id, ts, device):
+    # như hook thật: ghi checkin → _recalculate_attendance (cờ gate coi như bật)
+    ec._recalculate_attendance(f"EMP-{user_id}", ts)
+    return "processed", None
+
+
+def two_machine_fetch(cfg, label, clear_after=False):
+    return {"ZZ Test 1": [rec("200", NOW - timedelta(minutes=3)), rec("201", NOW - timedelta(minutes=2))],
+            "ZZ Test 2": [rec("300", NOW - timedelta(minutes=1)), rec("200", NOW - timedelta(minutes=1))]}[label]
+
+
+def run26(reader=None, add=hook_add, dry=0):
+    batches.clear()
+    clear_cache()
+    with patch.object(dls, "get_machines", lambda enabled_only: MACHINES), \
+         patch.object(dls, "read_attendance_if_changed", reader or W(two_machine_fetch)), \
+         patch.object(dls, "_add_checkin", add), \
+         patch.object(dls, "_cursor", lambda name: NOW - timedelta(hours=1)), \
+         patch.object(dls, "now_datetime", lambda: NOW), \
+         patch.object(dls, "recalculate_attendance_batch",
+                      lambda pairs: batches.append(set(pairs)) or {"pairs": len(pairs), "employees": 3, "days": 1,
+                                                                    "seconds": 0.1, "errors": 0, "skipped": None}), \
+         patch.object(frappe, "enqueue", lambda *a, **kw: enq.append(kw)), \
+         patch.object(frappe, "get_single", lambda name: settings()), \
+         patch.object(frappe, "log_error", lambda **kw: None):
+        return dls._run_device_log_sync(dry_run=dry)
+
+
+enq.clear()
+run26()
+check("2 máy, 4 lượt → tính công đúng 1 lần", len(batches) == 1, batches)
+check("1 lần đó gồm mọi cặp của cả 2 máy", batches and {p[0] for p in batches[0]} == {"EMP-200", "EMP-201", "EMP-300"}, batches)
+check("chu kỳ không xếp job nào", enq == [], enq)
+check("Log Viewer report có recalc", (frappe.cache().get_value(dls.LAST_REPORT_KEY) or {}).get("recalc", {}).get("employees") == 3)
+check("sau chu kỳ flag trả về", frappe.flags.get(ec.BATCH_FLAG) is None)
+run26(dry=1)
+check("dry run → không tính", batches == [])
+run26(reader=lambda cfg, label, known_count=None, clear_after=False: (None, None, INFO(3)))
+check("máy unchanged → không tính", batches == [])
+run26(add=lambda *a: ("skipped", None))
+check("toàn lượt trùng → không tính", batches == [])
+calls26 = []
+
+
+def add_then_crash(user_id, ts, device):
+    calls26.append(user_id)
+    if len(calls26) == 2:
+        raise RuntimeError("crash")
+    return hook_add(user_id, ts, device)
+
+
+try:
+    run26(add=add_then_crash)
+    crashed = False
+except RuntimeError:
+    crashed = True
+check("lỗi bất ngờ giữa chu kỳ → lượt đã ghi vẫn được tính, lỗi vẫn ném ra",
+      crashed and batches == [{("EMP-200", str((NOW - timedelta(minutes=3)).date()))}], batches)
+check("lỗi bất ngờ → flag vẫn trả về", frappe.flags.get(ec.BATCH_FLAG) is None)
+
 clear_cache()
 _queue_patch.stop()
 for _k, _v in _prod_saved.items():
