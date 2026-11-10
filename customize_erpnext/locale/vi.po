@@ -89948,3 +89948,11 @@ msgstr "Đơn này xin: {0} ngày"
 #. source: tiqn
 msgid "Not Enough Annual Leave"
 msgstr "Không đủ phép năm"
+
+#. source: tiqn
+msgid "Chat on Zalo"
+msgstr "Chat qua Zalo"
+
+#. source: tiqn
+msgid "Opens Zalo PC (must be installed and signed in)."
+msgstr "Mở Zalo PC (máy phải cài và đăng nhập Zalo)."
