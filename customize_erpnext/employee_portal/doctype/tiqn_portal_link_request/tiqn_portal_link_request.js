@@ -3,6 +3,7 @@
 
 frappe.ui.form.on("TIQN Portal Link Request", {
 	refresh(frm) {
+		show_zalo_chat(frm);
 		if (frm.doc.status !== "Pending" || !frm.perm[0]?.write) return;
 
 		if (frm.doc.warning) {
@@ -47,3 +48,22 @@ frappe.ui.form.on("TIQN Portal Link Request", {
 		});
 	},
 });
+
+// Opens a Zalo chat with the Zalo phone in Zalo PC (zalo:// link): the quick way to call /
+// message the employee back before approving.
+function show_zalo_chat(frm) {
+	const digits = (frm.doc.phone || "").replace(/\D/g, "");
+	const phone = digits.startsWith("84") && digits.length === 11 ? `0${digits.slice(2)}` : digits;
+	const wrapper = frm.fields_dict.zalo_chat?.$wrapper;
+	if (!wrapper) return;
+	if (!phone) {
+		wrapper.empty();
+		return;
+	}
+	wrapper.html(
+		`<a class="btn btn-default btn-sm" href="zalo://conversation?phone=${encodeURIComponent(phone)}">
+			${__("Chat on Zalo PC")} (${frappe.utils.escape_html(phone)})
+		</a>
+		 `
+	);
+}

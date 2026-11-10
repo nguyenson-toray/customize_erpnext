@@ -1524,6 +1524,9 @@ check("lr: one record per Zalo account (unique)", refused_fn(lambda: dup.insert(
 # Approving is refused when the Zalo phone already leads to another employee.
 zid_blk = f"unit-{RUN}-blk"
 auth_mod.complete_login(zid_blk, None, "STORED_PHONE")
+# A real request may sit under that phone (the test team signs in with EMP_B's number): out
+# of the way for this run only - the final rollback puts it back.
+frappe.db.delete(LR, {"name": phone_of(EMP_B)})
 blocked = frappe.get_doc({"doctype": LR, "account": zid_blk, "employee": EMP_LR, "full_name": "Ab", "phone": phone_of(EMP_B)})
 blocked.insert(ignore_permissions=True)
 check("lr: warns when the phone belongs to someone else", EMP_B in (blocked.warning or ""), True)

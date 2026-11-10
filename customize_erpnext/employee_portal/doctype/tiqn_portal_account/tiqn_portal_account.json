@@ -11,6 +11,7 @@
   "employee_name",
   "phone",
   "phone_source",
+  "zalo_chat",
   "last_result",
   "column_break_main",
   "disabled",
@@ -79,6 +80,12 @@
    "label": "Phone Source",
    "options": "\nZalo\nManual",
    "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.phone",
+   "fieldname": "zalo_chat",
+   "fieldtype": "HTML",
+   "label": "Chat on Zalo"
   },
   {
    "fieldname": "last_result",
@@ -179,7 +186,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-27 16:00:00.000000",
+ "modified": "2026-11-10 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "Employee Portal",
  "name": "TIQN Portal Account",
