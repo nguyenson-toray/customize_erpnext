@@ -89950,8 +89950,8 @@ msgid "Not Enough Annual Leave"
 msgstr "Không đủ phép năm"
 
 #. source: tiqn
-msgid "Chat on Zalo"
-msgstr "Chat qua Zalo"
+msgid "Chat on Zalo PC"
+msgstr "Chat qua Zalo PC"
 
 #. source: tiqn
 msgid "Opens Zalo PC (must be installed and signed in)."
