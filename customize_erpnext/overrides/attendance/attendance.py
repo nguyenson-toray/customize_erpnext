@@ -114,12 +114,14 @@ def get_attendance_custom_additional_info(employee, attendance_date):
 		ORDER BY otd.begin_time
 	""", {"employee": employee, "date": attendance_date}, as_dict=1)
 
+	# Draft/Submitted only means something while Overtime Registration is submittable
+	show_ot_status = ot_records and frappe.get_meta("Overtime Registration").is_submittable
 	for ot in ot_records:
 		begin_time = str(ot.begin_time)[:5] if ot.begin_time else ""
 		end_time = str(ot.end_time)[:5] if ot.end_time else ""
-		status = "Submitted" if ot.docstatus == 1 else "Draft"
+		status = (" (Submitted)" if ot.docstatus == 1 else " (Draft)") if show_ot_status else ""
 		link = f'<a href="/app/overtime-registration/{ot.ot_registration}">{ot.ot_registration}</a>'
-		details.append(f"⏰ Overtime: {begin_time} - {end_time} ({status}) - {link}")
+		details.append(f"⏰ Overtime: {begin_time} - {end_time}{status} - {link}")
 
 	if not details:
 		return ""

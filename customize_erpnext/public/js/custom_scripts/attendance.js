@@ -1,5 +1,6 @@
 frappe.ui.form.on('Attendance', {
     onload: function (frm) {
+        frm.trigger('show_hide_fields');
         // Load and display custom_additional_info (maternity benefit info)
         if (frm.doc.employee && frm.doc.attendance_date && !frm.doc.__islocal) {
             frappe.call({
@@ -17,9 +18,17 @@ frappe.ui.form.on('Attendance', {
                 }
             });
         }
+
     },
 
-
+    show_hide_fields: function (frm) {
+        if (frm.doc.employee && frm.doc.attendance_date && (!frm.doc.leave_application || !frm.doc.working_hours)) {
+            frm.set_df_property('custom_actual_working_hours', 'hidden', 1);
+        }
+        if (!frm.doc.custom_hour_reduction) {
+            frm.set_df_property('custom_hour_reduction', 'hidden', 1);
+        }
+    },
 
     employee: function (frm) {
         // Load maternity benefit info when employee changes
