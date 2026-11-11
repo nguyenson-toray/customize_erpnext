@@ -486,6 +486,12 @@ doc_events = {
             # Ngày kết thúc HĐ thử việc = ngày vào làm + Probation Days - 1.
             "customize_erpnext.api.employee.probation_end.set_employee_probation_end",
         ],
+        "on_update": [
+            # Ảnh đổi từ form (sidebar / ô Image / Data Import) → chép vào
+            # public/files/employee_photos/{mã} {tên}.ext như trang /employee-photos; xoá file nguồn
+            # + ảnh cũ của chính NV sau commit (không xoá theo mã).
+            "customize_erpnext.api.employee.employee_photo_relocate.relocate_employee_image",
+        ],
         "after_insert": [
             # "customize_erpnext.api.employee.erpnext_mongodb.sync_employee_to_mongodb",
             # ĐÃ BỎ set_default_holiday_list: nó ghi vào field cũ Employee.holiday_list

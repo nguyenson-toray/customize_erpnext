@@ -1338,6 +1338,16 @@ def process_employee_photo(employee_id, employee_name, image_data):
         if not os.path.exists(employee_photos_dir):
             os.makedirs(employee_photos_dir, exist_ok=True)
 
+        from functools import partial
+        from customize_erpnext.api.employee.employee_photo_relocate import delete_unreferenced_photos
+
+        # File URL; tên đã thuộc ảnh của NV KHÁC (tên file cũ còn mang mã cũ sau đổi mã NV)
+        # thì thêm hậu tố, không bao giờ ghi đè ảnh người khác
+        file_url = f'/files/employee_photos/{final_file_name}'
+        if frappe.db.exists('Employee', {'image': file_url, 'name': ['!=', employee_id]}):
+            final_file_name = f"{employee_id} {clean_name} {frappe.generate_hash(length=6)}.{file_ext}"
+            file_url = f'/files/employee_photos/{final_file_name}'
+
         # Full file path
         file_path = os.path.join(employee_photos_dir, final_file_name)
 
@@ -1345,80 +1355,28 @@ def process_employee_photo(employee_id, employee_name, image_data):
         with open(file_path, 'wb') as f:
             f.write(output_data)
 
-        # Delete ALL old files attached to this employee's image field
-        # This includes: old photo + any temporary uploaded files
-        # (physical file just written above is always skipped)
-        try:
-            # Get all File documents attached to this employee's image field
-            old_files = frappe.get_all('File',
-                filters={
-                    'attached_to_doctype': 'Employee',
-                    'attached_to_name': employee_id,
-                    'attached_to_field': 'image'
-                },
-                fields=['name', 'file_url', 'file_name']
-            )
-
-            for old_file in old_files:
-                try:
-                    # Delete physical file
-                    old_physical_path = None
-                    if old_file.file_url.startswith('/private/'):
-                        old_physical_path = os.path.join(site_path, old_file.file_url.lstrip('/'))
-                    elif old_file.file_url.startswith('/files/'):
-                        old_physical_path = os.path.join(site_path, 'public', old_file.file_url.lstrip('/'))
-
-                    if (old_physical_path and os.path.exists(old_physical_path)
-                            and os.path.abspath(old_physical_path) != os.path.abspath(file_path)):
-                        os.remove(old_physical_path)
-                        frappe.logger().info(f"Deleted old file: {old_physical_path}")
-
-                    # Delete File document
-                    frappe.delete_doc('File', old_file.name, ignore_permissions=True, force=True)
-                    frappe.logger().info(f"Deleted File document: {old_file.file_name}")
-
-                except Exception as del_err:
-                    frappe.logger().warning(f"Could not delete file {old_file.file_name}: {str(del_err)}")
-
-            # Also search and delete any physical files matching this employee in both locations
-            # (to clean up orphaned files that may not have File documents)
-            try:
-                # Search in /files/ directory
-                files_dir = os.path.join(site_path, 'public', 'files')
-                # Search in /files/employee_photos/ directory
-                employee_photos_dir = os.path.join(site_path, 'public', 'files', 'employee_photos')
-
-                import glob
-                for search_dir in [files_dir, employee_photos_dir]:
-                    if os.path.exists(search_dir):
-                        # Find files matching pattern: {employee_id} *.jpg / *.png
-                        matching_files = []
-                        for pattern_ext in ('jpg', 'png'):
-                            pattern = os.path.join(search_dir, f"{employee_id} *.{pattern_ext}")
-                            matching_files.extend(glob.glob(pattern))
-                        # Also catch "{employee_id}.jpg" (code only, no name)
-                        for pattern_ext in ('jpg', 'png'):
-                            exact = os.path.join(search_dir, f"{employee_id}.{pattern_ext}")
-                            if os.path.exists(exact):
-                                matching_files.append(exact)
-
-                        for file_to_delete in matching_files:
-                            if os.path.abspath(file_to_delete) == os.path.abspath(file_path):
-                                continue  # never delete the file just written
-                            if os.path.exists(file_to_delete):
-                                os.remove(file_to_delete)
-                                frappe.logger().info(f"Deleted orphaned file: {file_to_delete}")
-            except Exception as cleanup_err:
-                frappe.logger().warning(f"Could not cleanup orphaned files: {str(cleanup_err)}")
-
-        except Exception as del_err:
-            frappe.logger().warning(f"Could not delete old files: {str(del_err)}")
-
-        # Create file URL
-        file_url = f'/files/employee_photos/{final_file_name}'
-
-        # Create or update File document
-        existing_file = frappe.db.exists('File', {'file_url': file_url})
+        # Ảnh cũ: CHỈ của chính NV này — File record gắn ô image của NV + Employee.image hiện tại.
+        # KHÔNG xoá theo mã ("{mã} *.jpg"): sau khi đổi mã NV, tên file của người khác có thể mang
+        # đúng mã này (sự cố TIQN-2349/2352, 11/2026). File vật lý xoá SAU commit và chỉ khi không
+        # còn Employee / User.user_image / File record nào khác trỏ tới.
+        old_files = frappe.get_all('File',
+            filters={
+                'attached_to_doctype': 'Employee',
+                'attached_to_name': employee_id,
+                'attached_to_field': 'image'
+            },
+            fields=['name', 'file_url'],
+            order_by='creation asc'
+        )
+        stale_urls = {f.file_url for f in old_files if f.file_url and f.file_url != file_url}
+        current_image = frappe.db.get_value('Employee', employee_id, 'image')
+        if current_image and current_image != file_url:
+            stale_urls.add(current_image)
+        existing_file = next((f.name for f in old_files if f.file_url == file_url), None)
+        drop = [f.name for f in old_files if f.name != existing_file]
+        if drop:
+            frappe.db.delete('File', {'name': ['in', drop]})
+        frappe.db.after_commit.add(partial(delete_unreferenced_photos, sorted(stale_urls), employee_id))
 
         if existing_file:
             # Update existing file record
@@ -1478,9 +1436,12 @@ def delete_employee_photo(employee_id):
         if not current_image:
             return {'status': 'success', 'message': _('No photo to delete')}
 
-        site_path = get_site_path()
+        from functools import partial
+        from customize_erpnext.api.employee.employee_photo_relocate import delete_unreferenced_photos
 
-        # Delete all File documents attached to this employee's image field
+        # File record gắn ô image của NV này + ảnh hiện tại. File vật lý (và thumb) xoá SAU commit,
+        # chỉ khi không còn Employee / User.user_image / File record nào khác trỏ tới (vd ảnh NV
+        # cũng là avatar User thì giữ file).
         old_files = frappe.get_all('File',
             filters={
                 'attached_to_doctype': 'Employee',
@@ -1489,31 +1450,10 @@ def delete_employee_photo(employee_id):
             },
             fields=['name', 'file_url']
         )
-        for f in old_files:
-            try:
-                if f.file_url.startswith('/private/'):
-                    p = os.path.join(site_path, f.file_url.lstrip('/'))
-                elif f.file_url.startswith('/files/'):
-                    p = os.path.join(site_path, 'public', f.file_url.lstrip('/'))
-                else:
-                    p = None
-                if p and os.path.exists(p):
-                    os.remove(p)
-                frappe.delete_doc('File', f.name, ignore_permissions=True, force=True)
-            except Exception as e:
-                frappe.logger().warning(f"delete_employee_photo: could not remove file {f.name}: {e}")
-
-        from customize_erpnext.api.employee.employee_photo_thumbs import remove_thumb
-        remove_thumb(current_image)
-
-        # Also remove physical file from current_image path (in case no File doc)
-        if current_image.startswith('/files/'):
-            p = os.path.join(site_path, 'public', current_image.lstrip('/'))
-            if os.path.exists(p):
-                try:
-                    os.remove(p)
-                except Exception:
-                    pass
+        urls = {f.file_url for f in old_files if f.file_url} | {current_image}
+        if old_files:
+            frappe.db.delete('File', {'name': ['in', [f.name for f in old_files]]})
+        frappe.db.after_commit.add(partial(delete_unreferenced_photos, sorted(urls), employee_id))
 
         # Clear Employee.image field
         frappe.db.set_value('Employee', employee_id, 'image', '')
