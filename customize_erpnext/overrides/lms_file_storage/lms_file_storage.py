@@ -99,7 +99,7 @@ def _lms_upload_target(self):
 
 
 def custom_save_file_on_filesystem(self):
-	"""Ghi file vào files/lms_course/{course}/{chapter}_{lesson}_{tên gốc} (hoặc
+	"""Ghi file vào files/lms_course/{course}/{chapter}_{lesson}.{ext} (hoặc
 	private/files/... nếu is_private) khi file được upload cho Course Lesson (nút
 	Upload trong editor bài học LMS). Mọi upload khác (Employee, Packing List, đính
 	kèm document thường...) rơi về hàm gốc File.save_file_on_filesystem, không đổi
@@ -126,8 +126,10 @@ def custom_save_file_on_filesystem(self):
 		self.attached_to_name = lesson_name
 		self.attached_to_field = None
 
-	safe_original = re.sub(r"[/\\%?#]", "_", self.file_name)
-	new_filename = f"{chapter_slug}_{lesson_slug}_{safe_original}"
+	# Tên file = {chương}_{bài}.{đuôi}, chỉ ASCII — bỏ hẳn tên gốc (user 11/11/2026). Tên có dấu
+	# từng làm serve_resource trả 403 khi content lưu dạng \uXXXX.
+	ext = re.sub(r"[^a-z0-9.]", "", os.path.splitext(self.file_name or "")[1].lower())
+	new_filename = f"{chapter_slug}_{lesson_slug}{ext}"
 
 	prefix = "/private/files" if self.is_private else "/files"
 	self.file_url = f"{prefix}/lms_course/{course_slug}/{new_filename}"
@@ -135,7 +137,7 @@ def custom_save_file_on_filesystem(self):
 	full_path = self.get_full_path()
 	os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
-	# Trùng tên (vd upload lại cùng tên gốc cho cùng lesson) -> thêm hash, không ghi đè âm thầm
+	# Bài đã có file cùng tên (upload thứ 2 trở đi) -> thêm hash, không ghi đè âm thầm
 	if os.path.exists(full_path):
 		name, ext = os.path.splitext(new_filename)
 		new_filename = f"{name}_{frappe.generate_hash(length=6)}{ext}"
