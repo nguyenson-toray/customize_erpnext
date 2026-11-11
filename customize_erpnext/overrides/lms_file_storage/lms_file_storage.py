@@ -33,7 +33,7 @@ def _target_from_lesson(lesson_name):
 		return None
 	chapter_slug = _slugify(lesson.chapter) if lesson.chapter else "no-chapter"
 	lesson_slug = _slugify(lesson.name)
-	return lesson.course, chapter_slug, lesson_slug
+	return lesson.course, chapter_slug, lesson_slug, lesson.name
 
 
 def _lms_upload_target_from_attach(self):
@@ -112,7 +112,20 @@ def custom_save_file_on_filesystem(self):
 	if not target:
 		return self._original_save_file_on_filesystem()
 
-	course_slug, chapter_slug, lesson_slug = target
+	course_slug, chapter_slug, lesson_slug, lesson_name = target
+
+	# Editor LMS không gửi doctype/docname → File mồ côi. Gắn vào đúng lesson để file đi theo bài
+	# (xoá bài thì xoá file, hiện ở sidebar Attachments) và để serve_resource của LMS nhận ra bài
+	# qua đường attachment, kể cả khi content lưu tên file dạng \uXXXX. attached_to_field để trống:
+	# không biết ảnh nằm ở content hay instructor_content → LMS coi là instructor-only (fail-closed);
+	# học viên vẫn xem được qua tham chiếu trong content.
+	# File.validate gọi check_write_permission lên doc được attach → chỉ gắn khi người upload có
+	# quyền ghi lesson, nếu không upload sẽ lỗi; khi đó giữ hành vi cũ (không attach).
+	if not self.attached_to_doctype and frappe.has_permission("Course Lesson", "write", lesson_name):
+		self.attached_to_doctype = "Course Lesson"
+		self.attached_to_name = lesson_name
+		self.attached_to_field = None
+
 	safe_original = re.sub(r"[/\\%?#]", "_", self.file_name)
 	new_filename = f"{chapter_slug}_{lesson_slug}_{safe_original}"
 
