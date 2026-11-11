@@ -1,4 +1,4 @@
-# Hướng dẫn sử dụng Cổng nhân viên — dành cho C&B
+# Hướng dẫn sử dụng Cổng thông tin nhân viên — dành cho C&B
 
 > Dành cho người có role **CnB** trên ERP. Cổng nhân viên là Zalo Mini App, nơi nhân viên xem **phiếu lương** và
 > **thông báo** trên điện thoại. C&B làm mọi việc trên ERP: nhập phiếu lương, phát hành, gửi thông báo, duyệt
@@ -41,7 +41,7 @@ Không đổi gì → bỏ qua. Có thêm / bớt / đổi tên khoản hay đ�
 File có sẵn mỗi nhân viên một dòng (STT, kỳ, từ ngày – đến ngày, mã NV, họ tên, chức danh, bộ phận…). File mẫu
 **tự bỏ** những người sau:
 - Nghỉ việc trước kỳ hoặc **trong kỳ**: người nghỉ trong kỳ được tính riêng, xem mục 3. Ngoại lệ: Cài đặt
-  *Gom người nghỉ vào mẫu tháng từ ngày* = 20 thì người nghỉ từ ngày 20 đến 25 của kỳ **có** trong file tháng (mục 3).
+  *Gom người nghỉ vào mẫu tháng từ ngày* = 20 thì người nghỉ từ ngày 20 đến 25 của kỳ **có** trong file tháng (mục 3.3).
 - Nghỉ thai sản trọn kỳ.
 - Nhân viên trong danh sách *Exclude Employees* của Attendance Calculation Setting.
 
@@ -72,7 +72,7 @@ số cho cả kỳ, kể cả người vào làm / nghỉ giữa kỳ. C&B chỉ
     2.1–2.3…) số ngày lớn hơn số ngày của kỳ hoặc số giờ lớn hơn 24 giờ × số ngày của kỳ; số tiền từ **100 tỷ** trở lên
     (gõ thừa chữ số). Số ngày của khoản khác (ví dụ 7.4 thanh toán phép năm khi nghỉ việc) được phép lớn hơn số ngày của kỳ.
 - **Cảnh báo** (cam): vẫn nhập được sau khi tick *Tôi đã kiểm tra các cảnh báo ở trên*. Ví dụ: tên trong file khác ERP, thực lĩnh âm,
-  nhân viên **đã nghỉ trước kỳ**, nhân viên **nghỉ giữa kỳ mà *Đến ngày* trong file trùng hoặc sau ngày nghỉ việc** (xem mục 3),
+  nhân viên **đã nghỉ trước kỳ**, nhân viên **nghỉ giữa kỳ mà *Đến ngày* trong file trùng hoặc sau ngày nghỉ việc** (xem mục 3.4),
   và **"Sẽ ghi đè phiếu … đang có"**: nhân viên + kỳ đó đã có phiếu nháp / đã thu hồi (kèm lô và giờ nhập cũ; nếu Từ ngày /
   Đến ngày / Ngày trả lương khác thì hiện cả ngày cũ và ngày trong file). Đọc kỹ để không nhập nhầm file đè lên file khác.
 - ⚠ Kiểm tra **số dòng** (ô "… rows") đúng bằng số nhân viên. Lỡ chọn **file mẫu chưa điền số** thì vẫn nhập được
@@ -147,32 +147,87 @@ phiếu in đều theo bản của kỳ. Tên bản chỉ là số thứ tự (`
 
 ---
 
-## 3. Nhân viên nghỉ việc — tính và trả riêng
+## 3. Nhân viên nghỉ việc
 
-Nhân viên nghỉ việc được thanh toán **trong 14 ngày kể từ ngày nghỉ**, không chờ ngày 5 tháng sau.
-1. **Tải xuống mẫu** → tick **Chỉ nhân viên nghỉ việc** → chọn **Kỳ lương** → ô **Ngày nghỉ việc từ – đến** tự điền cả kỳ,
-   thu hẹp lại nếu cần (phải nằm trong kỳ đã chọn) → Download.
-   - Mọi người trong file đều thuộc kỳ đã chọn.
-   - *Đến ngày* = ngày trước ngày nghỉ việc.
-   - *Pay Date* điền sẵn = ngày nghỉ + 14, sửa được.
-   - Người nghỉ **đúng ngày 26** (làm tới hết ngày 25, đủ kỳ) **không** có trong file này: họ nằm ở file lương tháng và
-     nhận lương cùng đợt ngày 5 (vẫn trong hạn 14 ngày).
-2. Điền số → tải lên → nhập nháp như hằng tháng.
-3. **Phát hành** kỳ đó: phiếu nghỉ việc (cột *Thanh toán nghỉ việc*) phát hành **không có thông báo**. C&B tự nhắn
-   cho người nghỉ. Họ vẫn xem được phiếu trên Mini App trong **30 ngày** sau ngày nghỉ.
+### 3.1 ERP dựa vào Ngày nghỉ việc trong hồ sơ
+- **Ngày nghỉ việc** (Relieving Date) là **ngày đầu tiên không đi làm**, ngày làm cuối cùng là ngày trước đó. Ví dụ:
+  ngày nghỉ việc 10/11 thì nhân viên làm tới hết 09/11.
+- Nhập **Ngày nghỉ việc** và đổi **Trạng thái = Left** trong hồ sơ **trước** khi tải file mẫu. File mẫu, ngày trên phiếu,
+  dấu *Thanh toán nghỉ việc* và quyền xem trên app đều tính theo hai ô này.
+- Excel **không có** cột *Thanh toán nghỉ việc*: ERP tự đánh dấu phiếu khi ngày nghỉ việc nằm trong kỳ (sau ngày 26 và
+  tới ngày 25). Bảng **2. Phát hành lên Mini App** có cột *Thanh toán nghỉ việc* đếm số phiếu này của từng kỳ.
 
-Khi phát hành phiếu tháng của cùng kỳ sau đó, thông báo chung vẫn được tạo như bình thường.
+**Người nghỉ được tính ở file nào** (ví dụ kỳ 11/2026 = 26/10 – 25/11, ngày trả lương tháng 05/12):
 
-**Gom người nghỉ cuối kỳ vào đợt lương tháng:** Cài đặt → *Gom người nghỉ vào mẫu tháng từ ngày* (mục 8), ví dụ **20**.
-Người có ngày nghỉ việc từ 20 đến 25 của kỳ nằm luôn trong **file tháng**: *Đến ngày* = ngày trước ngày nghỉ, *Pay Date*
-= ngày trả lương tháng, và **không** có trong file *Chỉ nhân viên nghỉ việc* (tránh 2 dòng ở 2 file). Phiếu vẫn đánh dấu
-*Thanh toán nghỉ việc*. Luật buộc trả trong 14 ngày làm việc kể từ ngày nghỉ: đặt ngày quá sớm thì ngày trả lương tháng có
-thể trễ hạn. Để 0 = tắt.
+| Ngày nghỉ việc | Làm tới hết | File | *Đến ngày* | *Pay Date* | Thanh toán nghỉ việc |
+|---|---|---|---|---|---|
+| tới 26/10 | tới 25/10 | không có trong kỳ 11 (đã tính ở kỳ 10) | | | |
+| 27/10 – 19/11 | 26/10 – 18/11 | **Chỉ nhân viên nghỉ việc** | ngày làm cuối | ngày nghỉ việc + 14 | có |
+| 20/11 – 25/11 | 19/11 – 24/11 | Cài đặt *Gom… từ ngày* = 20: **file tháng** (mục 3.3). Cài đặt = 0: **Chỉ nhân viên nghỉ việc** | ngày làm cuối | 05/12 (file nghỉ việc: ngày nghỉ + 14) | có |
+| 26/11 | 25/11 (đủ kỳ) | **file tháng** | 25/11 | 05/12 | không |
+| sau 26/11 | | **file tháng** như mọi người | 25/11 | 05/12 | không |
 
-⚠ **Tải file tháng trước khi nhập ngày nghỉ việc**: người nghỉ giữa kỳ vẫn nằm trong file tháng với *Đến ngày* = 25.
-Khi tải lên, ERP cảnh báo *"Employee left on … (last working day …), but Period To in the file is …"*. Đừng tick bỏ qua:
-xoá dòng đó khỏi file tháng và tính cho người này bằng file **Chỉ nhân viên nghỉ việc**. Nếu vẫn muốn để trong file tháng thì
-sửa *Đến ngày* thành ngày trước ngày nghỉ việc, hoặc để trống ô này (ERP tự điền).
+Người có ngày vào làm trùng hoặc sau ngày nghỉ việc (không làm ngày nào) và người trong *Exclude Employees* của
+Attendance Calculation Setting không có ở file nào.
+
+### 3.2 Tính và trả riêng — file *Chỉ nhân viên nghỉ việc*
+Luật buộc thanh toán **trong 14 ngày làm việc kể từ ngày nghỉ**, nên không chờ đợt lương tháng.
+
+1. **Tải xuống mẫu** → tick **Chỉ nhân viên nghỉ việc** → chọn **Kỳ lương** chứa ngày nghỉ việc → ô **Ngày nghỉ việc từ** /
+   **đến** tự điền cả kỳ. Thu hẹp lại nếu làm theo từng đợt (ví dụ mỗi tuần một file) → **Download**.
+   - Khoảng ngày phải nằm **trong kỳ đã chọn**. Người nghỉ ở 2 kỳ khác nhau thì tải 2 file.
+   - Tên file có kỳ, khoảng ngày và giờ tải, ví dụ `Payslip 2026-11 Resigned 261101-261107 261108 093000.xlsx`.
+   - Mỗi người một dòng, xếp theo ngày nghỉ việc. *Từ ngày* = ngày 26 (hoặc ngày vào làm nếu vào giữa kỳ), *Đến ngày* =
+     ngày làm cuối, *Pay Date* = ngày nghỉ việc + 14 ngày lịch (sớm hơn hạn của luật), cột **1.1** điền sẵn công chuẩn
+     của cả kỳ như file tháng.
+   - File **bỏ** người nghỉ đúng ngày 26 (đủ kỳ) và người đã được gom vào file tháng (mục 3.3), để không ai có 2 dòng ở
+     2 file. Người đang nghỉ thai sản mà nghỉ việc trong khoảng ngày vẫn có trong file.
+2. Điền số như file tháng. Công thực tế (1.2) tính tới ngày làm cuối. Số ngày của các khoản trả khi nghỉ việc (ví dụ
+   7.4 thanh toán phép năm) được phép lớn hơn số ngày của kỳ. Xoá trống *Đến ngày* / *Pay Date* thì ERP tự điền lại như
+   trên.
+3. **Tải lên Excel** → kiểm tra → **Nhập dạng Nháp** (mục 2, bước 3–4). Cảnh báo hay gặp:
+   - *"Sẽ ghi đè phiếu … đang có"*: người này đã có phiếu nháp của kỳ, thường do đã nhập file tháng trước. Kiểm tra đúng
+     ý rồi mới tick xác nhận.
+   - Người đã có phiếu **đã phát hành** của kỳ thì báo **lỗi**: phải thu hồi kỳ trước (mục 4).
+4. **Phát hành** kỳ đó ở bảng **2. Phát hành lên Mini App**.
+   - ⚠ Nút **Phát hành** đưa lên app **mọi phiếu Nháp / Đã thu hồi** của kỳ, không chỉ phiếu nghỉ việc. Giữa kỳ thường
+     chỉ có phiếu nghỉ việc. Nếu đã nhập nháp file tháng của cùng kỳ mà chưa kiểm tra xong thì chờ, đừng phát hành.
+   - Lần phát hành **chỉ có phiếu nghỉ việc** thì **không** tạo thông báo. C&B tự báo cho người nghỉ, ví dụ mở **Tài
+     khoản Zalo** của họ → nút **Chat qua Zalo PC**. Người nghỉ ở chế độ chỉ xem nên không tự nhắn C&B qua app được.
+   - Lần phát hành có phiếu tháng thì tạo thông báo chung như mọi tháng (cả người nghỉ đã có phiếu của kỳ cũng thấy).
+   - Phiếu nghỉ việc đã phát hành vẫn nằm yên khi sau đó nhập và phát hành file tháng của cùng kỳ: file tháng không có
+     những người này.
+
+### 3.3 Gom người nghỉ cuối kỳ vào đợt lương tháng
+Cài đặt → *Gom người nghỉ vào mẫu tháng từ ngày* (mục 8), nhận 1 – 25, **0 = tắt**. Ngày tính theo **tháng kết thúc kỳ**:
+đặt 20 thì kỳ 11/2026 gom người có ngày nghỉ việc từ 20/11 đến 25/11.
+- Những người này nằm luôn trong **file tháng**: *Đến ngày* = ngày làm cuối, *Pay Date* = ngày trả lương tháng (ghi sẵn
+  trong file), phiếu vẫn đánh dấu *Thanh toán nghỉ việc*. Đừng xoá ô *Pay Date* của họ: để trống thì ERP lấy ngày nghỉ
+  việc + 14 như phiếu trả riêng.
+- File *Chỉ nhân viên nghỉ việc* **không** có họ nữa.
+- Hộp thoại *Tải xuống mẫu* ghi rõ ngày đang đặt ở dòng mô tả của ô *Kỳ lương* và ô *Chỉ nhân viên nghỉ việc*.
+- ⚠ Luật buộc trả trong 14 ngày làm việc kể từ ngày nghỉ: đặt ngày quá sớm thì ngày trả lương tháng có thể trễ hạn
+  với người nghỉ đầu khoảng.
+
+### 3.4 Người nghỉ giữa kỳ đang nằm trong file tháng
+Xảy ra khi tải file tháng **trước khi** nhập ngày nghỉ việc vào hồ sơ: dòng của người đó vẫn có *Đến ngày* = 25. ERP
+giữ nguyên ngày trong file, nên khi tải lên sẽ cảnh báo *"Employee left on … (last working day …), but Period To in the
+file is …"*. Đừng tick bỏ qua, chọn một trong hai cách:
+- **Trả riêng** (đúng hạn 14 ngày): xoá dòng đó khỏi file tháng, tính bằng file **Chỉ nhân viên nghỉ việc** (mục 3.2).
+- **Để trong file tháng**: sửa *Đến ngày* thành ngày làm cuối, hoặc xoá trống ô này để ERP tự điền. *Pay Date* để
+  trống thì ERP lấy ngày nghỉ việc + 14; muốn trả cùng đợt lương tháng thì ghi ngày đó vào ô.
+
+Cảnh báo *"Employee left on …, before this period started"* nghĩa là người này nghỉ trước kỳ (ngày nghỉ việc từ ngày 26
+đầu kỳ trở về trước): thường là dòng thừa, xoá khỏi file.
+
+### 3.5 Người nghỉ việc trên Mini App
+- Hồ sơ **Trạng thái = Left** có Ngày nghỉ việc: app chuyển sang **chỉ xem** trong **30 ngày** tính từ ngày nghỉ việc
+  (Cài đặt → *Hạn chỉ xem sau nghỉ việc*). Vẫn xem phiếu lương, thông báo, đơn cũ. Không tạo / huỷ đơn, không gửi giải
+  trình, không chat với C&B.
+- Hết hạn: không vào app được nữa, tài khoản Zalo bị ERP tự khoá (mục 7.3). Phiếu phát hành sau hạn này người nghỉ không
+  xem được trên app: in giấy (mục 5).
+- ⚠ Hồ sơ đã có ngày nghỉ việc nhưng **Trạng thái vẫn Active** thì app vẫn cho dùng đầy đủ. Trạng thái khác (Inactive,
+  Suspended) thì không vào được ngay.
 
 ---
 
@@ -277,11 +332,11 @@ Thường **không cần sửa**. Các mục C&B hay dùng:
 | Tab | Mục | Ý nghĩa |
 |---|---|---|
 | Tính năng Mini App | **Ngày trả lương trong tháng** | Mặc định 5 |
-| | **Gom người nghỉ vào mẫu tháng từ ngày** | 0 = tắt. Ví dụ 20: người nghỉ từ ngày 20 đến 25 của kỳ được tính chung đợt lương tháng (mục 3) |
+| | **Gom người nghỉ vào mẫu tháng từ ngày** | 0 = tắt. Ví dụ 20: người nghỉ từ ngày 20 đến 25 của kỳ được tính chung đợt lương tháng (mục 3.3) |
 | | **Mặc định hiện dòng 0đ** | Tick = khi mở phiếu, app hiện cả khoản 0đ như phiếu giấy; bỏ tick = ẩn khoản 0đ. Nhân viên vẫn bấm "Ẩn khoản 0đ" để đổi. Có hiệu lực từ bản Mini App cập nhật sau (bản hiện tại luôn hiện đủ) |
 | Zalo OA & Chat | **ID chat C&B (ID by OA)** + tên | Nút "Chat với C&B" trên app mở chat Zalo với người này. Lấy ID ở *Tài khoản Zalo* của người đó (sau khi họ mở app) |
 | | **Chat với C&B sau khi gửi yêu cầu liên kết** | Tick = nhân viên gửi *Yêu cầu liên kết* xong, app mở chat Zalo với người C&B ở trên, tin nhắn soạn sẵn có tên, mã NV và link yêu cầu trên ERP (mục 7.1). Bỏ tick khi bị nhắn quá nhiều |
-| Access | Hạn chỉ xem sau nghỉ việc | Mặc định 30 ngày |
+| Access | Hạn chỉ xem sau nghỉ việc | Mặc định 30 ngày, tính từ ngày nghỉ việc (mục 3.5) |
 | | **Zalo App Review** | Tick **Enable Review Mode**, điền SĐT reviewer Zalo đưa (mỗi dòng 1 số). Reviewer chỉ thấy **dữ liệu mẫu**: NV "Nguyễn Văn Mẫu", **3 phiếu lương mẫu** của 3 kỳ gần nhất (tự cập nhật theo tháng), thông báo mẫu — không bao giờ thấy dữ liệu thật. 🔴 Zalo **kiểm tra lại mỗi lần phát hành bản app mới**, nên **giữ bật** (không ảnh hưởng nhân viên). SĐT của nhân viên thật luôn vào bằng hồ sơ thật dù có trong danh sách |
 
 ### Tên từng khoản trên app
