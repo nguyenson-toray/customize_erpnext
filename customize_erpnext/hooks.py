@@ -73,9 +73,15 @@ doctype_list_js = {
 
 # Fixtures Configuration
 # Usage:
-#   Export: bench --site erp-sonnt.tiqn.local export-fixtures
+#   Export: bench --site erp.tiqn.local export-fixtures --app customize_erpnext
+#           (clear-cache trước — hooks bị cache trong redis; luôn kèm --app để không đụng lms)
 #   Import: bench --site erp.tiqn.local migrate
-#   Import specific app: bench --site erp.tiqn.local import-fixtures --app customize_erpnext
+#
+# NGUYÊN TẮC (11/11/2026): migrate nạp lại mọi fixtures/*.json và GHI ĐÈ DB, nên chỉnh trên UI của
+# những gì nằm ở đây sẽ bị lật lại. Chỉ đưa vào fixture những gì CODE/LOGIC phụ thuộc (Custom Field,
+# Property Setter logic). Tuỳ chỉnh hiển thị (cột list, ẩn khi in, thứ tự field, nhãn, List View
+# Settings, Custom Sidebar...) để ở DB, sửa trên UI. Bỏ một mục khỏi đây không xoá bản ghi trong DB,
+# nhưng file .json trong fixtures/ vẫn được nạp tới khi XOÁ FILE (migrate quét thư mục, không đọc hooks).
 fixtures = [
     # Custom fields starting with "custom%"
     {
@@ -86,7 +92,6 @@ fixtures = [
                 "Sales Order Item",
                 "Sales Order",
                 "BOM Item",
-                "Material Request Item",
                 "Production Plan",
                 "Employee",
                 "Employee Checkin",
@@ -107,7 +112,6 @@ fixtures = [
                 "Employment Type",
                 "Salary Structure Assignment",
                 "Salary Slip",
-                "Employee Education",
                 # custom_section / custom_group: Employee Internal Work History gốc chỉ
                 # có branch/department/designation nên timeline thiếu 2 cấp tổ chức này
                 "Employee Internal Work History",
@@ -145,32 +149,24 @@ fixtures = [
                 # default_print_format = "TIQN Payslip": DocType chuẩn không được đặt trong JSON
                 # ("Standard DocType cannot have default print format") → Property Setter.
                 "TIQN Payslip"
-            ]]
+            ]],
+            # Chỉ property LOGIC. Property hiển thị (in_list_view, columns, print_hide, report_hide,
+            # collapsible, field_order, label, placeholder, description, in_standard_filter,
+            # search_fields, quick_entry...) chỉ ở DB.
+            # 🔴 search_index phải ở đây: Employee Checkin.attendance.search_index=1 giữ index
+            #    attendance_index (mất nó → migrate xoá index).
+            ["property", "in", [
+                "reqd", "read_only", "hidden", "depends_on", "mandatory_depends_on",
+                "read_only_depends_on", "options", "fetch_from", "fetch_if_empty", "permlevel",
+                "allow_on_submit", "unique", "default", "autoname", "naming_rule", "set_only_once",
+                "fieldtype", "track_changes", "precision", "search_index", "default_print_format",
+                "allow_import",
+            ]],
         ]
     },
-    # List view settings
-    {
-        "doctype": "List View Settings",
-        "filters": {
-            "name": ["in", [
-                "Item",
-                "Stock Entry",
-                "Stock Reconciliation",
-                "Shift Name"
-            ]]
-        }
-    },
-    # Custom print formats
-    # NOTE: only export standard=No formats here. standard=Yes formats are
-    # auto-saved as app source code under customize_erpnext/print_format/ (dev mode),
-    # so including them here would duplicate them.
-    {
-        "doctype": "Print Format",
-        "filters": {
-            "module": "Customize Erpnext",
-            "standard": "No"
-        }
-    },
+    # Đã bỏ (11/11/2026, chỉ ở DB): List View Settings, Custom Sidebar (lớp "Edit Sidebar → For
+    # everyone" của 6 sidebar HRMS/ERPNext), Print Format standard=No (ra 0 bản ghi — print format
+    # TIQN là standard=Yes, nằm trong customize_erpnext/print_format/).
     # Workflow configurations
     # {
     #     "doctype": "Workflow",
@@ -192,20 +188,11 @@ fixtures = [
     #     "doctype": "Assignment Rule",
     #     "filters": []
     # },
-    # Link TIQN trong sidebar của HRMS / ERPNext (frappe v16.50+). Đây là lớp SITE ("Edit Sidebar →
-    # For everyone") chồng lên sidebar của app — app chỉ được ship sidebar cho module của chính nó.
-    # ⚠ Fixture thắng mỗi lần migrate: sửa 6 sidebar này trên UI thì phải export lại, nếu không mất.
-    # Sidebar của module TIQN không nằm ở đây — chúng là file `<module>/sidebar/`, sinh bằng
-    # scripts/build_navigation.py. Hệ `Workspace Sidebar` cũ không còn được nạp (đã bỏ fixture).
-    {
-        "doctype": "Custom Sidebar",
-        "filters": [
-            ["user", "in", ["", None]],
-            ["module", "in", [
-                "HR Setup", "Tenure", "Shift and Attendance", "Payroll", "Stock", "Manufacturing",
-            ]],
-        ]
-    },
+    # Sidebar của module TIQN là file `<module>/sidebar/`, sinh bằng scripts/build_navigation.py.
+    # Hệ `Workspace Sidebar` cũ không còn được nạp (đã bỏ fixture).
+    # Workspace GIỮ trong fixture: 2 workspace này là workspace chuẩn của hrms (file trong apps/hrms
+    # có 0 link) — để ở DB thì hrms đổi file là migrate ghi đè mất card TIQN; site lại bật
+    # developer_mode nên sửa trên UI sẽ ghi vào apps/hrms.
     {
         "doctype": "Workspace",
         "filters": [

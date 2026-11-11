@@ -75,7 +75,6 @@ trong app này.
 - `customize_erpnext/report/stock_ledger_customize/Stock Ledger Customize Report.md` — Stock Ledger Customize Report
 - `customize_erpnext/doctype/packing_list/packing_list.md` — Packing List — Module Documentation
 - `customize_erpnext/print_format/stock_entry_material/stock_entry_material.md` — Print Format: Stock Entry Material
-- `fixtures/split_print_format.md` — Print Format Split Tool
 
 ## Module khác
 
