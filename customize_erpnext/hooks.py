@@ -7,6 +7,9 @@ app_license = "mit"
 
 
 
+# Android browsers cannot print a PDF from a hidden iframe: fall back to /printview
+page_js = {"print": "public/js/print_android_fallback.js"}
+
 # Customize JS scripts for default ERPNext DocTypes
 doctype_js = {
     "Stock Entry": [
