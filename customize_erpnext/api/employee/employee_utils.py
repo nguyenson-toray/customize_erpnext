@@ -1627,8 +1627,8 @@ def generate_employee_list_pdf(employees=None, company_name=None, include_depart
     Returns:
         dict: {
             'success': True/False,
-            'file_url': URL to access the generated PDF,
-            'filename': PDF filename
+            'pdf_base64': the PDF, base64-encoded (nothing is saved on the server),
+            'filename': suggested download name
         }
     """
     try:
@@ -1643,19 +1643,6 @@ def generate_employee_list_pdf(employees=None, company_name=None, include_depart
         
         # Get employee data
         employee_data = get_employee_data(employees, include_department, include_section)
-        
-        # Write debugging info to a file (scope, count, etc.)
-        debug_info = {
-            "total_employees": len(employee_data),
-            "with_images": sum(1 for e in employee_data if e.get('image_data')),
-            "scope": "all" if employees == 'all' else (
-                     "selected" if isinstance(employees, list) else "range"),
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "pdf_debug_info.json")
-        with open(debug_file_path, "w") as f:
-            json.dump(debug_info, f)
         
         # Maximum employees per page - 12 is recommended
         employees_per_page = 12
@@ -1676,14 +1663,6 @@ def generate_employee_list_pdf(employees=None, company_name=None, include_depart
             total_pages=total_pages
         )
         
-        # Lưu HTML để xem trước
-        debug_html_path = os.path.join(frappe.get_site_path(), "public", "files", "employee_list_debug.html")
-        with open(debug_html_path, "w", encoding="utf-8") as f:
-            f.write(html)
-            
-        # URL để xem trước HTML
-        html_preview_url = f"/files/employee_list_debug.html"
-        
         # Generate PDF
         pdf_options = {
             "page-size": page_size,
@@ -1700,43 +1679,27 @@ def generate_employee_list_pdf(employees=None, company_name=None, include_depart
         
         pdf_data = get_pdf(html, options=pdf_options)
         
-        # Create filename based on timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"Employee_List_{timestamp}.pdf"
-        
-        # IMPORTANT: Instead of returning Base64 data directly, save file to server
-        # and return a URL for direct download - this prevents Base64 encoding issues
-        output_path = os.path.join(frappe.get_site_path(), "public", "files", filename)
-        with open(output_path, "wb") as f:
-            f.write(pdf_data)
-             
-        # Generate URL for direct download
-        file_url = f"/files/{filename}"
-        
-        # Return success with file URL instead of Base64 data
+        # PDF goes straight back to the browser - nothing is written to disk. It used to be saved
+        # to public/files (readable without login, never deleted) together with a debug HTML copy.
+        filename = f"Employee_List_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         return {
             'success': True,
-            'file_url': file_url,
+            'pdf_base64': base64.b64encode(pdf_data).decode(),
             'filename': filename,
-            'preview_url': html_preview_url,
             'employee_count': len(employee_data)
         }
     
     except Exception as e:
-        # Write the error to a debug file
-        debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "pdf_error.txt")
-        with open(debug_file_path, "w") as f:
-            f.write(str(e))
-        
+        frappe.log_error(frappe.get_traceback(), "Generate Employee List PDF failed")
+
         # Truncate error message
         error_msg = str(e)
         if len(error_msg) > 100:
             error_msg = error_msg[:97] + "..."
             
         return {
-            'success': False, 
-            'error': error_msg,
-            'debug_file': debug_file_path
+            'success': False,
+            'error': error_msg
         }
 
 
@@ -1807,15 +1770,6 @@ def get_employee_data(employees=None, include_department=1, include_section=0):
             "name": ["in", [employees]],
             "status": "Active"
         }
-    
-    # Log the filters for debugging
-    debug_file_path = os.path.join(frappe.get_site_path(), "public", "files", "filter_debug.json")
-    with open(debug_file_path, "w") as f:
-        json.dump({
-            "filters": filters,
-            "employees_type": str(type(employees)),
-            "employees_value": str(employees)[:100] if employees else None
-        }, f)
     
     # Fetch employee data
     employee_data = frappe.get_all(

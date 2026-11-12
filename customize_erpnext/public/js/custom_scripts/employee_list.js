@@ -652,25 +652,25 @@ function show_generate_employee_list_pdf_dialog(listview) {
                         indicator: 'green'
                     });
 
-                    // Get file URL and download directly
-                    if (r.message.file_url) {
-                        // Open PDF in a new tab
-                        const site_url = frappe.urllib.get_base_url();
-                        const file_url = site_url + r.message.file_url;
+                    // The server returns the PDF itself (base64) - nothing is stored on the server
+                    if (r.message.pdf_base64) {
+                        fetch('data:application/pdf;base64,' + r.message.pdf_base64)
+                            .then(res => res.blob())
+                            .then(blob => {
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = r.message.filename || 'Employee_List.pdf';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(url), 60000);
 
-                        // Create and click an invisible link to download
-                        const a = document.createElement('a');
-                        a.href = file_url;
-                        a.target = '_blank';
-                        a.download = r.message.filename || 'Employee_List.pdf';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-
-                        frappe.show_alert({
-                            message: __('PDF đã sẵn sàng! Đang mở file...'),
-                            indicator: 'green'
-                        }, 4);
+                                frappe.show_alert({
+                                    message: __('PDF đã sẵn sàng! Đang mở file...'),
+                                    indicator: 'green'
+                                }, 4);
+                            });
                     } else {
                         frappe.msgprint({
                             title: __('Error'),
