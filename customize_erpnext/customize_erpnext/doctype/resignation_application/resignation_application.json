@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "RA-.YYYY.-.MM.#####",
+ "autoname": "RA-.YY..MM.-.###",
  "creation": "2026-08-21 09:00:00",
  "doctype": "DocType",
  "document_type": "Document",
@@ -312,7 +312,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-03 09:51:02.368208",
+ "modified": "2026-11-12 09:06:55.916591",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Resignation Application",
