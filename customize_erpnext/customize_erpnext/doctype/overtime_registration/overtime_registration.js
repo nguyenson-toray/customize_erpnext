@@ -66,11 +66,22 @@ frappe.ui.form.on("Overtime Registration", {
     },
 
     before_save(frm) {
+        // Frappe runs before_save even when `validate` already failed (missing time,
+        // duplicate row...): do not open the pre-save check on top of that error —
+        // pressing its Save would move times and then fail validation again.
+        if (frappe.validated === false) {
+            frm.pre_save_check_done = false;
+            return;
+        }
         if (!frm.pre_save_check_done) {
             frappe.validated = false;
             check_all_before_save(frm);
             return false;
         }
+        // One-shot: consume the flag so a save rejected by the server still
+        // re-runs the pre-save check next time (it used to stay true until
+        // refresh, so rows added after a failed save skipped the check).
+        frm.pre_save_check_done = false;
     },
 
     validate(frm) {
@@ -107,6 +118,10 @@ frappe.ui.form.on("Overtime Registration", {
 // accumulates the session total (batches · rows · man-hours) with undo.
 // ---------------------------------------------------------------------------
 
+// Tuần mặc định khi mở "Select Employees for Overtime Registration": 1 = Tuần +1
+// (user chốt 12/11/2026 — tăng ca thường đăng ký cho tuần sau)
+const OT_DEFAULT_WEEK_OFFSET = 1;
+
 function _get_dialog_state(frm) {
     if (!frm._ot_dialog_state) {
         frm._ot_dialog_state = {
@@ -114,7 +129,7 @@ function _get_dialog_state(frm) {
             selectedEmployees: new Map(), // employee id -> {name, employee_name, custom_group}
             employeeList: [],             // employees of the currently loaded group
             selectedDays: new Set(),      // 'monday'..'saturday'
-            weekOffset: 0,
+            weekOffset: OT_DEFAULT_WEEK_OFFSET,
             searchTerm: '',
             loadingEmployees: false,
             addedBatches: [],             // batches written this session (for ledger + undo)
@@ -274,7 +289,7 @@ html[data-theme="dark"] .ot-help-banner {
     font-weight: 600; min-height: 36px; padding: 4px 16px;
 }
 .ot-help-banner .ot-help-btn:hover { background: #92400e; border-color: #92400e; color: #fff; }
-/* "Add Employees" + "View Summary Table" on one row */
+/* "Add Employees" + "View Summary Table" + "Print" on one row */
 .frappe-control[data-fieldname="get_employees_button"] .control-input {
     display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px;
 }
@@ -489,7 +504,7 @@ function show_ot_registration_dialog(frm) {
     state.selectedEmployees.clear();
     state.selectedDays.clear();
     state.employeeList = [];
-    state.weekOffset = 0;
+    state.weekOffset = OT_DEFAULT_WEEK_OFFSET;
     state.searchTerm = '';
     state.loadingEmployees = false;
     state.addedBatches = [];
@@ -1209,10 +1224,10 @@ function show_ot_pivot_dialog(frm) {
     const colTotals = {};
     let grand = 0;
 
-    let head = '<tr><th class="ot-pivot-no">' + ot_esc(__('No.')) + '</th>'
+    let head = '<tr><th class="ot-pivot-no">' + ot_esc(__('No.', null, 'OT summary row number')) + '</th>'
         + '<th class="ot-pivot-emp">' + ot_esc(__('Employee')) + '</th>'
         + '<th class="ot-pivot-grp">' + ot_esc(__('Group')) + '</th>'
-        + '<th class="ot-pivot-note-h">' + ot_esc(__('Note')) + '</th>';
+        + '<th class="ot-pivot-note-h">' + ot_esc(__('Note', null, 'OT summary maternity note')) + '</th>';
     dates.forEach(dt => {
         const dobj = new Date(dt);
         head += '<th>' + ot_esc(dayNames[dobj.getDay()]) + '<br>' + ot_format_dm(dobj) + '</th>';
@@ -1268,40 +1283,28 @@ function show_ot_pivot_dialog(frm) {
         + '<div class="ot-pivot"><table><thead>' + head + '</thead><tbody>' + body + foot + '</tbody></table></div>'
     );
 
-    // Note column: maternity flags per employee, matched against the pivot's
-    // OT dates (pregnant phase / child under 12 months). Filled asynchronously;
-    // silently empty if the user cannot read Employee Maternity.
+    // Note column: employees who finish the shift early (pregnant / maternity leave /
+    // young child) on at least one of the pivot's OT dates — same rule as the
+    // pre-save check (server: get_ot_maternity_benefits). Filled asynchronously.
     frappe.xcall(
-        'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.get_maternity_flags',
-        { employees: Array.from(byEmployee.keys()) }
-    ).then(records => {
-        const flags_by_emp = {};
-        (records || []).forEach(r => {
-            const flags = flags_by_emp[r.employee] = flags_by_emp[r.employee] || { pregnant: false, young: false };
-            dates.forEach(dt => {
-                if (r.pregnant_from_date && r.pregnant_to_date
-                    && dt >= r.pregnant_from_date && dt <= r.pregnant_to_date) {
-                    flags.pregnant = true;
-                }
-                if (r.youg_child_from_date && r.youg_child_to_date
-                    && dt >= r.youg_child_from_date && dt <= r.youg_child_to_date) {
-                    flags.young = true;
-                }
-            });
-        });
+        'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.get_ot_maternity_benefits',
+        { employees: Array.from(byEmployee.keys()), dates: dates }
+    ).then(res => {
+        const by_emp = (res && res.employees) || {};
+        const early = __('Shift ends {0} hour(s) early', [ot_num(flt((res && res.hours) || 1))]);
+        const icons = {
+            'Pregnant': ['\u{1F930}', __('Pregnant')],
+            'Maternity Leave': ['\u{1F931}', __('Maternity Leave')],
+            'Young Child': ['\u{1F476}', __('Young child under 12 months')]
+        };
         dialog.$wrapper.find('.ot-pivot-note').each(function () {
-            const flags = flags_by_emp[$(this).attr('data-emp')];
-            if (!flags) return;
-            let html = '';
-            if (flags.pregnant) {
-                html += '<span title="' + ot_esc(__('Pregnant')) + '">\u{1F930}</span>';
-            }
-            if (flags.young) {
-                html += (html ? ' ' : '') + '<span title="' + ot_esc(__('Young child under 12 months')) + '">\u{1F476}</span>';
-            }
-            $(this).html(html);
+            const phases = by_emp[$(this).attr('data-emp')];
+            if (!phases) return;
+            $(this).html(phases.filter(p => icons[p]).map(p =>
+                '<span title="' + ot_esc(icons[p][1] + ' — ' + early) + '">' + icons[p][0] + '</span>'
+            ).join(' '));
         });
-    }).catch(() => { /* no read permission on Employee Maternity — leave notes empty */ });
+    }).catch(() => { /* API error — leave the notes empty, the table still works */ });
 }
 
 
@@ -1425,7 +1428,7 @@ function validate_single_post_shift_entry(frm) {
         frappe.msgprint({
             title: __('Warning'),
             message: __('Rows {0}: Employee {1} has {2} OT entries on {3}. Combine them into one continuous entry.',
-                [rows, employee_name, entries.length, date]),
+                [rows, employee_name, entries.length, frappe.datetime.str_to_user(date)]),
             indicator: 'orange'
         });
         frappe.validated = false;
@@ -1439,10 +1442,14 @@ function validate_single_post_shift_entry(frm) {
 
 
 function check_all_before_save(frm) {
-    const entries_to_check = (frm.doc.ot_employees || [])
-        .filter(d => d.employee && d.date && d.begin_time && d.end_time)
-        .map(d => ({
-            idx: d.idx,
+    // Results are matched back to the ROW OBJECTS captured here, never to the grid
+    // idx: Frappe renumbers idx when a row is removed (OTR-261112-0002, 12/11/2026 —
+    // an empty top row was removed asynchronously after this list was sent, every
+    // idx shifted by one and the 1-hour move landed on the wrong employee/day).
+    const rows_to_check = (frm.doc.ot_employees || [])
+        .filter(d => d.employee && d.date && d.begin_time && d.end_time);
+    const entries_to_check = rows_to_check.map((d, i) => ({
+            idx: i + 1,   // position key into rows_to_check — echoed back by the server
             employee: d.employee,
             employee_name: d.employee_name,
             date: d.date,
@@ -1465,9 +1472,16 @@ function check_all_before_save(frm) {
             'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.check_overtime_conflicts',
             { entries: entries_to_check, current_doc_name: frm.doc.name || 'new' }
         )
-    ]).then(([maternity_results, conflict_results]) => {
-        const has_maternity = maternity_results && maternity_results.length > 0;
-        const has_conflicts = conflict_results && conflict_results.length > 0;
+    ]).then(([maternity_raw, conflict_raw]) => {
+        // _row = the form row; idx = its CURRENT row number (for display)
+        const bind = list => (list || []).map(r => {
+            const row = rows_to_check[r.idx - 1];
+            return row ? Object.assign({}, r, { _row: row, idx: row.idx }) : null;
+        }).filter(Boolean);
+        const maternity_results = bind(maternity_raw);
+        const conflict_results = bind(conflict_raw);
+        const has_maternity = maternity_results.length > 0;
+        const has_conflicts = conflict_results.length > 0;
 
         if (!has_maternity && !has_conflicts) {
             frm.pre_save_check_done = true;
@@ -1475,130 +1489,432 @@ function check_all_before_save(frm) {
             return;
         }
 
-        const fields = [];
-
-        // --- Maternity section ---
-        if (has_maternity) {
-            const shift_end = maternity_results[0].shift_end;
-            const adjusted_shift_end = maternity_results[0].adjusted_shift_end;
-            const emp_list_html = maternity_results.map(emp => {
-                const emp_link = `<a href="/app/employee/${emp.employee}" target="_blank">${emp.employee}</a>`;
-                return `<li>${__('Row')} ${emp.idx}: <b>${emp.employee_name}</b> (${emp_link}) — ${emp.benefit_type}
-                 &nbsp;|&nbsp; ${__('Shift')}: ${emp.shift_type}
-                 &nbsp;|&nbsp; ${__('OT Date')}: ${frappe.datetime.str_to_user(emp.date)}</li>`;
-            }).join('');
-            fields.push({
-                fieldtype: 'HTML',
-                options: `<div style="margin-bottom:12px;">
-                    <p style="color:#856404;background:#fff3cd;padding:8px;border-radius:4px;">
-                        <b>⚠ ${__('Employees with maternity benefits')}</b>
-                    </p>
-                    <p>${__('The following employees start OT at {0} but are on maternity/childcare benefits:', ['<b>' + shift_end + '</b>'])}</p>
-                    <ul style="font-size:13px;">${emp_list_html}</ul>
-                    <p style="color:#6c757d;font-size:12px;">${__('Adjust time 1 hour earlier')}: ${shift_end} → ${adjusted_shift_end}</p>
-                </div>`
-            });
-            fields.push({
-                fieldtype: 'Check',
-                fieldname: 'adjust_maternity',
-                label: __('Adjust OT time 1 hour earlier for these employees'),
-                default: 1
-            });
-        }
-
-        // --- Conflicts section ---
-        if (has_conflicts) {
-            const rows_html = conflict_results.map(c => {
-                const date_str = frappe.datetime.str_to_user(c.date);
-                const emp_link = `<a href="/app/employee/${c.employee}" target="_blank">${c.employee}</a>`;
-                const doc_link = `<a href="/app/overtime-registration/${c.existing_doc}" target="_blank">${c.existing_doc}</a>`;
-                return `<tr>
-                    <td style="padding:4px 8px;">${__('Row')} ${c.idx}</td>
-                    <td style="padding:4px 8px;"><b>${c.employee_name}</b><br><small>${emp_link}</small></td>
-                    <td style="padding:4px 8px;">${date_str}</td>
-                    <td style="padding:4px 8px;">${c.current_from} – ${c.current_to}</td>
-                    <td style="padding:4px 8px;">${doc_link}, ${__('Row')} ${c.existing_idx}: ${c.existing_from} – ${c.existing_to}</td>
-                </tr>`;
-            }).join('');
-
-            if (has_maternity) {
-                fields.push({ fieldtype: 'HTML', options: '<hr style="margin:12px 0;">' });
-            }
-
-            fields.push({
-                fieldtype: 'HTML',
-                options: `<div style="margin-bottom:12px;">
-                    <p style="color:#721c24;background:#f8d7da;padding:8px;border-radius:4px;">
-                        <b>✗ ${__('Conflicts with approved OT')}</b>
-                    </p>
-                    <div style="overflow-x:auto;">
-                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                            <thead><tr style="background:#f5f5f5;">
-                                <th style="padding:4px 8px;text-align:left;">${__('Row')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Employee')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Date')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('OT Time')}</th>
-                                <th style="padding:4px 8px;text-align:left;">${__('Conflicts with')}</th>
-                            </tr></thead>
-                            <tbody>${rows_html}</tbody>
-                        </table>
-                    </div>
-                </div>`
-            });
-            fields.push({
-                fieldtype: 'Check',
-                fieldname: 'remove_conflicts',
-                label: __('Remove conflicting rows from this form'),
-                default: 1
-            });
-        }
-
-        const dialog = new frappe.ui.Dialog({
-            title: __('Pre-save check'),
-            fields: fields,
-            primary_action_label: __('Save'),
-            primary_action: function () {
-                dialog.hide();
-                if (has_maternity && dialog.get_value('adjust_maternity')) {
-                    adjust_maternity_employee_times(frm, maternity_results);
-                }
-                if (has_conflicts && dialog.get_value('remove_conflicts')) {
-                    const conflict_idxs = new Set(conflict_results.map(c => c.idx));
-                    frm.doc.ot_employees = frm.doc.ot_employees.filter(d => !conflict_idxs.has(d.idx));
-                    frm.refresh_field('ot_employees');
-                }
-                frm.pre_save_check_done = true;
-                frm.save();
-            },
-            secondary_action_label: __('Cancel'),
-            secondary_action: function () {
-                dialog.hide();
-                // User reviews manually, do not save
-            }
-        });
-
-        dialog.show();
-    }).catch(() => {
+        show_ot_precheck_dialog(frm, has_maternity ? maternity_results : [], has_conflicts ? conflict_results : []);
+    }).catch((e) => {
+        console.error('Pre-save check failed — saving without it', e);
         frm.pre_save_check_done = true;
         frm.save();
     });
 }
 
-// Adjust begin_time and end_time for employees with maternity benefits
-// (offset comes from server: Attendance Calculation Setting → hour_reduction_hours)
-function adjust_maternity_employee_times(frm, employees_to_adjust) {
-    // Create a map of idx to adjustment hours
-    const adjustment_map = new Map();
-    employees_to_adjust.forEach(emp => {
-        adjustment_map.set(emp.idx, emp.adjust_hours || 1);
+// ── Pre-save check dialog (thiết kế lại 12/11/2026) ─────────────────────────
+// Thai sản / con nhỏ: chọn cách lùi giờ tăng ca bằng 3 thẻ, mỗi thẻ có dải thời
+// gian minh hoạ (lấy dòng đầu làm ví dụ); bảng NV bên dưới đổi cột "Sau khi lưu"
+// theo lựa chọn. Mặc định 'start' = chỉ dời giờ bắt đầu (user chốt 12/11/2026).
+
+function ot_hm(minutes) {
+    const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+// OT of one flagged row after `mode` — minutes since midnight
+function ot_precheck_result(row, mode) {
+    const begin = ot_time_to_minutes(row.begin_time);
+    const end = ot_time_to_minutes(row.end_time);
+    const move = Math.round((row.adjust_hours || 1) * 60);
+    // Chỉ 2 cách (user chốt 12/11/2026): tăng ca PHẢI liền ngay giờ hết ca đã giảm
+    if (mode === 'both') return { begin: begin - move, end: end - move };
+    return { begin: begin - move, end: end };   // 'start'
+}
+
+// Dải thời gian: [giờ làm][tăng ca] với mốc giờ bên dưới
+function ot_precheck_timeline(row, mode) {
+    const r = ot_precheck_result(row, mode);
+    const work_end = ot_time_to_minutes(row.adjusted_shift_end);
+    const from = work_end - 60;
+    const to = Math.max(ot_time_to_minutes(row.end_time), r.end) + 30;
+    const pos = m => ((m - from) / (to - from) * 100).toFixed(2);
+    const seg = (a, b, cls) =>
+        `<span class="otp-seg ${cls}" style="left:${pos(a)}%;width:${(pos(b) - pos(a)).toFixed(2)}%"></span>`;
+    const tick = m => `<span class="otp-tick" style="left:${pos(m)}%">${ot_hm(m)}</span>`;
+
+    const bar = seg(from, work_end, 'otp-work') + seg(r.begin, r.end, 'otp-ot');
+    const ticks = [work_end, r.end];
+    return `<div class="otp-tl" aria-hidden="true"><div class="otp-bar">${bar}</div>
+        <div class="otp-ticks">${ticks.map(tick).join('')}</div></div>`;
+}
+
+function ensure_ot_precheck_styles() {
+    if (document.getElementById('ot-precheck-css')) return;
+    const style = document.createElement('style');
+    style.id = 'ot-precheck-css';
+    style.textContent = `
+.otp-modal {
+    --otp-accent: #b45309;
+    --otp-accent-text: #92400e;
+    --otp-wash: #fdf3e0;
+    --otp-wash-border: #ecd3a4;
+    --otp-work: #cbd5e1;
+    --otp-ot: #d97706;
+    --otp-danger: #dc2626;
+}
+html[data-theme="dark"] .otp-modal,
+html[data-theme-mode="dark"] .otp-modal {
+    --otp-accent: #f5b83d;
+    --otp-accent-text: #f7c96b;
+    --otp-wash: rgba(245, 184, 61, 0.12);
+    --otp-wash-border: rgba(245, 184, 61, 0.45);
+    --otp-work: rgba(255, 255, 255, 0.22);
+    --otp-ot: #f5a524;
+    --otp-danger: #f87171;
+}
+.otp-modal .modal-dialog { max-width: min(860px, calc(100vw - 24px)); }
+.otp { color: var(--text-color); font-size: 14px; }
+.otp-section + .otp-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+.otp-title { font-size: 16px; font-weight: 600; margin: 0 0 4px; display: flex; gap: 8px; align-items: baseline; }
+.otp-lead { color: var(--text-muted); margin: 0 0 14px; line-height: 1.45; }
+.otp-lead b { color: var(--text-color); }
+.otp-step { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin: 14px 0 8px; display: flex; gap: 8px; align-items: center; }
+.otp-step-no { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; align-items: center;
+    justify-content: center; background: var(--otp-accent); color: #fff; font-size: 11px; }
+html[data-theme="dark"] .otp-step-no, html[data-theme-mode="dark"] .otp-step-no { color: #1c1c1c; }
+.otp-example { font-size: 12px; color: var(--text-muted); margin: -2px 0 10px; }
+.otp-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.otp-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.otp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.otp-card { position: relative; display: block; margin: 0; cursor: pointer; border: 1.5px solid var(--border-color);
+    border-radius: 10px; padding: 12px 12px 10px; background: var(--card-bg, transparent); }
+.otp-card:hover { border-color: var(--otp-wash-border); }
+.otp-card input { position: absolute; opacity: 0; pointer-events: none; }
+.otp-card.selected { border-color: var(--otp-accent); background: var(--otp-wash); }
+.otp-card:focus-within { outline: 2px solid var(--otp-accent); outline-offset: 2px; }
+.otp-card-head { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; line-height: 1.3; }
+.otp-dot { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--text-muted); margin-top: 1px; }
+.otp-card.selected .otp-dot { border-color: var(--otp-accent); box-shadow: inset 0 0 0 3px var(--card-bg, #fff); background: var(--otp-accent); }
+.otp-tag { font-size: 11px; font-weight: 600; color: var(--otp-accent-text); background: var(--otp-wash);
+    border: 1px solid var(--otp-wash-border); border-radius: 999px; padding: 0 7px; margin-left: auto; white-space: nowrap; }
+.otp-tl { margin: 12px 2px 4px; }
+.otp-bar { position: relative; height: 16px; border-radius: 4px; background: transparent; }
+.otp-seg { position: absolute; top: 0; bottom: 0; }
+.otp-seg.otp-work { background: var(--otp-work); border-radius: 4px 0 0 4px; }
+.otp-seg.otp-ot { background: var(--otp-ot); border-radius: 0 4px 4px 0; }
+.otp-ticks { position: relative; height: 18px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.otp-tick { position: absolute; top: 3px; transform: translateX(-50%); white-space: nowrap; }
+.otp-result { margin-top: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.otp-note { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.35; }
+.otp-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; }
+.otp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.otp-table th { text-align: left; font-weight: 600; font-size: 12px; color: var(--text-muted);
+    background: var(--subtle-fg, transparent); padding: 6px 10px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.otp-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.otp-table tr:last-child td { border-bottom: 0; }
+.otp-table .otp-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.otp-table .otp-changed { font-weight: 600; color: var(--otp-accent-text); }
+.otp-badge { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: normal; }
+.otp-table td.otp-num { white-space: normal; }
+.otp-after { display: block; margin-top: 2px; }
+.otp-conflict-title { color: var(--otp-danger); }
+.otp-muted { color: var(--text-muted); font-size: 12px; }
+.otp-conflicts { display: flex; flex-direction: column; gap: 10px; }
+.otp-conflict { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; }
+.otp-conflict-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.otp-conflict-head .otp-muted { margin-left: 4px; }
+.otp-conflict-times { margin: 6px 0 8px; line-height: 1.5; }
+.otp-tag-duplicate, .otp-tag-covered { color: var(--otp-danger); border-color: currentColor; background: transparent; }
+.otp-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.otp-choice { position: relative; margin: 0; cursor: pointer; border: 1.5px solid var(--border-color);
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 500; }
+.otp-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.otp-choice.selected { border-color: var(--otp-accent); background: var(--otp-wash); color: var(--otp-accent-text); }
+.otp-choice:focus-within { outline: 2px solid var(--otp-accent); outline-offset: 2px; }
+@media (max-width: 575px) {
+    .otp-cards { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .otp-card { transition: border-color 0.12s ease, background-color 0.12s ease; }
+}
+`;
+    document.head.appendChild(style);
+}
+
+// Bước 1 trùng phiếu khác → bước 2 lùi giờ thai sản → lưu 1 lần (user chốt 12/11/2026).
+function show_ot_precheck_dialog(frm, maternity_rows, conflict_rows) {
+    ensure_ot_precheck_styles();
+    const total_steps = (conflict_rows.length ? 1 : 0) + (maternity_rows.length ? 1 : 0);
+    const save = () => {
+        frm.pre_save_check_done = true;
+        frm.save();
+    };
+    const open_maternity = () => {
+        // Re-read the rows after step 1: deleted rows drop out, a shortened row that no
+        // longer starts at the normal shift end needs no move, end times may have changed.
+        const rows = frm.doc.ot_employees || [];
+        const remaining = maternity_rows
+            .filter(m => rows.includes(m._row)
+                && ot_time_to_minutes(m._row.begin_time) === ot_time_to_minutes(m.shift_end))
+            .map(m => Object.assign({}, m, {
+                idx: m._row.idx, begin_time: m._row.begin_time, end_time: m._row.end_time
+            }));
+        if (!remaining.length) return save();
+        show_ot_maternity_step(frm, remaining, total_steps, save);
+    };
+    if (conflict_rows.length) {
+        show_ot_conflict_step(frm, conflict_rows, total_steps, maternity_rows.length > 0, open_maternity);
+    } else {
+        open_maternity();
+    }
+}
+
+function ot_precheck_title(step, total_steps) {
+    return total_steps > 1
+        ? __('Pre-save check') + ' · ' + __('Step {0} of {1}', [step, total_steps])
+        : __('Pre-save check');
+}
+
+function ot_precheck_dialog(title, html, primary_label, on_primary) {
+    const dialog = new frappe.ui.Dialog({
+        title: title,
+        size: 'large',
+        fields: [{ fieldtype: 'HTML', fieldname: 'body_html' }],
+        primary_action_label: primary_label,
+        primary_action: function () {
+            dialog.hide();
+            on_primary();
+        },
+        secondary_action_label: __('Back to edit'),
+        secondary_action: function () {
+            dialog.hide();   // user reviews manually, nothing saved
+        }
+    });
+    dialog.$wrapper.addClass('otp-modal');
+    const $body = dialog.get_field('body_html').$wrapper;
+    $body.html(html);
+    dialog.show();
+    return { dialog, $body };
+}
+
+// Phần của dòng này CHƯA nằm trong các dòng đã đăng ký ở phiếu khác (phút).
+// kind: 'duplicate' = trùng y hệt 1 dòng; 'covered' = bị phủ hết; 'trim' = còn phần trống.
+function ot_conflict_plan(from, to, existing) {
+    const exact = existing.some(([a, b]) => a === from && b === to);
+    let free = [[from, to]];
+    existing.forEach(([a, b]) => {
+        free = free.flatMap(([x, y]) => {
+            if (b <= x || a >= y) return [[x, y]];
+            const out = [];
+            if (a > x) out.push([x, a]);
+            if (b < y) out.push([b, y]);
+            return out;
+        });
+    });
+    if (exact) return { kind: 'duplicate', suggestion: null };
+    if (!free.length) return { kind: 'covered', suggestion: null };
+    // one row per employee/day in this form → keep the longest free part (earlier on a tie)
+    const best = free.reduce((p, c) => (c[1] - c[0] > p[1] - p[0] ? c : p));
+    return { kind: 'trim', suggestion: best };
+}
+
+function show_ot_conflict_step(frm, conflict_rows, total_steps, has_next, on_done) {
+    const span = (a, b) => ot_hm(a) + ' – ' + ot_hm(b);
+    const fmt_date = d => frappe.datetime.str_to_user(d);
+    const row_label = __('Row', null, 'OT row number');
+
+    // one group per row of this form (a row can overlap several rows elsewhere)
+    const groups = [];
+    conflict_rows.forEach(c => {
+        let g = groups.find(x => x.row === c._row);
+        if (!g) {
+            g = { row: c._row, info: c, others: [] };
+            groups.push(g);
+        }
+        g.others.push(c);
+    });
+    groups.forEach((g, i) => {
+        g.key = 'g' + i;
+        g.from = ot_time_to_minutes(g.info.current_from);
+        g.to = ot_time_to_minutes(g.info.current_to);
+        g.plan = ot_conflict_plan(g.from, g.to, g.others.map(o =>
+            [ot_time_to_minutes(o.existing_from), ot_time_to_minutes(o.existing_to)]));
+        g.action = g.plan.kind === 'trim' ? 'change' : 'delete';
     });
 
-    // Adjust times in child table
-    frm.doc.ot_employees.forEach(d => {
-        if (adjustment_map.has(d.idx)) {
-            const hours = adjustment_map.get(d.idx);
+    const kind_label = {
+        duplicate: __('Exact duplicate'),
+        covered: __('Already fully registered'),
+        trim: __('Partly overlaps')
+    };
+    const choice = (g, value, label) => `<label class="otp-choice${g.action === value ? ' selected' : ''}">
+        <input type="radio" name="otp-${g.key}" value="${value}" data-key="${g.key}"${g.action === value ? ' checked' : ''}>${label}</label>`;
+
+    const html = `<div class="otp"><div class="otp-section">
+        <p class="otp-title otp-conflict-title">${__('{0} row(s) overlap overtime already registered in another form', [groups.length])}</p>
+        <p class="otp-lead">${__('Exact duplicates are deleted by default. Overlapping rows are changed to the part that is not registered yet.')}</p>
+        <div class="otp-conflicts">${groups.map(g => `
+            <div class="otp-conflict">
+                <div class="otp-conflict-head">
+                    <span><b>${row_label} ${g.row.idx}</b> · <b>${ot_esc(g.info.employee_name || '')}</b>
+                        <span class="otp-muted">${ot_esc(g.info.employee)} · ${fmt_date(g.info.date)}</span></span>
+                    <span class="otp-tag otp-tag-${g.plan.kind}">${kind_label[g.plan.kind]}</span>
+                </div>
+                <div class="otp-conflict-times">
+                    <div>${__('This form')}: <b class="otp-num">${span(g.from, g.to)}</b></div>
+                    ${g.others.map(o => `<div class="otp-muted">${__('Already registered in {0}, row {1}: {2}', [
+                        `<a href="/app/overtime-registration/${encodeURIComponent(o.existing_doc)}" target="_blank">${ot_esc(o.existing_doc)}</a>`,
+                        o.existing_idx,
+                        '<span class="otp-num">' + span(ot_time_to_minutes(o.existing_from), ot_time_to_minutes(o.existing_to)) + '</span>'
+                    ])}</div>`).join('')}
+                </div>
+                <div class="otp-choices">
+                    ${g.plan.suggestion ? choice(g, 'change', __('Change to {0}', ['<b class="otp-num">' + span(g.plan.suggestion[0], g.plan.suggestion[1]) + '</b>'])) : ''}
+                    ${choice(g, 'delete', __('Delete this row'))}
+                    ${choice(g, 'keep', __('Keep as is'))}
+                </div>
+            </div>`).join('')}
+        </div>
+    </div></div>`;
+
+    const { $body } = ot_precheck_dialog(ot_precheck_title(1, total_steps), html,
+        has_next ? __('Continue') : __('Save'),
+        () => {
+            const hm = m => ot_hm(m) + ':00';
+            groups.forEach(g => {
+                if (g.action === 'delete') {
+                    frappe.model.clear_doc(g.row.doctype, g.row.name);   // renumbers idx synchronously
+                } else if (g.action === 'change' && g.plan.suggestion) {
+                    g.row.begin_time = hm(g.plan.suggestion[0]);
+                    g.row.end_time = hm(g.plan.suggestion[1]);
+                }
+            });
+            frm.refresh_field('ot_employees');
+            on_done();
+        });
+
+    $body.on('change', '.otp-choices input', function () {
+        const g = groups.find(x => x.key === $(this).attr('data-key'));
+        g.action = this.value;
+        $(this).closest('.otp-choices').find('.otp-choice').each(function () {
+            $(this).toggleClass('selected', $(this).find('input').val() === g.action);
+        });
+    });
+}
+
+function show_ot_maternity_step(frm, maternity_rows, total_steps, on_done) {
+    const state = { mode: 'start' };
+    const benefit_label = {
+        'Pregnant': '\u{1F930} ' + __('Pregnant'),
+        'Young Child': '\u{1F476} ' + __('Young Child'),
+        'Maternity Leave': '\u{1F931} ' + __('Maternity Leave')
+    };
+    const fmt_date = d => frappe.datetime.str_to_user(d);
+    const span = (a, b) => ot_hm(a) + ' – ' + ot_hm(b);
+    const hours = (a, b) => ot_num((b - a) / 60);
+
+    const ex = maternity_rows[0];
+    const move_h = ot_num(ex.adjust_hours || 1);
+    const same_shift = maternity_rows.every(r => r.shift_end === ex.shift_end);
+    const reduced_end_b = '<b>' + ot_esc(ex.adjusted_shift_end) + '</b>';
+    const shift_end_b = '<b>' + ot_esc(ex.shift_end) + '</b>';
+    const lead = same_shift
+        ? __('Their shift ends at {0} instead of {1}, so their overtime must start at {0}.', [reduced_end_b, shift_end_b])
+        : __('Their shift ends {0} hour(s) earlier, so their overtime must start right after it.', [move_h]);
+
+    const card = (mode, title, note, tag) => {
+        const r = ot_precheck_result(ex, mode);
+        return `<label class="otp-card${mode === state.mode ? ' selected' : ''}" data-mode="${mode}">
+            <input type="radio" name="otp-mode" value="${mode}"${mode === state.mode ? ' checked' : ''}>
+            <div class="otp-card-head"><span class="otp-dot"></span><span>${title}</span>${tag ? `<span class="otp-tag">${tag}</span>` : ''}</div>
+            ${ot_precheck_timeline(ex, mode)}
+            <div class="otp-result">${__('Overtime')} ${span(r.begin, r.end)} · ${__('{0} h', [hours(r.begin, r.end)])}</div>
+            <div class="otp-note">${note}</div>
+        </label>`;
+    };
+
+    const html = `<div class="otp"><div class="otp-section">
+        <p class="otp-title">${__('{0} employee(s) finish their shift {1} hour(s) early', [new Set(maternity_rows.map(r => r.employee)).size, move_h])}</p>
+        <p class="otp-lead">${__('Pregnant / young child')}: ${lead}</p>
+
+        <div class="otp-step"><span class="otp-step-no">1</span>${__('Choose how to move their overtime')}</div>
+        <div class="otp-example">${__('Illustration: row {0} — {1}, overtime entered {2}', [ex.idx, ot_esc(ex.employee_name || ex.employee), span(ot_time_to_minutes(ex.begin_time), ot_time_to_minutes(ex.end_time))])}</div>
+        <div class="otp-legend">
+            <span><i style="background:var(--otp-work)"></i>${__('Working hours')}</span>
+            <span><i style="background:var(--otp-ot)"></i>${__('Overtime')}</span>
+        </div>
+        <div class="otp-cards">
+            ${card('start', __('Move start time only'),
+                __('Goes home with the team. Overtime is {0} hour(s) longer.', [move_h]), __('Default'))}
+            ${card('both', __('Move start and end time'),
+                __('Same overtime hours. Goes home {0} hour(s) earlier.', [move_h]))}
+        </div>
+
+        <div class="otp-step"><span class="otp-step-no">2</span>${__('Check the result')}</div>
+        <div class="otp-table-wrap"><table class="otp-table">
+            <thead><tr>
+                <th>${__('Row', null, 'OT row number')}</th><th>${__('Employee')}</th><th>${__('Overtime')}</th>
+            </tr></thead>
+            <tbody>${maternity_rows.map((r, i) => {
+                const b = ot_time_to_minutes(r.begin_time), e = ot_time_to_minutes(r.end_time);
+                return `<tr>
+                    <td class="otp-num">${r.idx}</td>
+                    <td><b>${ot_esc(r.employee_name || '')}</b>
+                        <span class="otp-badge">${ot_esc(r.employee)} · ${benefit_label[r.benefit_status] || ot_esc(r.benefit_status || '')} · ${fmt_date(r.date)}</span></td>
+                    <td class="otp-num">
+                        <span class="otp-badge">${__('Entered')}: ${span(b, e)}</span>
+                        <span class="otp-after" data-i="${i}"></span>
+                    </td>
+                </tr>`;
+            }).join('')}</tbody>
+        </table></div>
+    </div></div>`;
+
+    const { $body } = ot_precheck_dialog(ot_precheck_title(total_steps, total_steps), html, __('Save'), () => {
+        // always one of the 2 modes — no "keep as entered" (user 12/11/2026)
+        adjust_maternity_employee_times(frm, maternity_rows, state.mode);
+        on_done();
+    });
+
+    const render_after = () => {
+        $body.find('.otp-card').each(function () {
+            $(this).toggleClass('selected', $(this).attr('data-mode') === state.mode);
+        });
+        maternity_rows.forEach((r, i) => {
+            const res = ot_precheck_result(r, state.mode);
+            $body.find(`.otp-after[data-i="${i}"]`)
+                .addClass('otp-changed')
+                .text(__('After saving') + ': ' + span(res.begin, res.end) + ' (' + __('{0} h', [hours(res.begin, res.end)]) + ')');
+        });
+    };
+    $body.on('change', 'input[name="otp-mode"]', function () {
+        state.mode = this.value;
+        render_after();
+    });
+    render_after();
+}
+
+// Adjust begin_time and end_time for employees with maternity benefits
+// (offset comes from server: Attendance Calculation Setting → hour_reduction_hours)
+// mode: 'both' = dời cả begin_time và end_time; 'start' = chỉ dời begin_time
+// employees_to_adjust: results bound to their form row (`_row`) by check_all_before_save
+function adjust_maternity_employee_times(frm, employees_to_adjust, mode) {
+    const rows = frm.doc.ot_employees || [];
+    const shifted = new Set();   // row names already moved — never move a row twice
+
+    employees_to_adjust.forEach(emp => {
+        const d = emp._row;
+        if (!d || !rows.includes(d) || shifted.has(d.name)) return;
+        const hours = emp.adjust_hours || 1;
+
+        if (mode === 'start') {
+            // Start only: the row now begins at the reduced shift end and still
+            // ends where it did, so a following row stays continuous with it.
             d.begin_time = subtract_hours(d.begin_time, hours);
-            d.end_time = subtract_hours(d.end_time, hours);
+            shifted.add(d.name);
+            return;
+        }
+
+        // Both: move the row, then every row of the same employee/date that
+        // chains on from it (begin = previous row's original end) — otherwise
+        // 17:00-18:00 + 18:00-19:00 became 16:00-17:00 + 18:00-19:00 and the
+        // server rejected the 1-hour gap.
+        let current = d;
+        while (current) {
+            const original_end = ot_time_to_minutes(current.end_time);
+            current.begin_time = subtract_hours(current.begin_time, hours);
+            current.end_time = subtract_hours(current.end_time, hours);
+            shifted.add(current.name);
+            current = rows.find(x => !shifted.has(x.name)
+                && x.employee === d.employee && x.date === d.date
+                && ot_time_to_minutes(x.begin_time) === original_end);
         }
     });
 
@@ -1606,7 +1922,9 @@ function adjust_maternity_employee_times(frm, employees_to_adjust) {
     frm.refresh_field('ot_employees');
 
     frappe.show_alert({
-        message: __('Adjusted OT time for {0} employee(s) with maternity benefits', [employees_to_adjust.length]),
+        // distinct employees, not rows (1 employee × 6 days used to read "6 employees")
+        message: __('Adjusted OT time for {0} employee(s) with maternity benefits',
+            [new Set(employees_to_adjust.map(e => e.employee)).size]),
         indicator: 'green'
     });
 }
@@ -1667,15 +1985,14 @@ function remove_empty_overtime_rows(frm, silent = false) {
         });
     }
 
-    // Remove rows in reverse order to avoid index issues
-    rows_to_remove.reverse().forEach(function (row_name) {
-        var row = frm.doc.ot_employees.find(r => r.name === row_name);
-        if (row) {
-            frm.get_field('ot_employees').grid.grid_rows_by_docname[row_name].remove();
-        }
+    // Synchronous removal: grid_row.remove() runs clear_doc later (run_serially),
+    // so idx was renumbered AFTER the pre-save check had read it (OTR-261112-0002).
+    rows_to_remove.forEach(function (row_name) {
+        frappe.model.clear_doc('Overtime Registration Detail', row_name);
     });
 
     if (rows_to_remove.length > 0) {
+        frm.dirty();
         frm.refresh_field('ot_employees');
 
         if (!silent) {
@@ -1818,6 +2135,22 @@ function render_ot_inline_pivot_button(frm) {
             .on('click', () => show_ot_pivot_dialog(frm))
             .insertAfter($w.find('button').first());
     }
+    // "Print" right after "View Summary Table" (user 12/11/2026): opens the standard
+    // print view with the default format (Overtime Registration V2). Hidden on a new,
+    // never-saved form — there is nothing to print yet.
+    if (!$w.find('.ot-inline-print').length) {
+        $('<button type="button" class="btn btn-default btn-sm ot-inline-print"></button>')
+            .text(__('Print', null, 'OT print form button'))
+            .on('click', () => {
+                if (frm.is_new() || frm.is_dirty()) {
+                    frappe.msgprint(__('Please save the form before printing.'));
+                    return;
+                }
+                frm.print_doc();
+            })
+            .insertAfter($w.find('.ot-inline-pivot'));
+    }
+    $w.find('.ot-inline-print').toggle(!frm.is_new());
 }
 
 // Help banner at the top of the form — only while the requester is composing

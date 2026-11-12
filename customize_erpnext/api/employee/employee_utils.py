@@ -2197,8 +2197,6 @@ def get_employee_maternity_phase(employee, attendance_date):
 	Thứ tự ưu tiên giữa các giai đoạn giữ nguyên: Maternity Leave → Young Child → Pregnant.
 	Hồ sơ mới hơn thắng nếu 2 hồ sơ cùng phủ ngày đó (dữ liệu chồng lấn).
 	"""
-	from frappe.utils import getdate
-
 	records = frappe.db.sql("""
 		SELECT name, pregnant_from_date, pregnant_to_date, estimated_due_date,
 		       maternity_from_date, maternity_to_date,
@@ -2208,6 +2206,18 @@ def get_employee_maternity_phase(employee, attendance_date):
 		WHERE employee = %(employee)s
 		ORDER BY pregnant_from_date DESC, creation DESC
 	""", {"employee": employee}, as_dict=True)
+
+	return pick_maternity_phase(records, attendance_date)
+
+
+def pick_maternity_phase(records, attendance_date):
+	"""Quy tắc chọn giai đoạn của get_employee_maternity_phase(), trên `records` đã nạp sẵn.
+
+	`records`: các hồ sơ Employee Maternity của MỘT NV, đủ cột như query ở trên, sắp
+	`pregnant_from_date DESC, creation DESC`. Tách riêng để nơi nạp hàng loạt (Overtime
+	Registration validate) dùng ĐÚNG quy tắc này thay vì tự viết lại.
+	"""
+	from frappe.utils import getdate
 
 	check_d = getdate(attendance_date)
 

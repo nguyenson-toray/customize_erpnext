@@ -244,47 +244,22 @@ class OvertimeRegistration(Document):
         for er in emp_rows:
             self._emp_default_shift_cache[er.name] = er.default_shift
 
-        # Batch load maternity records (cấu trúc mới: 1 record/employee)
+        # Batch load maternity records — one query for all employees, then the
+        # SAME phase rule as get_employee_maternity_phase (pick_maternity_phase),
+        # so server validate agrees with the pre-save dialog and the attendance
+        # engine. Same ORDER BY as get_employee_maternity_phase: the rule needs it.
         self._maternity_cache = {}
         if dates:
-            maternity_records = frappe.db.sql("""
-                SELECT employee,
-                       pregnant_from_date, pregnant_to_date, estimated_due_date,
-                       maternity_from_date, maternity_to_date,
-                       youg_child_from_date, youg_child_to_date,
-                       apply_hour_reduction
-                FROM `tabEmployee Maternity`
-                WHERE employee IN %(employees)s
-                  AND (
-                    (maternity_from_date IS NOT NULL AND maternity_from_date <= %(max_date)s
-                     AND maternity_to_date IS NOT NULL AND maternity_to_date >= %(min_date)s)
-                    OR (pregnant_from_date IS NOT NULL AND pregnant_from_date <= %(max_date)s
-                        AND COALESCE(pregnant_to_date, estimated_due_date) >= %(min_date)s)
-                    OR (youg_child_from_date IS NOT NULL AND youg_child_from_date <= %(max_date)s
-                        AND youg_child_to_date IS NOT NULL AND youg_child_to_date >= %(min_date)s)
-                  )
-            """, {"employees": list(employees), "min_date": min_date, "max_date": max_date}, as_dict=1)
+            from customize_erpnext.api.employee.employee_utils import pick_maternity_phase
 
-            from frappe.utils import getdate
+            records_by_emp = _load_maternity_records(employees)
             for emp, dt in employee_dates:
-                check_d = getdate(dt)
-                for rec in maternity_records:
-                    if rec.employee != emp:
-                        continue
-                    if rec.maternity_from_date and rec.maternity_to_date:
-                        if getdate(rec.maternity_from_date) <= check_d <= getdate(rec.maternity_to_date):
-                            self._maternity_cache[(emp, dt)] = (True, "Nghỉ thai sản", rec.maternity_from_date, rec.maternity_to_date)
-                            break
-                    if rec.youg_child_from_date and rec.youg_child_to_date:
-                        if getdate(rec.youg_child_from_date) <= check_d <= getdate(rec.youg_child_to_date):
-                            self._maternity_cache[(emp, dt)] = (True, "Nuôi con nhỏ", rec.youg_child_from_date, rec.youg_child_to_date)
-                            break
-                    if rec.pregnant_from_date:
-                        eff_to = rec.pregnant_to_date or rec.estimated_due_date
-                        if eff_to and getdate(rec.pregnant_from_date) <= check_d <= getdate(eff_to):
-                            if rec.apply_hour_reduction == 1:
-                                self._maternity_cache[(emp, dt)] = (True, "Mang thai", rec.pregnant_from_date, eff_to)
-                                break
+                records = records_by_emp.get(emp)
+                if not records:
+                    continue
+                status, has_benefit, em = pick_maternity_phase(records, dt)
+                if has_benefit:
+                    self._maternity_cache[(emp, dt)] = (True, status) + _maternity_phase_range(status, em)
 
     def _get_shift_type_cached(self, employee, date):
         """Get shift type using pre-loaded cache.
@@ -338,7 +313,7 @@ class OvertimeRegistration(Document):
 
             # Check if shift allows OT
             if not shift_config.get("allows_ot", True):
-                frappe.throw(_("Row #{0}: Ca {1} không được phép đăng ký tăng ca").format(d.idx, shift_type))
+                frappe.throw(_("Row #{0}: Shift {1} does not allow overtime").format(d.idx, shift_type))
 
             # Check if employee has maternity benefit (using batch-loaded cache)
             has_benefit, _type, _from, _to = self._check_maternity_cached(d.employee, d.date)
@@ -408,7 +383,7 @@ class OvertimeRegistration(Document):
                 prev_end = get_time(prev_entry.get("end_time"))
                 curr_begin = get_time(curr_entry.get("begin_time"))
                 if curr_begin != prev_end:
-                    frappe.throw(_("Row #{0}: Giờ tăng ca trước ca phải liên tục với OT trước đó (Row #{1} kết thúc lúc {2})").format(
+                    frappe.throw(_("Row #{0}: Pre-shift overtime must continue from the previous entry (row #{1} ends at {2})").format(
                         curr_entry.idx, prev_entry.idx, prev_end.strftime("%H:%M")
                     ))
 
@@ -419,7 +394,7 @@ class OvertimeRegistration(Document):
                 prev_end = get_time(prev_entry.get("end_time"))
                 curr_begin = get_time(curr_entry.get("begin_time"))
                 if curr_begin != prev_end:
-                    frappe.throw(_("Row #{0}: Giờ tăng ca sau ca phải liên tục với OT trước đó (Row #{1} kết thúc lúc {2})").format(
+                    frappe.throw(_("Row #{0}: Post-shift overtime must continue from the previous entry (row #{1} ends at {2})").format(
                         curr_entry.idx, prev_entry.idx, prev_end.strftime("%H:%M")
                     ))
 
@@ -432,13 +407,13 @@ class OvertimeRegistration(Document):
             # Debug what fields are actually available
             missing_fields = []
             if not d.employee:
-                missing_fields.append("Employee")
+                missing_fields.append(_("Employee"))
             if not d.date:
-                missing_fields.append("Date") 
+                missing_fields.append(_("Date"))
             if not d.get("begin_time"):
-                missing_fields.append("Begin Time")
+                missing_fields.append(_("Begin Time"))
             if not d.get("end_time"):
-                missing_fields.append("End Time")
+                missing_fields.append(_("End Time"))
                 
             if missing_fields:
                 frappe.throw(_("Row #{idx}: {fields} are required.").format(idx=d.idx, fields=", ".join(missing_fields)))
@@ -567,7 +542,7 @@ class OvertimeRegistration(Document):
                             existing_times = ", ".join([f"{e.get('from')}-{e.get('to')}" for e in same_zone_entries])
                             existing_docs = ", ".join([f'<a href="/app/overtime-registration/{e.get("parent")}" target="_blank">{e.get("parent")}</a>' for e in same_zone_entries])
 
-                            frappe.throw(_("Row {0}: OT {1}-{2} không liên tục với OT đã đăng ký ({3}). Xem: {4}").format(
+                            frappe.throw(_("Row {0}: Overtime {1}-{2} is not continuous with registered overtime ({3}). See: {4}").format(
                                 d.idx,
                                 from_time,
                                 to_time,
@@ -590,51 +565,61 @@ class OvertimeRegistration(Document):
 
 @frappe.whitelist()
 def check_overtime_conflicts(entries, current_doc_name="new"):
-    """
-    Server method to check conflicts with submitted overtime registrations
-    Called from JavaScript validation
+    """Rows of this form whose time overlaps the same employee/date in ANOTHER registration.
+
+    Feeds the "overlap with another form" part of the pre-save check dialog (soft check:
+    the dialog offers to remove the rows, the server never blocks — user chốt 12/11/2026,
+    option A). Compares with every registration that is not cancelled (docstatus < 2):
+    since 07/11/2026 the DocType is not submittable, so the former `docstatus = 1` filter
+    never matched and two Draft forms with the same employee/date saved silently
+    (TIQN-0057 16/11/2026, OTR-261112-0001 / -0002).
+    Deliberately NOT applied in validate(): the 18:00 MongoDB sync inserts through
+    validate and existing data already has overlaps between forms.
     """
     frappe.has_permission("Overtime Registration", "read", throw=True)
-    import json
     if isinstance(entries, str):
-        entries = json.loads(entries)
-    
-    conflicts = []
-    
-    for entry in entries:
-        # Query for existing overtime registrations for same employee and date
-        existing_entries = frappe.db.sql("""
-            SELECT child.parent, child.idx, child.begin_time as `from`, child.end_time as `to`, child.employee_name, child.date
-            FROM `tabOvertime Registration Detail` as child
-            JOIN `tabOvertime Registration` as parent ON child.parent = parent.name
-            WHERE child.employee = %(employee)s
-            AND child.date = %(date)s
-            AND parent.name != %(current_doc_name)s
-            AND parent.docstatus = 1
-            AND IFNULL(parent.workflow_state, '') != 'Rejected'
-            ORDER BY child.begin_time
-        """, {
-            "employee": entry["employee"],
-            "date": entry["date"],
-            "current_doc_name": current_doc_name
-        }, as_dict=1)
+        entries = frappe.parse_json(entries)
+    entries = [e for e in (entries or []) if e.get("employee") and e.get("date")]
+    if not entries:
+        return []
 
-        # Check for overlaps
-        for existing in existing_entries:
+    existing_rows = frappe.db.sql("""
+        SELECT child.parent, child.idx, child.employee, child.date,
+               child.begin_time AS `from`, child.end_time AS `to`
+        FROM `tabOvertime Registration Detail` AS child
+        JOIN `tabOvertime Registration` AS parent ON child.parent = parent.name
+        WHERE child.employee IN %(employees)s
+          AND child.date IN %(dates)s
+          AND parent.name != %(current_doc_name)s
+          AND parent.docstatus < 2
+          AND IFNULL(parent.workflow_state, '') != 'Rejected'
+        ORDER BY child.begin_time
+    """, {
+        "employees": list({e["employee"] for e in entries}),
+        "dates": list({str(e["date"]) for e in entries}),
+        "current_doc_name": current_doc_name or "new",
+    }, as_dict=1)
+
+    by_key = {}
+    for r in existing_rows:
+        by_key.setdefault((r.employee, str(r.date)), []).append(r)
+
+    conflicts = []
+    for entry in entries:
+        for existing in by_key.get((entry["employee"], str(entry["date"])), []):
             if times_overlap(entry["begin_time"], entry["end_time"], existing["from"], existing["to"]):
                 conflicts.append({
-                    "idx": entry["idx"],
+                    "idx": entry.get("idx"),
                     "employee": entry["employee"],
-                    "employee_name": entry["employee_name"],
+                    "employee_name": entry.get("employee_name"),
                     "date": entry["date"],
                     "current_from": entry["begin_time"],
                     "current_to": entry["end_time"],
-                    "existing_from": existing["from"],
-                    "existing_to": existing["to"],
+                    "existing_from": str(existing["from"]),
+                    "existing_to": str(existing["to"]),
                     "existing_doc": existing["parent"],
-                    "existing_idx": existing["idx"]
+                    "existing_idx": existing["idx"],
                 })
-    
     return conflicts
 
 def times_overlap(from1, to1, from2, to2):
@@ -659,11 +644,40 @@ def times_overlap(from1, to1, from2, to2):
         frappe.log_error(f"times_overlap error: {e}", "OT Time Overlap Check")
         return False
 
+def _maternity_phase_range(status, em):
+    """(from_date, to_date) of the phase `status` on Employee Maternity record `em`."""
+    if status == "Maternity Leave":
+        return em.maternity_from_date, em.maternity_to_date
+    if status == "Young Child":
+        return em.youg_child_from_date, em.youg_child_to_date
+    return em.pregnant_from_date, em.pregnant_to_date or em.estimated_due_date
+
+
+def _load_maternity_records(employees):
+    """{employee: [Employee Maternity rows]} in the order pick_maternity_phase() needs
+    (same columns / ORDER BY as get_employee_maternity_phase)."""
+    rows = frappe.db.sql("""
+        SELECT name, employee,
+               pregnant_from_date, pregnant_to_date, estimated_due_date,
+               maternity_from_date, maternity_to_date,
+               youg_child_from_date, youg_child_to_date,
+               apply_hour_reduction
+        FROM `tabEmployee Maternity`
+        WHERE employee IN %(employees)s
+        ORDER BY pregnant_from_date DESC, creation DESC
+    """, {"employees": list(employees)}, as_dict=1)
+    by_emp = {}
+    for rec in rows:
+        by_emp.setdefault(rec.employee, []).append(rec)
+    return by_emp
+
+
 def check_maternity_benefit(employee, date):
     """Check if employee has maternity benefit on given date.
-    Returns: (has_benefit, benefit_type_vi, from_date, to_date)
+    Returns: (has_benefit, status, from_date, to_date) — status is the English
+    phase key ("Pregnant" / "Young Child" / "Maternity Leave"); the client
+    translates it.
     Delegates benefit logic to get_employee_maternity_phase (employee_utils).
-    Fetches date ranges only when a benefit is confirmed.
     """
     from customize_erpnext.api.employee.employee_utils import get_employee_maternity_phase
 
@@ -673,20 +687,7 @@ def check_maternity_benefit(employee, date):
     if not has_benefit:
         return False, None, None, None
 
-    label_map = {
-        "Maternity Leave": "Nghỉ thai sản",
-        "Young Child": "Nuôi con nhỏ",
-        "Pregnant": "Mang thai",
-    }
-    vi_label = label_map.get(status)
-
-    if status == "Maternity Leave":
-        return True, vi_label, em.maternity_from_date, em.maternity_to_date
-    elif status == "Young Child":
-        return True, vi_label, em.youg_child_from_date, em.youg_child_to_date
-    else:  # Pregnant
-        eff_to = em.pregnant_to_date or em.estimated_due_date
-        return True, vi_label, em.pregnant_from_date, eff_to
+    return (True, status) + _maternity_phase_range(status, em)
 
 def get_shift_type(employee, date):
     """Get shift type for employee on date.
@@ -841,14 +842,14 @@ def validate_ot_continuity_with_shift(begin_time, end_time, shift_config, has_ma
 
         # Invalid in strict mode
         if has_maternity:
-            return False, _("Giờ tăng ca phải bắt đầu ngay sau ca ({0}), trong giờ nghỉ trưa ({1}-{2}), kết thúc đúng lúc bắt đầu ca ({3}), hoặc liên tục với OT khác").format(
+            return False, _("Overtime must start right after the shift ({0}), fall within the lunch break ({1}-{2}), end exactly when the shift starts ({3}), or continue another overtime entry").format(
                 maternity_shift_end.strftime("%H:%M"),
                 break_start.strftime("%H:%M"),
                 break_end.strftime("%H:%M"),
                 shift_start.strftime("%H:%M")
             )
         else:
-            return False, _("Giờ tăng ca phải bắt đầu ngay sau ca ({0}), trong giờ nghỉ trưa ({1}-{2}), kết thúc đúng lúc bắt đầu ca ({3}), hoặc liên tục với OT khác").format(
+            return False, _("Overtime must start right after the shift ({0}), fall within the lunch break ({1}-{2}), end exactly when the shift starts ({3}), or continue another overtime entry").format(
                 shift_end.strftime("%H:%M"),
                 break_start.strftime("%H:%M"),
                 break_end.strftime("%H:%M"),
@@ -928,7 +929,7 @@ def check_employees_with_maternity_benefits(entries):
             continue
 
         # Check for maternity benefit
-        has_benefit, benefit_type, from_date, to_date = check_maternity_benefit(employee, date)
+        has_benefit, benefit_status, from_date, to_date = check_maternity_benefit(employee, date)
 
         if has_benefit:
             # Get employee name
@@ -949,7 +950,7 @@ def check_employees_with_maternity_benefits(entries):
                 "date": date,
                 "begin_time": entry.get("begin_time"),
                 "end_time": entry.get("end_time"),
-                "benefit_type": benefit_type,
+                "benefit_status": benefit_status,  # English key; JS translates
                 "from_date": from_date_str,
                 "to_date": to_date_str,
                 "shift_type": shift_type,
@@ -1018,7 +1019,7 @@ def validate_ot_entries_continuity(entries, strict_mode=False):
                 "begin_time": begin_time,
                 "end_time": end_time,
                 "shift_type": shift_type,
-                "error": _("Ca {0} không được phép đăng ký tăng ca").format(shift_type)
+                "error": _("Shift {0} does not allow overtime").format(shift_type)
             })
             continue
 
@@ -1050,32 +1051,35 @@ def validate_ot_entries_continuity(entries, strict_mode=False):
     return errors
 
 @frappe.whitelist()
-def get_maternity_flags(employees):
-	"""Return maternity/childcare date ranges for the given employees.
+def get_ot_maternity_benefits(employees, dates):
+	"""Note column of the OT summary table: who finishes the shift early on the OT dates.
 
-	Whitelisted so staff filling in an Overtime Registration can see the pivot's
-	maternity note column without holding read permission on Employee Maternity.
-	The client-side `frappe.client.get_list` used previously raised
-	"Insufficient Permission for Employee Maternity" for non-admin users.
-	Uses frappe.get_all (no per-doc permission check) and exposes only the few
-	date fields the pivot needs.
+	Same rule as the pre-save check (pick_maternity_phase): a phase is listed only when
+	the employee actually gets the hour reduction on at least one of `dates` — e.g. a
+	pregnant employee without "apply hour reduction" gets no icon. Replaces
+	get_maternity_flags (12/11/2026), which flagged the whole pregnancy date range.
+	Like get_ot_blocked_employees: no read permission on Employee Maternity needed —
+	only employee IDs and phase names are returned.
+
+	Returns {"hours": <hour reduction>, "employees": {employee: [phase, ...]}}.
 	"""
-	if isinstance(employees, str):
-		employees = frappe.parse_json(employees)
-	if not employees:
-		return []
+	from customize_erpnext.api.employee.employee_utils import pick_maternity_phase
 
-	return frappe.get_all(
-		"Employee Maternity",
-		filters={"employee": ["in", employees]},
-		fields=[
-			"employee",
-			"pregnant_from_date",
-			"pregnant_to_date",
-			"youg_child_from_date",
-			"youg_child_to_date",
-		],
-	)
+	employees = frappe.parse_json(employees) if isinstance(employees, str) else employees
+	dates = frappe.parse_json(dates) if isinstance(dates, str) else dates
+	result = {"hours": get_hour_reduction_hours(), "employees": {}}
+	if not employees or not dates:
+		return result
+
+	for emp, records in _load_maternity_records(employees).items():
+		phases = []
+		for dt in dates:
+			status, has_benefit, _rec = pick_maternity_phase(records, dt)
+			if has_benefit and status not in phases:
+				phases.append(status)
+		if phases:
+			result["employees"][emp] = phases
+	return result
 
 
 @frappe.whitelist()
@@ -1085,7 +1089,7 @@ def get_ot_blocked_employees(employees):
 	Maternity (job 00:10 + mỗi lần lưu giữ chúng cập nhật theo hôm nay), không tính theo ngày:
 	  - status = "Maternity Leave"                          → "Maternity Leave"
 	  - status = "Pregnant" và overtime_status = "Not Allowed" → "Pregnant"
-	Như `get_maternity_flags`: không cần quyền đọc Employee Maternity, chỉ trả mã NV + lý do.
+	Như `get_ot_maternity_benefits`: không cần quyền đọc Employee Maternity, chỉ trả mã NV + lý do.
 	"""
 	if isinstance(employees, str):
 		employees = frappe.parse_json(employees)

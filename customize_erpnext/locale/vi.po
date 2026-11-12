@@ -196,7 +196,7 @@ msgstr "Điều chỉnh giờ sớm hơn 1 giờ"
 
 #. source: tiqn
 msgid "Adjusted OT time for {0} employee(s) with maternity benefits"
-msgstr "Đã điều chỉnh giờ tăng ca cho {0} nhân viên có chế độ thai sản"
+msgstr "Đã lùi giờ tăng ca cho {0} nhân viên được hết ca sớm"
 
 #. source: tiqn
 msgid "Adjustment"
@@ -5218,7 +5218,7 @@ msgstr "Bỏ toàn bộ {0} nhân viên đã chọn?"
 
 #. source: tiqn
 msgid "Remove conflicting rows from this form"
-msgstr "Xóa các dòng bị trùng khỏi form này"
+msgstr "Xóa các dòng bị trùng khỏi phiếu này"
 
 #. source: tiqn
 msgid "Remove this section"
@@ -89956,3 +89956,203 @@ msgstr "Chat qua Zalo PC"
 #. source: tiqn
 msgid "Opens Zalo PC (must be installed and signed in)."
 msgstr "Mở Zalo PC (máy phải cài và đăng nhập Zalo)."
+
+#. source: tiqn
+msgid "Pregnant from 7th month"
+msgstr "Mang thai từ tháng thứ 7"
+
+#. source: tiqn
+msgid "{0} employee(s) hidden: maternity leave / pregnant from 7th month"
+msgstr "Đã ẩn {0} nhân viên: đang nghỉ thai sản / mang thai từ tháng thứ 7"
+
+#. source: tiqn
+msgid "No employees available for overtime."
+msgstr "Không có nhân viên nào được đăng ký tăng ca."
+
+#. source: tiqn
+msgid "Could not check maternity status — pregnant / maternity leave employees are not filtered"
+msgstr "Không kiểm tra được thông tin thai sản — chưa ẩn được nhân viên mang thai / nghỉ thai sản"
+
+#. source: tiqn
+msgctxt "OT summary row number"
+msgid "No."
+msgstr "STT"
+
+#. source: tiqn
+msgctxt "OT summary maternity note"
+msgid "Note"
+msgstr "Ghi chú"
+
+#. source: tiqn
+msgctxt "OT row number"
+msgid "Row"
+msgstr "Dòng"
+
+#. source: tiqn
+msgid "Shift ends {0} hour(s) early"
+msgstr "Hết ca sớm {0} giờ"
+
+#. source: tiqn
+msgid "Their shift ends at {0} instead of {1}, so their overtime must start at {0}."
+msgstr "Hết ca lúc {0} thay vì {1}, nên giờ tăng ca phải bắt đầu từ {0}."
+
+#. source: tiqn
+msgid "Their shift ends {0} hour(s) earlier, so their overtime must start right after it."
+msgstr "Hết ca sớm hơn {0} giờ, nên giờ tăng ca phải bắt đầu ngay sau giờ hết ca."
+
+#. source: tiqn
+msgid "{0} employee(s) finish their shift {1} hour(s) early"
+msgstr "{0} nhân viên được hết ca sớm {1} giờ"
+
+#. source: tiqn
+msgid "Pregnant / young child"
+msgstr "Mang thai / nuôi con nhỏ"
+
+#. source: tiqn
+msgid "Choose how to move their overtime"
+msgstr "Chọn cách lùi giờ tăng ca"
+
+#. source: tiqn
+msgid "Illustration: row {0} — {1}, overtime entered {2}"
+msgstr "Minh hoạ: dòng {0} — {1}, tăng ca đang nhập {2}"
+
+#. source: tiqn
+msgid "Working hours"
+msgstr "Giờ làm"
+
+#. source: tiqn
+msgid "Move start time only"
+msgstr "Chỉ lùi giờ bắt đầu"
+
+#. source: tiqn
+msgid "Goes home with the team. Overtime is {0} hour(s) longer."
+msgstr "Về cùng tổ. Tăng ca nhiều hơn {0} giờ."
+
+#. source: tiqn
+msgid "Move start and end time"
+msgstr "Lùi cả giờ bắt đầu và giờ kết thúc"
+
+#. source: tiqn
+msgid "Same overtime hours. Goes home {0} hour(s) earlier."
+msgstr "Số giờ tăng ca không đổi. Về sớm hơn tổ {0} giờ."
+
+#. source: tiqn
+msgid "Check the result"
+msgstr "Kiểm tra kết quả"
+
+#. source: tiqn
+msgid "Entered"
+msgstr "Đang nhập"
+
+#. source: tiqn
+msgid "After saving"
+msgstr "Sau khi lưu"
+
+#. source: tiqn
+msgid "{0} row(s) overlap overtime already registered in another form"
+msgstr "{0} dòng trùng giờ với tăng ca đã đăng ký ở phiếu khác"
+
+#. source: tiqn
+msgid "Back to edit"
+msgstr "Quay lại sửa"
+
+#. source: tiqn
+msgid "Correct or cancel"
+msgstr "Sửa hoặc hủy phiếu"
+
+#. source: tiqn
+msgid "Saving completes the registration. To correct it, open the request, edit it and click <b>Save</b>. To cancel it, open the request and click <b>…</b>, then <b>Delete</b> (if you have permission)."
+msgstr "Bấm <b>Save</b> (Lưu) là hoàn tất đăng ký. Muốn sửa: mở phiếu, sửa rồi bấm <b>Save</b> (Lưu). Muốn hủy: mở phiếu, bấm <b>…</b> rồi chọn <b>Delete</b> (Xóa), nếu có quyền."
+
+#. source: tiqn
+msgid "No approver found for {0}. Ask HR to set a Leave Approver for the employee's department."
+msgstr "Không tìm thấy người duyệt cho {0}. Liên hệ phòng Nhân sự để cài người duyệt (Leave Approver) cho bộ phận của nhân viên."
+
+#. source: tiqn
+msgid "Missing Approver"
+msgstr "Thiếu người duyệt"
+
+#. source: tiqn
+msgid "Row #{0}: Shift {1} does not allow overtime"
+msgstr "Dòng #{0}: Ca {1} không được đăng ký tăng ca"
+
+#. source: tiqn
+msgid "Row #{0}: {1}"
+msgstr "Dòng #{0}: {1}"
+
+#. source: tiqn
+msgid "Row #{0}: Pre-shift overtime must continue from the previous entry (row #{1} ends at {2})"
+msgstr "Dòng #{0}: Giờ tăng ca trước ca phải nối liền với dòng trước (dòng #{1} kết thúc lúc {2})"
+
+#. source: tiqn
+msgid "Row #{0}: Post-shift overtime must continue from the previous entry (row #{1} ends at {2})"
+msgstr "Dòng #{0}: Giờ tăng ca sau ca phải nối liền với dòng trước (dòng #{1} kết thúc lúc {2})"
+
+#. source: tiqn
+msgid "Row #{idx}: {fields} are required."
+msgstr "Dòng #{idx}: chưa nhập {fields}."
+
+#. source: tiqn
+msgid "Row {0}: Employee {1} already has overtime on {2} ({3}-{4}). Conflicts with {5}, Row {6}: {7}-{8}"
+msgstr "Dòng {0}: Nhân viên {1} đã có tăng ca ngày {2} ({3}-{4}). Trùng với phiếu {5}, dòng {6}: {7}-{8}"
+
+#. source: tiqn
+msgid "Row {0}: Overtime {1}-{2} is not continuous with registered overtime ({3}). See: {4}"
+msgstr "Dòng {0}: Tăng ca {1}-{2} không nối liền với tăng ca đã đăng ký ({3}). Xem: {4}"
+
+#. source: tiqn
+msgid "Overtime must start right after the shift ({0}), fall within the lunch break ({1}-{2}), end exactly when the shift starts ({3}), or continue another overtime entry"
+msgstr "Giờ tăng ca phải bắt đầu ngay sau ca ({0}), nằm trong giờ nghỉ trưa ({1}-{2}), kết thúc đúng lúc bắt đầu ca ({3}), hoặc nối liền với dòng tăng ca khác"
+
+#. source: tiqn
+msgid "Shift {0} does not allow overtime"
+msgstr "Ca {0} không được đăng ký tăng ca"
+
+#. source: tiqn
+msgid "Step {0} of {1}"
+msgstr "Bước {0}/{1}"
+
+#. source: tiqn
+msgid "Exact duplicate"
+msgstr "Trùng hoàn toàn"
+
+#. source: tiqn
+msgid "Already fully registered"
+msgstr "Đã đăng ký đủ giờ"
+
+#. source: tiqn
+msgid "Partly overlaps"
+msgstr "Trùng một phần"
+
+#. source: tiqn
+msgid "Exact duplicates are deleted by default. Overlapping rows are changed to the part that is not registered yet."
+msgstr "Dòng trùng hoàn toàn được đề xuất xóa. Dòng trùng một phần được đề xuất sửa giờ, chỉ giữ phần chưa đăng ký."
+
+#. source: tiqn
+msgid "This form"
+msgstr "Phiếu này"
+
+#. source: tiqn
+msgid "Already registered in {0}, row {1}: {2}"
+msgstr "Đã đăng ký ở {0}, dòng {1}: {2}"
+
+#. source: tiqn
+msgid "Change to {0}"
+msgstr "Sửa thành {0}"
+
+#. source: tiqn
+msgid "Delete this row"
+msgstr "Xóa dòng này"
+
+#. source: tiqn
+msgid "Keep as is"
+msgstr "Giữ nguyên"
+
+#. source: tiqn
+msgctxt "OT print form button"
+msgid "Print"
+msgstr "In phiếu"
+
+#. source: tiqn
+msgid "Please save the form before printing."
+msgstr "Vui lòng lưu phiếu trước khi in."

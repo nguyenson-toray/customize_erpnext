@@ -78,7 +78,7 @@ Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`
 └───────────────────────────────────────────────────────────────┘
 ```
 
-- **Cột trái (kế hoạch)**: Group (Link) → Week (segmented 3 tuần, kèm khoảng ngày) →
+- **Cột trái (kế hoạch)**: Group (Link) → Week (segmented 3 tuần, kèm khoảng ngày; mặc định **Tuần +1** — `OT_DEFAULT_WEEK_OFFSET`, user chốt 12/11/2026) →
   Day tiles (ô kiểu tờ lịch: thứ + số ngày, chấm đánh dấu hôm nay, nút "Select All") →
   Begin/End Time (nằm cạnh nhau) → Reason (bắt buộc).
 - **Cột phải (nhân viên)**: chọn Group là roster **tự tải ngay** (không cần dialog thứ 2);
@@ -123,25 +123,51 @@ phiên. **Quy tắc**: hàm global mới trong file này phải có prefix `ot_`
 
 ## View Summary Table (Xem bảng tổng hợp)
 
+Nút **In phiếu** (`.ot-inline-print`, ngay sau "Xem bảng tổng hợp", user thêm 12/11/2026): `frm.print_doc()` →
+trang in chuẩn với mẫu mặc định (Overtime Registration V2). Ẩn khi phiếu mới chưa lưu; phiếu có sửa
+chưa lưu → báo "Vui lòng lưu phiếu trước khi in."
+
 Inner button **View Summary Table (Xem bảng tổng hợp)** mở bảng chỉ-đọc từ bảng con hiện tại (kể cả dòng chưa lưu):
 
 - Cột: `No.` (sticky, 40px) | `Employee` (sticky) | `Group` | `Note` | các ngày (thứ + dd/MM) | `Total (h)`.
 - Ô = khung giờ `HH:MM-HH:MM` (nhiều dòng cùng ngày thì xếp chồng, hover hiện lý do); ô trống = "–".
 - Tổng 3 chiều: theo NV (cột cuối), theo ngày (dòng cuối, sticky bottom), tổng cả phiếu.
-- **Note**: icon thai sản tải async từ Employee Maternity, đối chiếu các ngày OT với khoảng
-  ngày từng pha — 🤰 = trong `pregnant_from/to_date`, 👶 = trong `youg_child_from/to_date`
-  (con < 12 tháng; fieldname thật có typo "youg"). Không có quyền đọc → cột trống, không báo lỗi.
+- **Note**: icon NV được **hết ca sớm** (giảm giờ) vào ít nhất 1 ngày OT trong bảng — 🤰 Mang thai,
+  🤱 Nghỉ thai sản, 👶 Con nhỏ; tooltip "… — Hết ca sớm N giờ". API `get_ot_maternity_benefits`
+  (cùng quy tắc `pick_maternity_phase` với hộp thoại kiểm tra trước khi lưu; mang thai không tick
+  giảm giờ → không icon). Tải async; lỗi → cột trống, không báo lỗi.
 
 ## Luồng lưu (before_save)
 
-1. `before_save` → nếu chưa check: chặn save, gọi `check_all_before_save(frm)`.
-2. Gọi song song 2 API server:
-   - `check_employees_with_maternity_benefits` — NV mang thai/nuôi con nhỏ bắt đầu OT
-     đúng giờ tan ca → đề nghị lùi giờ sớm hơn (`adjust_hours` từ Attendance Calculation Setting).
-   - `check_overtime_conflicts` — trùng với OT đã submit ở phiếu khác.
-3. Có kết quả → mở dialog "Kiểm tra trước khi lưu" với 2 checkbox:
-   điều chỉnh giờ thai sản / xóa dòng trùng → rồi `frm.save()`.
+1. `before_save`: nếu `validate` đã báo lỗi (`frappe.validated === false`) → dừng, KHÔNG mở
+   hộp thoại kiểm tra. Nếu chưa check → chặn save, gọi `check_all_before_save(frm)`.
+   Cờ `pre_save_check_done` dùng 1 lần: vào `before_save` là đặt lại false, nên server báo lỗi
+   thì lần lưu sau vẫn kiểm tra lại.
+2. Gọi song song 2 API server (gửi `idx` = vị trí trong danh sách gửi đi, KHÔNG phải idx của
+   lưới — kết quả được gắn lại vào đúng đối tượng dòng `_row`, vì Frappe đánh số lại idx khi
+   xoá dòng; lỗi lệch dòng OTR-261112-0002 ngày 12/11/2026):
+   - `check_employees_with_maternity_benefits` — NV được hết ca sớm (mang thai có tick giảm
+     giờ / nghỉ thai sản / con nhỏ) mà dòng OT bắt đầu đúng giờ hết ca bình thường.
+   - `check_overtime_conflicts` — dòng trùng giờ (cùng NV, cùng ngày) với phiếu KHÁC chưa xoá
+     (`docstatus < 2`, kể cả Draft; user chốt 12/11/2026 phương án A). Chỉ là kiểm tra mềm trong
+     hộp thoại (ô "Xóa các dòng bị trùng khỏi phiếu này" tick sẵn); `validate()` của server KHÔNG
+     chặn vì job Mongo 18:00 insert qua validate và dữ liệu cũ đã có dòng trùng giữa phiếu.
+3. Có kết quả → hộp thoại **Kiểm tra trước khi lưu**, tối đa 2 bước, phiếu chỉ lưu 1 lần
+   (`show_ot_precheck_dialog`; user chốt 12/11/2026):
+   - **Bước 1 – trùng phiếu khác** (`show_ot_conflict_step`, chỉ khi có): mỗi dòng 1 thẻ, phân loại
+     bằng `ot_conflict_plan` (lấy phần giờ CHƯA nằm trong các dòng đã đăng ký):
+     *Trùng hoàn toàn* / *Đã đăng ký đủ giờ* → mặc định **Xóa dòng này**; *Trùng một phần* →
+     mặc định **Sửa thành** phần còn trống (nhiều mảnh thì giữ mảnh dài nhất). Luôn có **Giữ nguyên**.
+     Nút **Tiếp tục** (còn bước 2) hoặc **Lưu**.
+   - **Bước 2 – lùi giờ thai sản** (`show_ot_maternity_step`): chỉ các dòng còn lại sau bước 1 và
+     vẫn bắt đầu đúng giờ hết ca bình thường. 2 thẻ có dải thời gian minh hoạ: **Chỉ lùi giờ bắt
+     đầu** (mặc định, 17:00–19:00 → 16:00–19:00) / **Lùi cả giờ bắt đầu và giờ kết thúc**
+     (→ 16:00–18:00). Không có "giữ nguyên": NV này luôn hết ca sớm. Bảng Dòng | Nhân viên |
+     "Đang nhập" → "Sau khi lưu".
+   - Mỗi bước có nút **Quay lại sửa** (đóng, không lưu).
 4. Không có gì → save thẳng. Lỗi server → vẫn cho save (không chặn người dùng).
+5. Dòng trống được xoá **đồng bộ** trong `validate` (`frappe.model.clear_doc`), không dùng
+   `grid_row.remove()` (chạy trễ, đánh số lại idx sau khi bước 2 đã đọc).
 
 ## Các hàm xác thực client (event `validate`)
 
