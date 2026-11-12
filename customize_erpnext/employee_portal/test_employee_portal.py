@@ -40,6 +40,27 @@ frappe.db.commit = lambda *a, **k: None
 frappe.flags.in_test = True
 
 
+def _remove_run_files():
+	"""The final rollback drops the File rows but not what File.insert wrote to disk - every
+	upload this script makes carries RUN in its name, so remove exactly those. Registered with
+	atexit too, so a run that crashes half-way does not leave them behind either."""
+	import atexit
+	import glob
+	import os
+
+	atexit.unregister(_remove_run_files)
+	removed = 0
+	for folder in ("private/files", "public/files"):
+		for path in glob.glob(frappe.get_site_path(folder, f"*{RUN}*")):
+			if os.path.isfile(path):
+				os.remove(path)
+				removed += 1
+	return removed
+
+
+__import__("atexit").register(_remove_run_files)
+
+
 def check(label, got, want):
 	global ok, fail
 	if got == want:
@@ -1850,4 +1871,8 @@ left = frappe.db.count("TIQN Portal Account", {"name": ["like", f"unit-{RUN}%"]}
 check("rollback left no UNIT records", left, 0)
 check("rollback left no link requests", frappe.db.count("TIQN Portal Link Request", {"account": ["like", f"unit-{RUN}%"]}), 0)
 check("rollback restored the Zalo phone", frappe.db.get_value("Employee", EMP_LR, "custom_cell_phone_zalo"), phone_lr_before)
+_remove_run_files()
+import glob as _glob
+
+check("no upload left on disk", _glob.glob(frappe.get_site_path("private/files", f"*{RUN}*")), [])
 print(f"\n{ok} passed, {fail} failed")
