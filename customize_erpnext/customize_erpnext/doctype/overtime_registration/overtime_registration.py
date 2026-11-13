@@ -622,6 +622,46 @@ def check_overtime_conflicts(entries, current_doc_name="new"):
                 })
     return conflicts
 
+@frappe.whitelist()
+def get_ot_registered_elsewhere(employees, dates, current_doc_name="new"):
+    """OT rows already registered in OTHER registrations for these employees/dates.
+
+    Feeds the "Select Employees for Overtime Registration" dialog (user chốt 13/11/2026,
+    option a): an employee already registered on every selected day (overlapping the
+    chosen time) cannot be ticked; one registered on some days is ticked normally and
+    those days are skipped when adding. Same scope as check_overtime_conflicts
+    (docstatus < 2, not Rejected, Draft and MongoDB-synced forms included). Only IDs,
+    dates, times and form names are returned.
+    """
+    frappe.has_permission("Overtime Registration", "read", throw=True)
+    employees = frappe.parse_json(employees) if isinstance(employees, str) else employees
+    dates = frappe.parse_json(dates) if isinstance(dates, str) else dates
+    if not employees or not dates:
+        return []
+
+    rows = frappe.db.sql("""
+        SELECT child.employee, child.date, child.begin_time, child.end_time, child.parent
+        FROM `tabOvertime Registration Detail` AS child
+        JOIN `tabOvertime Registration` AS parent ON child.parent = parent.name
+        WHERE child.employee IN %(employees)s
+          AND child.date IN %(dates)s
+          AND parent.name != %(current_doc_name)s
+          AND parent.docstatus < 2
+          AND IFNULL(parent.workflow_state, '') != 'Rejected'
+        ORDER BY child.date, child.begin_time
+    """, {
+        "employees": list(employees),
+        "dates": [str(d) for d in dates],
+        "current_doc_name": current_doc_name or "new",
+    }, as_dict=1)
+    return [{
+        "employee": r.employee,
+        "date": str(r.date),
+        "from": str(r.begin_time),
+        "to": str(r.end_time),
+        "doc": r.parent,
+    } for r in rows]
+
 def times_overlap(from1, to1, from2, to2):
     """
     Check if two time ranges overlap

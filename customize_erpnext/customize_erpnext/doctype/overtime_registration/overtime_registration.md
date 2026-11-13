@@ -78,6 +78,20 @@ Entry point: `show_ot_registration_dialog(frm)` trong `overtime_registration.js`
 └───────────────────────────────────────────────────────────────┘
 ```
 
+- **Đã đăng ký ở phiếu khác** (user chốt 13/11/2026, phương án a): chọn Nhóm/đổi Tuần → API
+  `get_ot_registered_elsewhere` nạp OT của NV trong nhóm, 6 ngày của tuần, ở mọi phiếu khác chưa xoá
+  (Draft + phiếu Mongo). "Đã đăng ký" = giờ chồng với khung Giờ bắt đầu–kết thúc đang chọn (giờ nối
+  tiếp không tính). Ô ngày: dòng chữ "N đã ĐK" ngay trong ô (không dùng tooltip — tablet không rê
+  chuột được). Danh sách NV theo các ngày đang chọn: trùng MỌI ngày → mờ + "Đã đăng ký", không tick
+  được (đang tick thì tự bỏ); trùng MỘT SỐ ngày → vẫn chọn được. Mỗi NV đúng **1 dòng** (UI tablet):
+  giờ đã đăng ký nằm trong nhãn — xám "Đã ĐK 17:00–19:00" (mọi ngày) / cam "Đã ĐK 2/3 ngày ·
+  17:00–19:00" (một số ngày; < 576px bỏ phần "2/3 ngày"); nhiều khung giờ → "17:00–19:00 +1". Ngày +
+  số phiếu chỉ ở tooltip của nhãn (chuột). **Thêm** bỏ qua mọi (NV, ngày) đã đăng ký ở phiếu khác,
+  báo "Bỏ qua N dòng…". Trùng một phần cũng bỏ qua (không tự cắt giờ). Đổi ngày/giờ → tính lại ngay.
+  Bước kiểm tra trước khi lưu vẫn là lưới an toàn cho nhập tay/import.
+- **NV thai sản** (Maternity Leave / Pregnant + Not Allowed, `get_ot_blocked_employees`): từ 13/11/2026
+  vẫn hiện trong danh sách nhưng mờ, nhãn lý do, không tick được ("Chọn tất cả" bỏ qua) — trước đó
+  bị ẩn kèm dòng "Đã ẩn N nhân viên".
 - **Cột trái (kế hoạch)**: Group (Link) → Week (segmented 3 tuần, kèm khoảng ngày; mặc định **Tuần +1** — `OT_DEFAULT_WEEK_OFFSET`, user chốt 12/11/2026) →
   Day tiles (ô kiểu tờ lịch: thứ + số ngày, chấm đánh dấu hôm nay, nút "Select All") →
   Begin/End Time (nằm cạnh nhau) → Reason (bắt buộc).
@@ -159,6 +173,11 @@ Inner button **View Summary Table (Xem bảng tổng hợp)** mở bảng chỉ-
      *Trùng hoàn toàn* / *Đã đăng ký đủ giờ* → mặc định **Xóa dòng này**; *Trùng một phần* →
      mặc định **Sửa thành** phần còn trống (nhiều mảnh thì giữ mảnh dài nhất). Luôn có **Giữ nguyên**.
      Nút **Tiếp tục** (còn bước 2) hoặc **Lưu**.
+     **Hơn 10 dòng trùng** (`OT_CONFLICT_LIST_MAX`, user chốt 13/11/2026) → không liệt kê thẻ mà hiện
+     thông báo tóm tắt (`show_ot_conflict_summary`): số dòng theo loại, bảng "Trùng với" phiếu nào /
+     số dòng, số dòng không trùng sẽ giữ. 2 nút: **Xóa N dòng trùng & tiếp tục/lưu** và **Xóa hết
+     bảng (N dòng)** (đỏ, có hỏi xác nhận, không lưu). Nếu mọi dòng đều trùng → chỉ còn nút Xóa hết
+     bảng (bảng con bắt buộc nên không lưu được phiếu rỗng) + nhắc "có thể phiếu này đã đăng ký rồi".
    - **Bước 2 – lùi giờ thai sản** (`show_ot_maternity_step`): chỉ các dòng còn lại sau bước 1 và
      vẫn bắt đầu đúng giờ hết ca bình thường. 2 thẻ có dải thời gian minh hoạ: **Chỉ lùi giờ bắt
      đầu** (mặc định, 17:00–19:00 → 16:00–19:00) / **Lùi cả giờ bắt đầu và giờ kết thúc**

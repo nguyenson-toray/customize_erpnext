@@ -133,7 +133,9 @@ function _get_dialog_state(frm) {
             searchTerm: '',
             loadingEmployees: false,
             addedBatches: [],             // batches written this session (for ledger + undo)
-            otBlocked: {}                 // employee -> reason (maternity, no OT) — get_ot_blocked_employees
+            otBlocked: {},                // employee -> reason (maternity, no OT) — get_ot_blocked_employees
+            otExisting: {},               // employee -> date -> [{from, to, doc}] in OTHER forms
+            otExistingKey: ''             // group|week the otExisting map was loaded for
         };
     }
     return frm._ot_dialog_state;
@@ -363,6 +365,26 @@ html[data-theme="dark"] .ot-help-banner {
 .ot-emp-id { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .ot-roster-row.checked .ot-emp-id { color: var(--ot-accent-text); }
 .ot-emp-name { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ot-roster-row.registered { cursor: not-allowed; }
+.ot-roster-row.registered .ot-emp-id, .ot-roster-row.registered .ot-emp-name,
+.ot-roster-row.registered input { opacity: 0.55; }
+.ot-roster-row.registered:hover { background: transparent; }
+.ot-reg-badge {
+    flex: none; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: help;
+    color: var(--ot-accent-text); background: var(--ot-wash); border: 1px solid var(--ot-wash-border);
+    border-radius: 999px; padding: 0 7px; line-height: 18px;
+}
+.ot-reg-badge.all { color: var(--text-muted); background: transparent; border-color: var(--border-color); }
+.ot-reg-badge .ot-reg-short { display: none; }
+@media (max-width: 575px) {
+    .ot-reg-badge .ot-reg-long { display: none; }
+    .ot-reg-badge .ot-reg-short { display: inline; }
+}
+.ot-day .ot-day-reg {
+    display: block; margin-top: 2px; font-size: 10px; font-weight: 600; line-height: 1.2;
+    color: var(--ot-accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 .ot-roster-empty { padding: 18px 12px; text-align: center; color: var(--text-muted); font-size: 13px; }
 .ot-roster-hidden {
     padding: 5px 10px; font-size: 12px; cursor: help;
@@ -474,6 +496,7 @@ html[data-theme="dark"] .ot-help-banner {
     .ot-reg-modal .modal-footer .standard-actions .btn-modal-primary { flex: 2; }
     .ot-days { grid-template-columns: repeat(3, 1fr); }
     .ot-emp-name { white-space: normal; }
+    .ot-roster-row.has-badge .ot-emp-name { white-space: nowrap; }   /* keep badge rows on one line */
 
     .ot-pivot table { font-size: 12px; }
     .ot-pivot th, .ot-pivot td { padding: 4px 5px; }
@@ -508,6 +531,8 @@ function show_ot_registration_dialog(frm) {
     state.searchTerm = '';
     state.loadingEmployees = false;
     state.addedBatches = [];
+    state.otExisting = {};
+    state.otExistingKey = '';
 
     const locked_group = (frm.doc.filter_employee_by === 'custom_group' && frm.doc.request_by_group)
         ? frm.doc.request_by_group : null;
@@ -542,13 +567,15 @@ function show_ot_registration_dialog(frm) {
                 fieldtype: 'Time',
                 fieldname: 'time_begin',
                 label: __('Begin Time'),
-                default: '17:00:00'
+                default: '17:00:00',
+                onchange: () => refresh_ot_registered_marks(frm)
             },
             {
                 fieldtype: 'Time',
                 fieldname: 'time_end',
                 label: __('End Time'),
-                default: '19:00:00'
+                default: '19:00:00',
+                onchange: () => refresh_ot_registered_marks(frm)
             },
             {
                 fieldtype: 'Small Text',
@@ -638,6 +665,7 @@ function render_ot_week_segment(frm) {
         $wrap.find('button[data-week]').removeClass('active').attr('aria-pressed', 'false');
         $(this).addClass('active').attr('aria-pressed', 'true');
         render_ot_day_tiles(frm);
+        load_ot_registered_elsewhere(frm);
     });
 }
 
@@ -647,6 +675,8 @@ function render_ot_day_tiles(frm) {
     const monday = ot_monday_of_week(state.weekOffset);
     const names = ot_day_labels();
     const todayStr = new Date().toDateString();
+    const win = ot_dialog_window(state);
+    const pickable = state.employeeList.filter(emp => !ot_hidden_reason(state, emp.name));
 
     let html = '<div class="ot-mini-head"><span>' + ot_step_badge(3) + ot_esc(__('Day Selection')) + '</span>'
         + '<button type="button" class="ot-linkbtn ot-days-all">' + ot_esc(__('Select All')) + '</button></div>';
@@ -656,12 +686,17 @@ function render_ot_day_tiles(frm) {
         date.setDate(monday.getDate() + index);
         const selected = state.selectedDays.has(dayField);
         const today = date.toDateString() === todayStr;
+        const date_str = ot_format_ymd(date);
+        const registered = win ? pickable.filter(emp => ot_registered_on(state, emp.name, date_str, win).length).length : 0;
+        const reg_title = registered ? ' — ' + __('{0} employee(s) already registered', [registered]) : '';
         html += `<button type="button" class="ot-day${selected ? ' selected' : ''}${today ? ' today' : ''}"
                 data-day="${dayField}" aria-pressed="${selected}"
-                title="${ot_esc(names[index])} ${ot_format_dm(date)}">
+                title="${ot_esc(names[index] + ' ' + ot_format_dm(date) + reg_title)}">
+
             <span class="ot-day-name">${ot_esc(names[index])}</span>
             <span class="ot-day-num">${String(date.getDate()).padStart(2, '0')}</span>
             <span class="ot-day-mon">/${String(date.getMonth() + 1).padStart(2, '0')}</span>
+            ${registered ? `<span class="ot-day-reg">${ot_esc(__('{0} registered', [registered]))}</span>` : ''}
         </button>`;
     });
     html += '</div>';
@@ -676,6 +711,8 @@ function render_ot_day_tiles(frm) {
         }
         $(this).toggleClass('selected', state.selectedDays.has(day))
             .attr('aria-pressed', String(state.selectedDays.has(day)));
+        update_ot_roster(frm);
+        update_ot_chips(frm);
     });
 
     $wrap.find('.ot-days-all').on('click', function () {
@@ -685,6 +722,8 @@ function render_ot_day_tiles(frm) {
             ot_day_fields().forEach(d => state.selectedDays.add(d));
         }
         render_ot_day_tiles(frm);
+        update_ot_roster(frm);
+        update_ot_chips(frm);
     });
 }
 
@@ -717,6 +756,110 @@ function render_ot_team_pane(frm) {
     update_ot_chips(frm);
 }
 
+// ── Đã đăng ký ở phiếu khác (user chốt 13/11/2026, phương án a) ─────────────
+// get_ot_registered_elsewhere nạp OT của NV trong nhóm, 6 ngày của tuần đang chọn, ở
+// mọi phiếu khác chưa xoá. "Đã đăng ký" = giờ chồng với khung giờ đang chọn.
+function ot_week_dates(state) {
+    const monday = ot_monday_of_week(state.weekOffset);
+    return ot_day_fields().map((d, i) => {
+        const dt = new Date(monday);
+        dt.setDate(monday.getDate() + i);
+        return ot_format_ymd(dt);
+    });
+}
+
+function ot_dialog_window(state) {
+    const d = state.currentDialog;
+    if (!d) return null;
+    const b = ot_time_to_minutes(d.get_value('time_begin'));
+    const e = ot_time_to_minutes(d.get_value('time_end'));
+    return (b === null || e === null || b >= e) ? null : [b, e];
+}
+
+function ot_registered_on(state, employee, date, win) {
+    if (!win) return [];
+    return ((state.otExisting[employee] || {})[date] || []).filter(r =>
+        ot_time_to_minutes(r.from) < win[1] && win[0] < ot_time_to_minutes(r.to));
+}
+
+// null | {all, count, total, hits: [[date, rows]]} for the selected days + time
+function ot_registration_status(state, employee) {
+    const week = ot_week_dates(state);
+    const dates = ot_day_fields().map((d, i) => (state.selectedDays.has(d) ? week[i] : null)).filter(Boolean);
+    const win = ot_dialog_window(state);
+    if (!dates.length || !win) return null;
+    const hits = dates.map(dt => [dt, ot_registered_on(state, employee, dt, win)]).filter(([, rows]) => rows.length);
+    if (!hits.length) return null;
+    return { all: hits.length === dates.length, count: hits.length, total: dates.length, hits: hits };
+}
+
+// "17:00–19:00", or "17:00–19:00 +1" when the registered rows have several time ranges
+function ot_registration_times(status) {
+    const ranges = [];
+    status.hits.forEach(([, rows]) => rows.forEach(x => {
+        const t = String(x.from).slice(0, 5) + '–' + String(x.to).slice(0, 5);
+        if (!ranges.includes(t)) ranges.push(t);
+    }));
+    return ranges[0] + (ranges.length > 1 ? ' +' + (ranges.length - 1) : '');
+}
+
+// "17:00–18:00 · T2 16/11, T3 17/11 · OTR-261112-0001; 18:00–20:00 · T4 18/11 · OTR-…"
+function ot_registration_detail(state, status) {
+    const week = ot_week_dates(state);
+    const names = ot_day_labels();
+    const groups = new Map();   // "from|to|doc" -> [day labels]
+    status.hits.forEach(([dt, rows]) => {
+        const i = week.indexOf(dt);
+        const day = (i >= 0 ? names[i] + ' ' : '') + dt.slice(8, 10) + '/' + dt.slice(5, 7);
+        rows.forEach(x => {
+            const key = String(x.from).slice(0, 5) + '–' + String(x.to).slice(0, 5) + '|' + x.doc;
+            if (!groups.has(key)) groups.set(key, []);
+            if (!groups.get(key).includes(day)) groups.get(key).push(day);
+        });
+    });
+    return Array.from(groups.entries()).map(([key, days]) => {
+        const [time, doc] = key.split('|');
+        return time + ' · ' + days.join(', ') + ' · ' + doc;
+    }).join('; ');
+}
+
+function refresh_ot_registered_marks(frm) {
+    const state = _get_dialog_state(frm);
+    if (!state.currentDialog || !state.currentDialog.get_field('days_html')) return;
+    render_ot_day_tiles(frm);
+    update_ot_roster(frm);
+    update_ot_chips(frm);
+}
+
+function load_ot_registered_elsewhere(frm) {
+    const state = _get_dialog_state(frm);
+    const dialog = state.currentDialog;
+    if (!dialog) return;
+    const employees = state.employeeList.map(e => e.name);
+    const key = (dialog.get_value('selected_group') || '') + '|' + state.weekOffset;
+    state.otExistingKey = key;
+    state.otExisting = {};
+    if (!employees.length) {
+        refresh_ot_registered_marks(frm);
+        return;
+    }
+    frappe.xcall(
+        'customize_erpnext.customize_erpnext.doctype.overtime_registration.overtime_registration.get_ot_registered_elsewhere',
+        { employees: employees, dates: ot_week_dates(state), current_doc_name: frm.doc.name || 'new' }
+    ).then(rows => {
+        if (state.currentDialog !== dialog || state.otExistingKey !== key) return;   // stale
+        const map = {};
+        (rows || []).forEach(r => {
+            const by_date = map[r.employee] = map[r.employee] || {};
+            (by_date[r.date] = by_date[r.date] || []).push(r);
+        });
+        state.otExisting = map;
+        refresh_ot_registered_marks(frm);
+    }).catch(() => {
+        frappe.show_alert({ message: __('Could not check overtime already registered in other forms'), indicator: 'orange' }, 8);
+    });
+}
+
 function update_ot_roster(frm) {
     const state = _get_dialog_state(frm);
     if (!state.currentDialog) return;
@@ -736,20 +879,10 @@ function update_ot_roster(frm) {
         return;
     }
 
-    const hidden = state.employeeList.filter(emp => ot_hidden_reason(state, emp.name));
-    const hidden_note = hidden.length
-        ? `<div class="ot-roster-hidden" title="${ot_esc(hidden.map(e =>
-            e.name + ' ' + (e.employee_name || '') + ' — ' + ot_blocked_label(ot_hidden_reason(state, e.name))).join('\n'))}">
-            ${ot_esc(__('{0} employee(s) hidden: maternity leave / pregnant from 7th month', [hidden.length]))}</div>`
-        : '';
-    const available = state.employeeList.filter(emp => !ot_hidden_reason(state, emp.name));
-    if (!available.length) {
-        $roster.html(hidden_note + '<div class="ot-roster-empty">' + ot_esc(__('No employees available for overtime.')) + '</div>');
-        return;
-    }
-
+    // Maternity leave / pregnant from 7th month: still listed (so the leader sees why),
+    // greyed out and not selectable (user chốt 13/11/2026; before: hidden + "N hidden").
     const term = (state.searchTerm || '').trim().toLowerCase();
-    const employees = !term ? available : available.filter(emp => {
+    const employees = !term ? state.employeeList : state.employeeList.filter(emp => {
         const empName = (emp.employee_name || emp.name || '').toLowerCase();
         const empId = (emp.name || '').toLowerCase();
         return empName.includes(term) || empId.includes(term);
@@ -760,18 +893,54 @@ function update_ot_roster(frm) {
         return;
     }
 
-    const all_visible_selected = employees.every(e => state.selectedEmployees.has(e.name));
+    // Already registered in another form (overlapping the chosen time): on EVERY
+    // selected day → cannot be ticked (and is unticked); on SOME days → badge,
+    // those days are skipped when adding (user chốt 13/11/2026, option a).
+    const reg = {};
+    employees.forEach(emp => { reg[emp.name] = ot_registration_status(state, emp.name); });
+    let unticked = false;
+    employees.forEach(emp => {
+        if (reg[emp.name] && reg[emp.name].all && state.selectedEmployees.has(emp.name)) {
+            state.selectedEmployees.delete(emp.name);
+            unticked = true;
+        }
+    });
+    if (unticked) update_ot_chips(frm);
+    const blocked = {};
+    employees.forEach(emp => { blocked[emp.name] = ot_hidden_reason(state, emp.name); });
+    const selectable = employees.filter(e => !blocked[e.name] && !(reg[e.name] && reg[e.name].all));
+
+    const all_visible_selected = selectable.length > 0 && selectable.every(e => state.selectedEmployees.has(e.name));
     let html = `<div class="ot-roster-head">
         <label><input type="checkbox" class="ot-roster-all" ${all_visible_selected ? 'checked' : ''}> ${ot_esc(__('Select All'))}</label>
         <span class="ot-roster-count">${ot_esc(__('Showing {0} employee(s)', [employees.length]))}</span>
-    </div>` + hidden_note;
+    </div>`;
 
     employees.forEach(emp => {
         const checked = state.selectedEmployees.has(emp.name);
-        html += `<label class="ot-roster-row${checked ? ' checked' : ''}" data-emp="${ot_esc(emp.name)}">
-            <input type="checkbox" class="ot-roster-check" ${checked ? 'checked' : ''}>
+        const r = blocked[emp.name] ? null : reg[emp.name];
+        const disabled = !!blocked[emp.name] || !!(r && r.all);
+        let badge = '';
+        if (blocked[emp.name]) {
+            badge = `<span class="ot-reg-badge all">${ot_esc(ot_blocked_label(blocked[emp.name]))}</span>`;
+        } else if (r) {
+            // one line for tablets: the registered time sits in the badge
+            // ("Registered 17:00–19:00" / "Registered 2/3 days · 17:00–19:00"); days and
+            // form numbers go to the tooltip for mouse users
+            const times = ot_registration_times(r);
+            const short = ot_esc(__('Registered {0}', [times]));
+            // partial: "Registered 2/3 days · 17:00–19:00"; phones drop the day count
+            // (amber badge = some days, grey = every day)
+            const text = r.all ? short
+                : `<span class="ot-reg-long">${ot_esc(__('Registered {0}/{1} days · {2}', [r.count, r.total, times]))}</span>`
+                  + `<span class="ot-reg-short">${short}</span>`;
+            badge = `<span class="ot-reg-badge${r.all ? ' all' : ''}" title="${ot_esc(ot_registration_detail(state, r))}">${text}</span>`;
+        }
+        html += `<label class="ot-roster-row${checked ? ' checked' : ''}${disabled ? ' registered' : ''}${badge ? ' has-badge' : ''}" data-emp="${ot_esc(emp.name)}">
+            <input type="checkbox" class="ot-roster-check" ${checked ? 'checked' : ''}${disabled ? ' disabled' : ''}>
             <span class="ot-emp-id">${ot_highlight(emp.name, state.searchTerm)}</span>
             <span class="ot-emp-name">${ot_highlight(emp.employee_name || emp.name, state.searchTerm)}</span>
+            ${badge}
         </label>`;
     });
     $roster.html(html);
@@ -791,13 +960,13 @@ function update_ot_roster(frm) {
             state.selectedEmployees.delete(empId);
         }
         $row.toggleClass('checked', this.checked);
-        $roster.find('.ot-roster-all').prop('checked', employees.every(e => state.selectedEmployees.has(e.name)));
+        $roster.find('.ot-roster-all').prop('checked', selectable.length > 0 && selectable.every(e => state.selectedEmployees.has(e.name)));
         update_ot_chips(frm);
     });
 
     $roster.find('.ot-roster-all').on('change', function () {
         const check = this.checked;
-        employees.forEach(emp => {
+        selectable.forEach(emp => {
             if (check) {
                 state.selectedEmployees.set(emp.name, {
                     name: emp.name,
@@ -889,6 +1058,7 @@ function on_dialog_group_changed(frm) {
                     state.loadingEmployees = false;
                     state.employeeList = list;
                     update_ot_roster(frm);
+                    load_ot_registered_elsewhere(frm);
                 };
                 if (!list.length) return done({});
                 frappe.xcall(
@@ -1017,11 +1187,16 @@ function save_overtime_registration_native(frm) {
         .filter(d => d.employee && d.date && d.begin_time && d.end_time);
     const clean = [];
     const conflicts = [];
+    let skipped_elsewhere = 0;   // already registered in ANOTHER form → never added (option a)
     state.selectedEmployees.forEach(employee => {
         selectedDays.forEach(day => {
             const date = new Date(monday);
             date.setDate(monday.getDate() + day_fields.indexOf(day));
             const date_str = ot_format_ymd(date);
+            if (ot_registered_on(state, employee.name, date_str, [begin_minutes, end_minutes]).length) {
+                skipped_elsewhere++;
+                return;
+            }
             const matches = existing_rows.filter(d => d.employee === employee.name
                 && d.date === date_str
                 && times_overlap(begin_time, end_time, d.begin_time, d.end_time));
@@ -1032,6 +1207,16 @@ function save_overtime_registration_native(frm) {
             }
         });
     });
+
+    if (skipped_elsewhere) {
+        frappe.show_alert({
+            message: (!clean.length && !conflicts.length)
+                ? __('Every selected employee is already registered on the selected days in another form.')
+                : __('Skipped {0} row(s) already registered in another form', [skipped_elsewhere]),
+            indicator: 'orange'
+        }, 8);
+        if (!clean.length && !conflicts.length) return;
+    }
 
     const commit_batch = function (extra, remove_names, replaced_count) {
         const to_add = clean.concat(extra);
@@ -1605,6 +1790,7 @@ html[data-theme="dark"] .otp-step-no, html[data-theme-mode="dark"] .otp-step-no 
 .otp-table td.otp-num { white-space: normal; }
 .otp-after { display: block; margin-top: 2px; }
 .otp-conflict-title { color: var(--otp-danger); }
+.otp-summary-note { margin: 12px 0 0; }
 .otp-muted { color: var(--text-muted); font-size: 12px; }
 .otp-conflicts { display: flex; flex-direction: column; gap: 10px; }
 .otp-conflict { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; }
@@ -1705,6 +1891,75 @@ function ot_conflict_plan(from, to, existing) {
     return { kind: 'trim', suggestion: best };
 }
 
+// Bước 1: > 10 dòng trùng thì không liệt kê từng thẻ mà hiện thông báo tóm tắt + 2 nút
+// "Xóa các dòng trùng & tiếp tục" / "Xóa hết bảng" (user chốt 13/11/2026).
+const OT_CONFLICT_LIST_MAX = 10;
+
+function show_ot_conflict_summary(frm, groups, total_steps, has_next, on_done) {
+    const rows = (frm.doc.ot_employees || []).filter(d => d.employee);
+    const total = rows.length;
+    const n = groups.length;
+    const keep = total - n;
+
+    const kind_label = {
+        duplicate: __('Exact duplicate'),
+        covered: __('Already fully registered'),
+        trim: __('Partly overlaps')
+    };
+    const kinds = ['duplicate', 'covered', 'trim']
+        .map(k => [k, groups.filter(g => g.plan.kind === k).length])
+        .filter(([, c]) => c > 0);
+    // rows of this form per other registration (a row counts once per registration)
+    const by_doc = new Map();
+    groups.forEach(g => new Set(g.others.map(o => o.existing_doc)).forEach(doc => {
+        by_doc.set(doc, (by_doc.get(doc) || 0) + 1);
+    }));
+    const docs = Array.from(by_doc.entries()).sort((a, b) => b[1] - a[1]);
+
+    const clear_table = () => {
+        frappe.confirm(__('Delete all {0} rows of this form? Nothing has been saved yet.', [total]), () => {
+            (frm.doc.ot_employees || []).slice().forEach(r => frappe.model.clear_doc(r.doctype, r.name));
+            frm.dirty();
+            frm.refresh_field('ot_employees');
+            frappe.show_alert({ message: __('Table cleared — the form has not been saved.'), indicator: 'orange' });
+        });
+    };
+
+    const html = `<div class="otp"><div class="otp-section">
+        <p class="otp-title otp-conflict-title">${__('{0} row(s) overlap overtime already registered in another form', [n])}</p>
+        <p class="otp-lead">${kinds.map(([k, c]) => `${kind_label[k]}: <b>${c}</b>`).join(' · ')}</p>
+        <div class="otp-table-wrap"><table class="otp-table">
+            <thead><tr><th>${__('Conflicts with')}</th><th>${__('Rows', null, 'OT conflict row count')}</th></tr></thead>
+            <tbody>${docs.map(([doc, c]) => `<tr>
+                <td><a href="/app/overtime-registration/${encodeURIComponent(doc)}" target="_blank">${ot_esc(doc)}</a></td>
+                <td class="otp-num">${c}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>
+        <p class="otp-lead otp-summary-note">${keep > 0
+            ? __('{0} row(s) that do not overlap will be kept.', [keep])
+            : __('Every row of this form is already registered in another form — it may have been registered before.')}</p>
+    </div></div>`;
+
+    let ui;
+    if (keep > 0) {
+        ui = ot_precheck_dialog(ot_precheck_title(1, total_steps), html,
+            has_next ? __('Delete {0} overlapping row(s) and continue', [n]) : __('Delete {0} overlapping row(s) and save', [n]),
+            () => {
+                groups.forEach(g => frappe.model.clear_doc(g.row.doctype, g.row.name));   // renumbers idx
+                frm.refresh_field('ot_employees');
+                on_done();
+            });
+        ui.dialog.add_custom_action(__('Delete the whole table ({0} rows)', [total]), () => {
+            ui.dialog.hide();
+            clear_table();
+        }, 'btn-danger btn-sm');
+    } else {
+        // nothing would be left to save (the table is mandatory): only "clear the table"
+        ui = ot_precheck_dialog(ot_precheck_title(1, total_steps), html,
+            __('Delete the whole table ({0} rows)', [total]), clear_table);
+    }
+}
+
 function show_ot_conflict_step(frm, conflict_rows, total_steps, has_next, on_done) {
     const span = (a, b) => ot_hm(a) + ' – ' + ot_hm(b);
     const fmt_date = d => frappe.datetime.str_to_user(d);
@@ -1728,6 +1983,12 @@ function show_ot_conflict_step(frm, conflict_rows, total_steps, has_next, on_don
             [ot_time_to_minutes(o.existing_from), ot_time_to_minutes(o.existing_to)]));
         g.action = g.plan.kind === 'trim' ? 'change' : 'delete';
     });
+
+    // Too many to list one by one (usually the whole group registered twice):
+    // short summary + "delete overlapping rows" / "delete the whole table".
+    if (groups.length > OT_CONFLICT_LIST_MAX) {
+        return show_ot_conflict_summary(frm, groups, total_steps, has_next, on_done);
+    }
 
     const kind_label = {
         duplicate: __('Exact duplicate'),

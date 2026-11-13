@@ -90156,3 +90156,64 @@ msgstr "In phiếu"
 #. source: tiqn
 msgid "Please save the form before printing."
 msgstr "Vui lòng lưu phiếu trước khi in."
+
+#. source: tiqn
+msgid "Delete all {0} rows of this form? Nothing has been saved yet."
+msgstr "Xóa toàn bộ {0} dòng của phiếu này? Phiếu chưa được lưu."
+
+#. source: tiqn
+msgid "Table cleared — the form has not been saved."
+msgstr "Đã xóa hết bảng — phiếu chưa được lưu."
+
+#. source: tiqn
+msgid "{0} row(s) that do not overlap will be kept."
+msgstr "{0} dòng không trùng sẽ được giữ lại."
+
+#. source: tiqn
+msgid "Every row of this form is already registered in another form — it may have been registered before."
+msgstr "Tất cả các dòng của phiếu này đã được đăng ký ở phiếu khác — có thể phiếu này đã đăng ký rồi."
+
+#. source: tiqn
+msgid "Delete {0} overlapping row(s) and continue"
+msgstr "Xóa {0} dòng trùng & tiếp tục"
+
+#. source: tiqn
+msgid "Delete {0} overlapping row(s) and save"
+msgstr "Xóa {0} dòng trùng & lưu"
+
+#. source: tiqn
+msgid "Delete the whole table ({0} rows)"
+msgstr "Xóa hết bảng ({0} dòng)"
+
+#. source: tiqn
+msgctxt "OT conflict row count"
+msgid "Rows"
+msgstr "Số dòng"
+
+#. source: tiqn
+msgid "Registered {0}"
+msgstr "Đã ĐK {0}"
+
+#. source: tiqn
+msgid "Registered {0}/{1} days · {2}"
+msgstr "Đã ĐK {0}/{1} ngày · {2}"
+
+#. source: tiqn
+msgid "{0} employee(s) already registered"
+msgstr "{0} người đã đăng ký"
+
+#. source: tiqn
+msgid "Skipped {0} row(s) already registered in another form"
+msgstr "Bỏ qua {0} dòng đã đăng ký ở phiếu khác"
+
+#. source: tiqn
+msgid "Every selected employee is already registered on the selected days in another form."
+msgstr "Tất cả nhân viên đã chọn đều đã đăng ký tăng ca các ngày này ở phiếu khác."
+
+#. source: tiqn
+msgid "Could not check overtime already registered in other forms"
+msgstr "Không kiểm tra được tăng ca đã đăng ký ở phiếu khác"
+
+#. source: tiqn
+msgid "{0} registered"
+msgstr "{0} đã ĐK"
