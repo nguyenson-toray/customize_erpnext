@@ -90158,6 +90158,18 @@ msgid "Please save the form before printing."
 msgstr "Vui lòng lưu phiếu trước khi in."
 
 #. source: tiqn
+msgid "OT Detail"
+msgstr "Chi tiết tăng ca"
+
+#. source: tiqn
+msgid "OT Quantity"
+msgstr "SL tăng ca theo nhóm"
+
+#. source: tiqn
+msgid "OT by Time Slot"
+msgstr "SL tăng ca theo khung giờ"
+
+#. source: tiqn
 msgid "Delete all {0} rows of this form? Nothing has been saved yet."
 msgstr "Xóa toàn bộ {0} dòng của phiếu này? Phiếu chưa được lưu."
 
