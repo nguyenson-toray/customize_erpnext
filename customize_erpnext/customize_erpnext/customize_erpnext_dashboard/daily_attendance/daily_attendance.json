@@ -34,6 +34,10 @@
   {
    "chart": "Daily Attendance - Sewing Lines",
    "width": "Full"
+  },
+  {
+   "chart": "Daily Attendance - Daily Check",
+   "width": "Full"
   }
  ],
  "creation": "2026-08-14 11:02:05.018091",
@@ -43,7 +47,7 @@
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-08-17 09:54:51.772642",
+ "modified": "2026-11-14 14:33:44.109742",
  "modified_by": "Administrator",
  "module": "Customize Erpnext",
  "name": "Daily Attendance",

@@ -24,10 +24,14 @@ from customize_erpnext.api.headcount import (
 )
 
 # Buckets are driven by the Group.group_attendance field, not by code — see
-# bucket_order(). Only two buckets are named here, because they carry meaning the
-# field alone cannot express: which one gets its own per-line chart, and which one
-# absorbs employees the field does not place.
+# bucket_order(). Only a few buckets are named here, because they carry meaning the
+# field alone cannot express: which ones get their own per-group chart, and which
+# one absorbs employees the field does not place.
 SEWING_BUCKET = "Pro-Sewing"
+DAILY_CHECK_BUCKET = "Daily Check"
+
+# Buckets broken down Group by Group, each on its own chart.
+PER_GROUP_BUCKETS = (SEWING_BUCKET, DAILY_CHECK_BUCKET)
 
 # Everything that does not name a bucket of its own lands here: Group.group_attendance
 # unset (a Select reports that as '' or '0' depending on how the record was created),
@@ -212,7 +216,8 @@ def _excluded_employees(date):
 
 
 def _attendance_by_bucket(date, excluded, shifts=None):
-	"""Present/absent per bucket, per Sewing group and per shift, for one day.
+	"""Present/absent per bucket, per group of each PER_GROUP_BUCKETS bucket and
+	per shift, for one day.
 
 	Grouping joins Employee live rather than reading the custom_section /
 	custom_group snapshot stamped on Attendance, which can be stale.
@@ -241,7 +246,7 @@ def _attendance_by_bucket(date, excluded, shifts=None):
 	)
 
 	by_bucket = {b: {"present": 0, "absent": 0} for b in order}
-	by_group = {}
+	by_group = {b: {} for b in PER_GROUP_BUCKETS}
 	by_shift = {}
 	counted = set()
 
@@ -254,9 +259,9 @@ def _attendance_by_bucket(date, excluded, shifts=None):
 		key = "present" if row.status in PRESENT_STATUSES else "absent"
 		by_bucket[bucket][key] += 1
 
-		if bucket == SEWING_BUCKET and row.grp:
-			by_group.setdefault(row.grp, {"present": 0, "absent": 0})
-			by_group[row.grp][key] += 1
+		if bucket in by_group and row.grp:
+			by_group[bucket].setdefault(row.grp, {"present": 0, "absent": 0})
+			by_group[bucket][row.grp][key] += 1
 
 		shift = shifts.get(row.employee)
 		if shift:
@@ -286,6 +291,13 @@ def _working_days(end_date, count):
 			days.append(str(cursor))
 		cursor = add_days(cursor, -1)
 	return list(reversed(days))
+
+
+def _group_rows(groups):
+	return [
+		{"group": g, "present": v["present"], "absent": v["absent"]}
+		for g, v in sorted(groups.items())
+	]
 
 
 @frappe.whitelist()
@@ -344,10 +356,9 @@ def get_daily_metrics(date=None):
 			{"bucket": b, "present": v["present"], "absent": v["absent"]}
 			for b, v in by_bucket.items()
 		],
-		"by_group": [
-			{"group": g, "present": v["present"], "absent": v["absent"]}
-			for g, v in sorted(by_group.items())
-		],
+		# Sewing lines — key kept as "by_group" because the daily email reads it.
+		"by_group": _group_rows(by_group[SEWING_BUCKET]),
+		"by_daily_check": _group_rows(by_group[DAILY_CHECK_BUCKET]),
 		# Shifts that start after the report goes out carry no present/absent at
 		# all — they are flagged pending rather than reported as fully absent.
 		"by_shift": [
@@ -457,6 +468,16 @@ def chart_by_group(filters=None):
 def chart_sewing_lines(filters=None):
 	"""Present vs absent per sewing line, stacked."""
 	rows = get_daily_metrics(_filter_date(filters))["by_group"]
+	return _stacked(
+		[r["group"] for r in rows],
+		[r["present"] for r in rows],
+		[r["absent"] for r in rows],
+	)
+
+
+def chart_daily_check(filters=None):
+	"""Present vs absent per group of the Daily Check bucket, stacked."""
+	rows = get_daily_metrics(_filter_date(filters))["by_daily_check"]
 	return _stacked(
 		[r["group"] for r in rows],
 		[r["present"] for r in rows],

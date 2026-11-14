@@ -1,0 +1,13 @@
+{
+ "creation": "2026-11-14 14:26:25.031026",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart Source",
+ "idx": 0,
+ "modified": "2026-11-14 14:26:25.031026",
+ "modified_by": "Administrator",
+ "module": "Customize Erpnext",
+ "name": "Daily Attendance Daily Check",
+ "owner": "Administrator",
+ "source_name": "Daily Attendance Daily Check",
+ "timeseries": 0
+}
