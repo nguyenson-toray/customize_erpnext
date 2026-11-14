@@ -21,7 +21,7 @@
 			display: flex;
 			align-items: flex-start;
 			justify-content: center;
-			padding: 24px;
+			padding: 12px;
 		}
 
 		/* ── Wrapper ── */
@@ -31,33 +31,32 @@
 			box-shadow: 0 4px 32px rgba(0, 0, 0, .12);
 			display: flex;
 			width: 100%;
-			max-width: 1080px;
+			max-width: 1180px;
 			overflow: hidden;
-			min-height: 560px;
 		}
 
 		/* ── Left panel ── */
 		.panel-left {
-			width: 360px;
+			width: 380px;
 			flex-shrink: 0;
-			padding: 32px;
+			padding: 18px 24px;
 			display: flex;
 			flex-direction: column;
 			border-right: 1px solid #eef0f2;
 		}
 
 		.panel-left h1 {
-			font-size: 19px;
+			font-size: 17px;
 			color: #1a1a2e;
-			margin-bottom: 24px;
+			margin-bottom: 14px;
 			display: flex;
 			align-items: center;
 			gap: 10px;
 		}
 
 		.icon-box {
-			width: 32px;
-			height: 32px;
+			width: 28px;
+			height: 28px;
 			background: #1a5276;
 			border-radius: 8px;
 			display: flex;
@@ -74,7 +73,7 @@
 
 		/* ── Form elements ── */
 		.form-group {
-			margin-bottom: 16px;
+			margin-bottom: 12px;
 		}
 
 		.lbl {
@@ -90,7 +89,7 @@
 		select,
 		input[type="number"] {
 			width: 100%;
-			padding: 9px 12px;
+			padding: 7px 10px;
 			border: 1.5px solid #dee2e6;
 			border-radius: 8px;
 			font-size: 13px;
@@ -108,8 +107,13 @@
 
 		/* ── Type info card ── */
 		.type-info {
-			margin-top: 8px;
-			padding: 10px 12px;
+			width: 100%;
+			flex-shrink: 0;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 2px 20px;
+			margin-top: 14px;
+			padding: 8px 12px;
 			background: #f0f4f8;
 			border-left: 3px solid #1a5276;
 			border-radius: 0 8px 8px 0;
@@ -121,18 +125,16 @@
 		.type-info .ti-row {
 			display: flex;
 			gap: 6px;
-			margin-bottom: 2px;
 		}
 
 		.type-info .ti-k {
 			font-weight: 700;
 			color: #1a5276;
-			min-width: 64px;
 			flex-shrink: 0;
 		}
 
 		.type-info .ti-note {
-			margin-top: 5px;
+			flex-basis: 100%;
 			color: #868e96;
 			font-style: italic;
 		}
@@ -166,7 +168,7 @@
 			font-size: 13px;
 			font-family: inherit;
 			resize: vertical;
-			min-height: 108px;
+			min-height: 84px;
 			max-height: 200px;
 			line-height: 1.5;
 			transition: border-color .2s, box-shadow .2s;
@@ -179,14 +181,32 @@
 		}
 
 		textarea.caption {
-			min-height: 56px;
+			min-height: 40px;
 			max-height: 120px;
+		}
+
+		.cap-row {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+		}
+
+		.cap-row textarea {
+			flex: 1;
+		}
+
+		.cap-opts {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			width: 86px;
+			flex-shrink: 0;
 		}
 
 		.hint {
 			font-size: 12px;
 			color: #6c757d;
-			margin-top: 4px;
+			margin-top: 3px;
 			display: flex;
 			align-items: center;
 			gap: 4px;
@@ -267,7 +287,7 @@
 		.btn-gen {
 			width: 100%;
 			margin-top: auto;
-			padding: 12px;
+			padding: 11px;
 			background: #1a5276;
 			color: #fff;
 			border: none;
@@ -301,8 +321,18 @@
 			flex-direction: column;
 			align-items: center;
 			justify-content: center;
-			padding: 32px;
+			padding: 20px 24px;
 			min-width: 0;
+		}
+
+		.result-area {
+			flex: 1;
+			min-height: 0;
+			width: 100%;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
 		}
 
 		.placeholder {
@@ -357,6 +387,24 @@
 		.btn-dl:hover {
 			background: #196f3d;
 			color: #fff;
+		}
+
+		.btn-copy {
+			margin-left: 6px;
+			background: #1a5276;
+		}
+
+		.btn-copy:hover {
+			background: #154360;
+		}
+
+		.link-url {
+			display: none;
+			margin-top: 10px;
+			font-size: 12px;
+			color: #1a5276;
+			word-break: break-all;
+			text-decoration: underline;
 		}
 
 		/* ── Batch result ── */
@@ -489,7 +537,7 @@
 		.tab-bar {
 			display: flex;
 			gap: 4px;
-			margin-bottom: 18px;
+			margin-bottom: 14px;
 			background: #f0f4f8;
 			border-radius: 10px;
 			padding: 4px;
@@ -529,7 +577,7 @@
 		.dropzone {
 			border: 2px dashed #dee2e6;
 			border-radius: 10px;
-			padding: 22px 14px;
+			padding: 12px;
 			text-align: center;
 			cursor: pointer;
 			transition: border-color .2s, background .2s;
@@ -551,8 +599,8 @@
 		}
 
 		.dz-icon {
-			font-size: 28px;
-			margin-bottom: 6px;
+			font-size: 22px;
+			margin-bottom: 2px;
 			display: block;
 		}
 
@@ -590,7 +638,7 @@
 			display: flex;
 			align-items: center;
 			gap: 7px;
-			padding: 9px 12px;
+			padding: 6px 10px;
 			background: #f8f9fb;
 			border: 1.5px solid #dee2e6;
 			border-radius: 8px;
@@ -646,10 +694,44 @@
 			}
 		}
 
-		@media (max-width: 480px) {
+		@media (min-width: 781px) {
 			body {
-				padding: 12px;
+				height: 100vh;
+				overflow: hidden;
+				align-items: stretch;
 			}
+
+			.wrapper {
+				height: 100%;
+			}
+
+			.panel-left {
+				overflow-y: auto;   /* safety net for very short screens only */
+			}
+
+			.result-single {
+				max-width: none;
+			}
+
+			.result-single img {
+				width: auto;
+				max-width: 100%;
+				max-height: calc(100vh - 260px);
+			}
+
+			.result-batch {
+				flex: 1;
+				min-height: 0;
+			}
+
+			.batch-grid {
+				flex: 1;
+				min-height: 0;
+				max-height: none;
+			}
+		}
+
+		@media (max-width: 480px) {
 
 			.panel-left,
 			.panel-right {
@@ -692,7 +774,6 @@
 					<option value="upca">UPC-A</option>
 					<option value="itf14">ITF-14</option>
 				</select>
-				<div id="typeInfo" class="type-info"></div>
 			</div>
 
 			<!-- Tab bar -->
@@ -730,6 +811,14 @@
 								<span class="sw-text">Logo</span>
 							</label>
 						</div>
+						<div id="linkWrap" class="toggle-wrap" style="display:none"
+							title="Content is a link: clicking the QR opens it, and Copy keeps the link when pasted into Word / Outlook">
+							<label class="toggle">
+								<input type="checkbox" id="asLink" checked>
+								<span class="sw"></span>
+								<span class="sw-text">Link</span>
+							</label>
+						</div>
 						<div id="showTextWrap" class="toggle-wrap" style="display:none">
 							<label class="toggle">
 								<input type="checkbox" id="showText" checked>
@@ -744,13 +833,10 @@
 						<label class="lbl" for="caption">Caption below QR</label>
 						<span class="badge">optional</span>
 					</div>
-					<textarea id="caption" class="caption" rows="2" placeholder="e.g. Scan to open the form"></textarea>
-					<div class="opts-row" style="margin-top:8px">
-						<div class="field">
-							<label class="lbl" for="captionSize">Font size (px)</label>
-							<input type="number" id="captionSize" placeholder="auto" min="8" max="200" step="1">
-						</div>
-						<div class="toggle-wrap">
+					<div class="cap-row">
+						<textarea id="caption" class="caption" rows="2" placeholder="e.g. Scan to open the form"></textarea>
+						<div class="cap-opts">
+							<input type="number" id="captionSize" placeholder="Font px" title="Font size (px) — empty = auto" min="8" max="200" step="1">
 							<label class="toggle">
 								<input type="checkbox" id="captionBold" checked>
 								<span class="sw"></span>
@@ -816,6 +902,7 @@
 
 		<!-- ── Right panel ── -->
 		<div class="panel-right">
+			<div class="result-area">
 			<div class="placeholder" id="placeholder">
 				<svg viewBox="0 0 24 24">
 					<path
@@ -825,9 +912,11 @@
 			</div>
 
 			<div class="result-single" id="resultSingle">
-				<img id="bcImage" alt="Barcode">
+				<a id="bcLink" style="display:block" target="_blank" rel="noopener noreferrer"><img id="bcImage" alt="Barcode"></a>
+				<a class="link-url" id="linkUrl" target="_blank" rel="noopener noreferrer"></a>
 				<br>
 				<a class="btn-dl" id="btnDl" download="barcode.png">Download PNG</a>
+				<button class="btn-dl btn-copy" id="btnCopy" style="display:none" onclick="copyWithLink()">Copy with link</button>
 			</div>
 
 			<div class="result-batch" id="resultBatch">
@@ -837,6 +926,8 @@
 				</div>
 				<div class="batch-grid" id="batchGrid"></div>
 			</div>
+			</div>
+			<div id="typeInfo" class="type-info"></div>
 		</div>
 
 	</div>
@@ -916,11 +1007,13 @@
 		};
 
 		let lastResults = [];
+		let lastLink = null;   // URL the single QR result links to (null = plain image)
 
 		// ── Init ──────────────────────────────────────────────────────────────────────
 		document.addEventListener('DOMContentLoaded', () => {
 			onTypeChange();
 			document.getElementById('content').addEventListener('input', updateBadge);
+			document.getElementById('content').addEventListener('input', updateLinkToggle);
 			document.getElementById('content').addEventListener('keydown', e => {
 				if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); generate(); }
 			});
@@ -953,6 +1046,41 @@
 				: t.placeholder + '\n\n(each line = 1 barcode)';
 
 			updateBadge();
+			updateLinkToggle();
+		}
+
+		// ── Link option (QR whose content is a URL) ──────────────────────────────────
+		function contentLink() {
+			// Returns a full URL (with scheme) when the whole QR content is a single link,
+			// also for scheme-less input like "erp.tiqn.local:8888/x" or "192.168.1.5/x"; else null.
+			const v = document.getElementById('content').value.trim();
+			if (/^https?:\/\/\S+$/i.test(v)) return v;
+			const host = '(?:localhost|(?:\\d{1,3}\\.){3}\\d{1,3}|(?:[a-z0-9-]+\\.)+[a-z]{2,})';
+			if (new RegExp(`^${host}(?::\\d+)?(?:[/?#]\\S*)?$`, 'i').test(v)) return 'https://' + v;
+			return null;
+		}
+
+		function updateLinkToggle() {
+			const isQr = document.getElementById('barcodeType').value === 'qr';
+			document.getElementById('linkWrap').style.display = isQr && contentLink() ? '' : 'none';
+		}
+
+		async function copyWithLink() {
+			const r = lastResults[0];
+			if (!r || !lastLink) return;
+			const btn = document.getElementById('btnCopy');
+			const dataUrl = 'data:image/png;base64,' + r.b64;
+			const html = `<a href="${esc(lastLink)}"><img src="${dataUrl}" alt="${esc(lastLink)}" width="200"></a>`;
+			try {
+				await navigator.clipboard.write([new ClipboardItem({
+					'text/html': new Blob([html], { type: 'text/html' }),
+					'text/plain': new Blob([lastLink], { type: 'text/plain' }),
+				})]);
+				btn.textContent = '✓ Copied';
+			} catch (e) {
+				alert('Copy failed: ' + e.message);
+			}
+			setTimeout(() => { btn.textContent = 'Copy with link'; }, 1500);
 		}
 
 		function updateBadge() {
@@ -1088,8 +1216,11 @@
 			// QR: entire textarea = one QR value (may contain newlines)
 			// 1D: each non-empty line = one barcode (batch)
 			const isQr = type === 'qr';
+			// Link on + content is a link → encode the full URL (with https://) so
+			// phone scanners open it as a link instead of showing plain text.
+			const link = isQr && document.getElementById('asLink').checked ? contentLink() : null;
 			const items = isQr
-				? [document.getElementById('content').value]
+				? [link || document.getElementById('content').value]
 				: getLines();
 
 			if (!items[0]) { alert('Please enter content'); return; }
@@ -1119,6 +1250,7 @@
 					}
 				}
 				lastResults = results;
+				lastLink = link;
 				showResults(results);
 			} catch (e) {
 				alert('Error: ' + e.message);
@@ -1146,6 +1278,12 @@
 				const dl = document.getElementById('btnDl');
 				dl.href = dataUrl;
 				dl.download = safeFilename(r.content) + '.png';
+				const a = document.getElementById('bcLink');
+				const u = document.getElementById('linkUrl');
+				if (lastLink) { a.href = lastLink; u.href = lastLink; u.textContent = lastLink; }
+				else { a.removeAttribute('href'); u.removeAttribute('href'); }
+				u.style.display = lastLink ? 'block' : 'none';
+				document.getElementById('btnCopy').style.display = lastLink ? '' : 'none';
 				document.getElementById('resultSingle').style.display = 'block';
 			} else {
 				renderBatch(results);
