@@ -52,6 +52,8 @@ doctype_js = {
     # (xem override_doctype_class "Employee Promotion" / "Employee Transfer")
     "Employee Promotion": "public/js/custom_scripts/employee_property_update_override.js",
     "Employee Transfer": "public/js/custom_scripts/employee_property_update_override.js",
+    # Nút QR Login: Enable / Download card / Revoke / Disable (customize_erpnext/api/qr_login.py)
+    "User": "public/js/custom_scripts/user_qr_login.js",
 }
 
 # List view customizations
@@ -118,6 +120,8 @@ fixtures = [
                 # custom_create_contract_appendix: tạo phụ lục HĐLĐ khi Submit (Labor Contract v3)
                 "Employee Promotion",
                 "Employee Transfer",
+                # custom_qr_login_version: QR Login trên thiết bị dùng chung (api/qr_login.py)
+                "User",
             ]],
             ["fieldname", "like", "custom%"]
         ]
@@ -580,7 +584,13 @@ app_include_js = [
     "csv_bom_fix.bundle.js",
     # Tooltip icon (nút In ở sidebar form) bị __() 2 lần: "Print" → "In" → "Trong"
     "action_icon_tooltip_fix.bundle.js",
+    # Phiên đăng nhập bằng QR (/qr-login): idle 5 phút → đăng xuất, nút Log out 1 chạm.
+    # Tự tắt khi không có cookie qr_session (đăng nhập thường không bị ảnh hưởng)
+    "/assets/customize_erpnext/js/qr_login_session.js",
 ]
+
+# Đăng nhập thường (mật khẩu/SSO) trên cùng trình duyệt → xoá cookie qr_session của phiên QR trước
+on_login = ["customize_erpnext.api.qr_login.on_login"]
 
 # Điều hướng (frappe v16.50+): module "Customize Erpnext" chứa hầu hết DocType/report của TIQN nhưng
 # KHÔNG có sidebar riêng — mỗi trang mở trong sidebar nào liệt kê nó (mẫu `{"HR": ["HR Setup"]}`

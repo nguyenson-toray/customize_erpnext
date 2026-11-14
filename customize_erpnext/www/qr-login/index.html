@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="{{ lang or 'en' }}">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<meta name="robots" content="noindex">
+	<title>{{ _("QR Login") }}</title>
+	<style>
+		:root {
+			--bg: #f3f5f8;
+			--card: #ffffff;
+			--text: #1f2937;
+			--muted: #4b5563;
+			--accent: #0f4c81;
+			--ok: #047857;
+			--err: #b91c1c;
+			--border: #d7dde5;
+		}
+
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+
+		html, body { height: 100%; }
+
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 20px;
+			padding: 16px;
+			-webkit-user-select: none;
+			user-select: none;
+		}
+
+		h1 {
+			font-size: clamp(24px, 4.5vw, 40px);
+			font-weight: 700;
+			text-align: center;
+			overflow-wrap: anywhere;
+		}
+
+		.hint {
+			font-size: clamp(16px, 2.6vw, 22px);
+			color: var(--muted);
+			text-align: center;
+			max-width: 640px;
+		}
+
+		.frame {
+			position: relative;
+			width: min(68vmin, 460px);
+			aspect-ratio: 1 / 1;
+			background: #111827;
+			border-radius: 20px;
+			overflow: hidden;
+			border: 4px solid var(--accent);
+		}
+
+		.frame.ok { border-color: var(--ok); }
+		.frame.err { border-color: var(--err); }
+
+		#reader, #reader video {
+			width: 100% !important;
+			height: 100% !important;
+			object-fit: cover;
+		}
+
+		/* html5-qrcode draws its own shaded box; keep only the video */
+		#reader img, #qr-shaded-region { display: none !important; }
+
+		.status {
+			min-height: 1.5em;
+			font-size: clamp(18px, 3vw, 26px);
+			font-weight: 600;
+			text-align: center;
+			overflow-wrap: anywhere;
+		}
+
+		.status.ok { color: var(--ok); }
+		.status.err { color: var(--err); }
+
+		.actions {
+			display: flex;
+			gap: 12px;
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+
+		button {
+			min-height: 56px;
+			padding: 0 28px;
+			font-size: 18px;
+			font-weight: 600;
+			color: var(--text);
+			background: var(--card);
+			border: 2px solid var(--border);
+			border-radius: 12px;
+			cursor: pointer;
+		}
+
+		button:active { background: #e5e9ef; }
+
+		.pw-link {
+			font-size: 14px;
+			color: var(--muted);
+		}
+
+		.pw-link a { color: var(--accent); }
+	</style>
+</head>
+
+<body>
+	<h1>{{ _("Scan your card") }}</h1>
+	<p class="hint">{{ _("Hold your QR card in front of the camera") }}</p>
+
+	<div class="frame" id="frame">
+		<div id="reader"></div>
+	</div>
+
+	<div class="status" id="status" role="status" aria-live="polite">{{ _("Starting camera...") }}</div>
+
+	<div class="actions">
+		<button type="button" id="btn-switch">{{ _("Switch camera") }}</button>
+	</div>
+
+	<p class="pw-link"><a href="/login">{{ _("Sign in with password") }}</a></p>
+
+	<script>
+		window.QR_LOGIN = {
+			csrf_token: {{ csrf_token | tojson }},
+			next: {{ next_url | tojson }},
+			msg: {
+				starting: {{ _("Starting camera...") | tojson }},
+				ready: {{ _("Ready to scan") | tojson }},
+				checking: {{ _("Checking card...") | tojson }},
+				welcome: {{ _("Welcome") | tojson }},
+				invalid: {{ _("Invalid or revoked card") | tojson }},
+				too_many: {{ _("Too many attempts. Please wait a minute.") | tojson }},
+				network: {{ _("Connection error. Please try again.") | tojson }},
+				no_camera: {{ _("Cannot open the camera") | tojson }}
+			}
+		};
+	</script>
+	<script src="/assets/customize_erpnext/js/lib/html5-qrcode.min.js"></script>
+	<script>
+		(function () {
+			const C = window.QR_LOGIN;
+			const M = C.msg;
+			const METHOD = "/api/method/customize_erpnext.api.qr_login.login";
+			const CAM_KEY = "qr_login_facing";
+			const $status = document.getElementById("status");
+			const $frame = document.getElementById("frame");
+
+			let facing = "user"; // tablet on a stand: front camera faces the person
+			try { facing = localStorage.getItem(CAM_KEY) || "user"; } catch (e) { }
+
+			let scanner = null;
+			let busy = false;
+			let lastText = "";
+			let lastAt = 0;
+
+			function setStatus(text, kind) {
+				$status.textContent = text;
+				$status.className = "status" + (kind ? " " + kind : "");
+				$frame.className = "frame" + (kind ? " " + kind : "");
+			}
+
+			function beep(ok) {
+				try {
+					const ctx = new (window.AudioContext || window.webkitAudioContext)();
+					const osc = ctx.createOscillator();
+					const gain = ctx.createGain();
+					osc.connect(gain);
+					gain.connect(ctx.destination);
+					osc.frequency.value = ok ? 1200 : 300;
+					gain.gain.setValueAtTime(0.3, ctx.currentTime);
+					gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+					osc.start();
+					osc.stop(ctx.currentTime + 0.2);
+				} catch (e) { }
+				try { navigator.vibrate && navigator.vibrate(ok ? 80 : [60, 60, 60]); } catch (e) { }
+			}
+
+			async function submit(text) {
+				busy = true;
+				setStatus(M.checking);
+				const fd = new FormData();
+				fd.append("payload", text);
+				fd.append("next", C.next);
+				fd.append("csrf_token", C.csrf_token);
+				try {
+					const res = await fetch(METHOD, {
+						method: "POST",
+						credentials: "same-origin",
+						headers: { "Accept": "application/json", "X-Frappe-CSRF-Token": C.csrf_token },
+						body: fd
+					});
+					if (res.ok) {
+						const data = (await res.json()).message || {};
+						beep(true);
+						setStatus(M.welcome + (data.full_name ? ", " + data.full_name : ""), "ok");
+						try { await scanner.stop(); } catch (e) { }
+						window.location.replace(data.redirect || C.next || "/app");
+						return;
+					}
+					beep(false);
+					setStatus(res.status === 429 ? M.too_many : M.invalid, "err");
+				} catch (e) {
+					beep(false);
+					setStatus(M.network, "err");
+				}
+				setTimeout(function () {
+					busy = false;
+					setStatus(M.ready);
+				}, 2500);
+			}
+
+			function onDecode(text) {
+				text = (text || "").trim();
+				if (!text || busy) return;
+				const now = Date.now();
+				if (text === lastText && now - lastAt < 4000) return; // same card still in view
+				lastText = text;
+				lastAt = now;
+				submit(text);
+			}
+
+			async function start() {
+				if (!window.Html5Qrcode) {
+					setStatus(M.no_camera, "err");
+					return;
+				}
+				setStatus(M.starting);
+				if (scanner) {
+					try { await scanner.stop(); } catch (e) { }
+				} else {
+					scanner = new Html5Qrcode("reader", {
+						formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+						verbose: false
+					});
+				}
+				try {
+					await scanner.start(
+						{ facingMode: facing },
+						{
+							fps: 10,
+							qrbox: function (w, h) {
+								const s = Math.floor(Math.min(w, h) * 0.8);
+								return { width: s, height: s };
+							}
+						},
+						onDecode,
+						function () { }
+					);
+					setStatus(M.ready);
+				} catch (err) {
+					setStatus(M.no_camera, "err");
+				}
+			}
+
+			document.getElementById("btn-switch").addEventListener("click", function () {
+				facing = facing === "user" ? "environment" : "user";
+				try { localStorage.setItem(CAM_KEY, facing); } catch (e) { }
+				start();
+			});
+
+			start();
+		})();
+	</script>
+</body>
+
+</html>

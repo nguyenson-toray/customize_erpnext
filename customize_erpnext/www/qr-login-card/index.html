@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="{{ lang or 'en' }}">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="robots" content="noindex">
+	<title>{{ _("QR Login Card") }} — {{ card.full_name | e }}</title>
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+			background: #eef1f5;
+			color: #1f2937;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 20px;
+			padding: 24px 16px;
+		}
+
+		/* ID-1 card size: 85.6 x 54 mm */
+		.card {
+			width: 85.6mm;
+			height: 54mm;
+			background: #fff;
+			border: 0.3mm solid #9aa5b4;
+			border-radius: 3mm;
+			display: flex;
+			align-items: center;
+			gap: 3mm;
+			padding: 3mm;
+			overflow: hidden;
+		}
+
+		.info {
+			flex: 1;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 1.2mm;
+		}
+
+		.logo { height: 6mm; width: auto; align-self: flex-start; }
+
+		.photo {
+			width: 14mm;
+			height: 18mm;
+			object-fit: cover;
+			border-radius: 1mm;
+			border: 0.2mm solid #cbd2db;
+		}
+
+		.name {
+			font-size: 10pt;
+			font-weight: 700;
+			line-height: 1.2;
+			overflow-wrap: anywhere;
+		}
+
+		.meta { font-size: 8pt; color: #374151; overflow-wrap: anywhere; }
+
+		.tag {
+			font-size: 7pt;
+			font-weight: 700;
+			letter-spacing: 0.3mm;
+			color: #0f4c81;
+			text-transform: uppercase;
+		}
+
+		.qr { width: 46mm; height: 46mm; flex: none; }
+		.qr svg { width: 100%; height: 100%; display: block; }
+
+		.toolbar { display: flex; gap: 12px; }
+
+		.toolbar button {
+			min-height: 44px;
+			padding: 0 24px;
+			font-size: 16px;
+			font-weight: 600;
+			border-radius: 8px;
+			border: 1px solid #b8c1cc;
+			background: #fff;
+			color: #1f2937;
+			cursor: pointer;
+		}
+
+		.note { font-size: 13px; color: #4b5563; max-width: 420px; text-align: center; }
+
+	</style>
+</head>
+
+<body>
+	<div class="toolbar">
+		<button type="button" id="btn-download">{{ _("Download image") }}</button>
+	</div>
+
+	<div class="card">
+		<div class="info">
+			<img class="logo" src="/assets/customize_erpnext/images/logo.svg" alt="">
+			{% if card.image %}<img class="photo" src="{{ card.image | e }}" alt="">{% endif %}
+			<div class="name">{{ card.full_name | e }}</div>
+			{% if card.employee %}<div class="meta">{{ card.employee | e }}{% if card.group %} · {{ card.group | e }}{% endif %}</div>{% endif %}
+			<div class="tag">{{ _("QR Login") }} #{{ card.version }}</div>
+		</div>
+		<div class="qr">{{ card.qr_svg }}</div>
+	</div>
+
+	<p class="note">{{ _("Keep this card private. Anyone holding it can sign in as this user. If it is lost, use Revoke on the User form and download a new card.") }}</p>
+
+	<script>
+		window.QR_CARD = {{ card | tojson }};
+		window.QR_CARD_TAG = {{ _("QR Login") | tojson }};
+	</script>
+	<script>
+		// Draw the card on a canvas (ID-1 size at 300 dpi) and download it as PNG.
+		(function () {
+			const C = window.QR_CARD;
+			const W = 1011, H = 638, PAD = 36, QR = 552; // 85.6 x 54 mm, QR 46 mm
+			const COL_W = W - QR - PAD * 3;
+
+			function load(src) {
+				return new Promise(function (resolve) {
+					if (!src) return resolve(null);
+					const img = new Image();
+					img.onload = function () { resolve(img); };
+					img.onerror = function () { resolve(null); };
+					img.src = src;
+				});
+			}
+
+			function svg_url(svg) {
+				return URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+			}
+
+			function wrap(ctx, text, max_w, max_lines) {
+				const words = String(text || "").split(/\s+/);
+				const lines = [];
+				let line = "";
+				words.forEach(function (w) {
+					const t = line ? line + " " + w : w;
+					if (ctx.measureText(t).width <= max_w || !line) line = t;
+					else { lines.push(line); line = w; }
+				});
+				if (line) lines.push(line);
+				return lines.slice(0, max_lines);
+			}
+
+			function round_rect(ctx, x, y, w, h, r) {
+				ctx.beginPath();
+				ctx.moveTo(x + r, y);
+				ctx.arcTo(x + w, y, x + w, y + h, r);
+				ctx.arcTo(x + w, y + h, x, y + h, r);
+				ctx.arcTo(x, y + h, x, y, r);
+				ctx.arcTo(x, y, x + w, y, r);
+				ctx.closePath();
+			}
+
+			async function draw() {
+				const canvas = document.createElement("canvas");
+				canvas.width = W;
+				canvas.height = H;
+				const ctx = canvas.getContext("2d");
+				const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
+
+				ctx.fillStyle = "#ffffff";
+				round_rect(ctx, 0, 0, W, H, 36);
+				ctx.fill();
+				ctx.strokeStyle = "#9aa5b4";
+				ctx.lineWidth = 4;
+				round_rect(ctx, 2, 2, W - 4, H - 4, 34);
+				ctx.stroke();
+
+				const qr_src = svg_url(C.qr_svg);
+				const [qr, logo, photo] = await Promise.all([
+					load(qr_src),
+					load("/assets/customize_erpnext/images/logo.svg"),
+					load(C.image)
+				]);
+				URL.revokeObjectURL(qr_src);
+
+				if (qr) ctx.drawImage(qr, W - PAD - QR, (H - QR) / 2, QR, QR);
+
+				let y = PAD;
+				if (logo) {
+					const lh = 70, lw = Math.min(COL_W, logo.width * lh / (logo.height || lh));
+					ctx.drawImage(logo, PAD, y, lw, lh);
+					y += lh + 16;
+				}
+				if (photo) {
+					const pw = 165, ph = 212;
+					// cover-crop
+					const r = Math.max(pw / photo.width, ph / photo.height);
+					const sw = pw / r, sh = ph / r;
+					ctx.drawImage(photo, (photo.width - sw) / 2, (photo.height - sh) / 2, sw, sh, PAD, y, pw, ph);
+					y += ph + 18;
+				}
+
+				ctx.fillStyle = "#1f2937";
+				ctx.textBaseline = "top";
+				ctx.font = "700 40px " + font;
+				wrap(ctx, C.full_name, COL_W, 3).forEach(function (l) {
+					ctx.fillText(l, PAD, y);
+					y += 48;
+				});
+				if (C.employee) {
+					ctx.font = "400 30px " + font;
+					ctx.fillStyle = "#374151";
+					wrap(ctx, C.employee + (C.group ? " · " + C.group : ""), COL_W, 2).forEach(function (l) {
+						ctx.fillText(l, PAD, y + 4);
+						y += 38;
+					});
+				}
+				ctx.font = "700 26px " + font;
+				ctx.fillStyle = "#0f4c81";
+				ctx.fillText((window.QR_CARD_TAG || "QR Login").toUpperCase() + " #" + C.version, PAD, Math.min(y + 10, H - PAD - 26));
+				return canvas;
+			}
+
+			document.getElementById("btn-download").addEventListener("click", async function () {
+				const btn = this;
+				btn.disabled = true;
+				try {
+					const canvas = await draw();
+					const name = "QR-Login-" + (C.employee || C.user).replace(/[^A-Za-z0-9_-]+/g, "_") + ".png";
+					canvas.toBlob(function (blob) {
+						const a = document.createElement("a");
+						a.href = URL.createObjectURL(blob);
+						a.download = name;
+						document.body.appendChild(a);
+						a.click();
+						setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+						btn.disabled = false;
+					}, "image/png");
+				} catch (e) {
+					btn.disabled = false;
+					alert(e);
+				}
+			});
+		})();
+	</script>
+</body>
+
+</html>

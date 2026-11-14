@@ -90229,3 +90229,123 @@ msgstr "Không kiểm tra được tăng ca đã đăng ký ở phiếu khác"
 #. source: tiqn
 msgid "{0} registered"
 msgstr "{0} đã ĐK"
+
+#. source: tiqn
+msgid "All cards of {0} will stop working. Continue?"
+msgstr "Tất cả thẻ của {0} sẽ không dùng được nữa. Tiếp tục?"
+
+#. source: tiqn
+msgid "Cannot open the camera"
+msgstr "Không mở được camera"
+
+#. source: tiqn
+msgid "Checking card..."
+msgstr "Đang kiểm tra thẻ..."
+
+#. source: tiqn
+msgid "Connection error. Please try again."
+msgstr "Lỗi kết nối. Vui lòng thử lại."
+
+#. source: tiqn
+msgid "Download card"
+msgstr "Tải thẻ"
+
+#. source: tiqn
+msgid "Download image"
+msgstr "Tải ảnh"
+
+#. source: tiqn
+msgid "Hold your QR card in front of the camera"
+msgstr "Đưa thẻ QR trước camera"
+
+#. source: tiqn
+msgid "Invalid or revoked card"
+msgstr "Thẻ không hợp lệ hoặc đã bị thu hồi"
+
+#. source: tiqn
+msgid "Keep this card private. Anyone holding it can sign in as this user. If it is lost, use Revoke on the User form and download a new card."
+msgstr "Giữ thẻ này cẩn thận. Ai cầm thẻ cũng đăng nhập được bằng tài khoản này. Nếu mất thẻ, bấm Thu hồi trên form Người dùng rồi tải thẻ mới."
+
+#. source: tiqn
+msgid "Missing user"
+msgstr "Thiếu người dùng"
+
+#. source: tiqn
+msgid "Old cards revoked. Download the new card."
+msgstr "Đã thu hồi thẻ cũ. Hãy tải thẻ mới."
+
+#. source: tiqn
+msgid "QR Login"
+msgstr "Đăng nhập QR"
+
+#. source: tiqn
+msgid "QR Login Card"
+msgstr "Thẻ đăng nhập QR"
+
+#. source: tiqn
+msgid "QR Login Card Version"
+msgstr "Số thẻ đăng nhập QR"
+
+#. source: tiqn
+msgid "0 = QR login off. Managed by the QR Login buttons (Enable / Revoke / Disable)."
+msgstr "0 = tắt đăng nhập QR. Thay đổi bằng các nút Đăng nhập QR (Bật / Thu hồi / Vô hiệu)."
+
+#. source: tiqn
+msgid "QR login disabled"
+msgstr "Đã tắt đăng nhập QR"
+
+#. source: tiqn
+msgid "QR login enabled"
+msgstr "Đã bật đăng nhập QR"
+
+#. source: tiqn
+msgid "QR login is not allowed for Administrator or System Manager users"
+msgstr "Không cho phép đăng nhập QR với Administrator hoặc người dùng có quyền System Manager"
+
+#. source: tiqn
+msgid "QR login is not enabled for {0}"
+msgstr "{0} chưa được bật đăng nhập QR"
+
+#. source: tiqn
+msgid "QR login is only available for System Users"
+msgstr "Đăng nhập QR chỉ dành cho System User"
+
+#. source: tiqn
+msgid "Ready to scan"
+msgstr "Sẵn sàng quét"
+
+#. source: tiqn
+msgid "Scan your card"
+msgstr "Quét thẻ của bạn"
+
+#. source: tiqn
+msgid "Sign in with password"
+msgstr "Đăng nhập bằng mật khẩu"
+
+#. source: tiqn
+msgid "Starting camera..."
+msgstr "Đang mở camera..."
+
+#. source: tiqn
+msgid "Still there?"
+msgstr "Bạn còn ở đó không?"
+
+#. source: tiqn
+msgid "Switch camera"
+msgstr "Đổi camera"
+
+#. source: tiqn
+msgid "Tap anywhere to continue"
+msgstr "Chạm vào màn hình để tiếp tục"
+
+#. source: tiqn
+msgid "Too many attempts. Please wait a minute."
+msgstr "Quét quá nhiều lần. Vui lòng chờ 1 phút."
+
+#. source: tiqn
+msgid "Turn off QR login for {0}?"
+msgstr "Tắt đăng nhập QR của {0}?"
+
+#. source: tiqn
+msgid "You will be signed out in {0} s"
+msgstr "Tự đăng xuất sau {0} giây"
